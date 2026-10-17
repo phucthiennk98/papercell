@@ -1,0 +1,350 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Sa bàn Kịch bản</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Bố cục: bàn điều khiển trái · sa bàn bản đồ giữa · kết quả phải (xếp chồng khi màn hẹp) */
+:root {
+  --bg: #e9eef0; --surface: #fbfcfc; --surface-2: #f1f4f5;
+  --ink: #101a20; --ink-2: #46555e; --ink-3: #6c7b84;
+  --line: #d5dde1; --line-2: #e4e9ec;
+  --accent: #0d6b63; --accent-2: #dcecea; --on-accent: #ffffff;
+  --sc-0: #1baf7a; --sc-1: #2a78d6; --sc-2: #eb6834; --sc-3: #a9b1b6;
+  --seq-0: #e3eefc; --seq-1: #b7d3f6; --seq-2: #86b6ef; --seq-3: #5598e7; --seq-4: #2a78d6; --seq-5: #1c5cab; --seq-6: #0d366b;
+  --lisa-ns: #dfe4e7; --lisa-hh: #eb6834; --lisa-ll: #2a78d6; --lisa-hl: #f3b08f; --lisa-lh: #9ec5f4;
+  --ov-river: #8fb3c9; --ov-line: #101a20;
+  --good: #0ca30c; --warn: #b07800; --crit: #d03b3b;
+  --tor-lo: #9aa7ae; --tor-hi: #0d6b63;
+  --font-body: 'Be Vietnam Pro', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  --r: 10px;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0c1114; --surface: #141b1f; --surface-2: #1a2328;
+    --ink: #e6ecef; --ink-2: #a7b4bb; --ink-3: #82929a;
+    --line: #29353b; --line-2: #212b30;
+    --accent: #4fb8ad; --accent-2: #173330; --on-accent: #05201d;
+    --sc-0: #199e70; --sc-1: #3987e5; --sc-2: #d95926; --sc-3: #5a656c;
+    --seq-0: #17283a; --seq-1: #184f95; --seq-2: #1c5cab; --seq-3: #2a78d6; --seq-4: #5598e7; --seq-5: #9ec5f4; --seq-6: #e3eefc;
+    --lisa-ns: #232d32; --lisa-hh: #d95926; --lisa-ll: #3987e5; --lisa-hl: #7a3a20; --lisa-lh: #1f4677;
+    --ov-river: #3d5b6d; --ov-line: #e6ecef;
+    --good: #2fbf2f; --warn: #fab219; --crit: #e66767;
+    --tor-lo: #5f6d75; --tor-hi: #4fb8ad;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0c1114; --surface: #141b1f; --surface-2: #1a2328;
+  --ink: #e6ecef; --ink-2: #a7b4bb; --ink-3: #82929a;
+  --line: #29353b; --line-2: #212b30;
+  --accent: #4fb8ad; --accent-2: #173330; --on-accent: #05201d;
+  --sc-0: #199e70; --sc-1: #3987e5; --sc-2: #d95926; --sc-3: #5a656c;
+  --seq-0: #17283a; --seq-1: #184f95; --seq-2: #1c5cab; --seq-3: #2a78d6; --seq-4: #5598e7; --seq-5: #9ec5f4; --seq-6: #e3eefc;
+  --lisa-ns: #232d32; --lisa-hh: #d95926; --lisa-ll: #3987e5; --lisa-hl: #7a3a20; --lisa-lh: #1f4677;
+  --ov-river: #3d5b6d; --ov-line: #e6ecef;
+  --good: #2fbf2f; --warn: #fab219; --crit: #e66767;
+  --tor-lo: #5f6d75; --tor-hi: #4fb8ad;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.45 var(--font-body); }
+[hidden] { display: none !important; }
+button, input, select, textarea { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.num { font-variant-numeric: tabular-nums; }
+
+.app { height: 100%; display: grid; grid-template-rows: auto minmax(0, 1fr); gap: 12px;
+  padding-block: 12px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+
+/* Thanh đầu */
+.top { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; }
+.brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.brand svg { flex: none; }
+.brand h1 { margin: 0; font-size: 18px; font-weight: 700; letter-spacing: -0.01em; }
+.brand p { margin: 0; color: var(--ink-2); font-size: 12.5px; }
+.dsinfo { display: flex; align-items: center; gap: 8px; color: var(--ink-2); font-size: 12.5px; }
+.pill { display: inline-flex; align-items: center; gap: 6px; padding: 2px 9px; border-radius: 999px; background: var(--accent-2); color: var(--accent); font-weight: 600; font-size: 12px; }
+.actions { margin-left: auto; display: flex; flex-wrap: wrap; gap: 8px; }
+.btn { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); cursor: pointer; font-size: 13px; font-weight: 500; }
+.btn:hover { border-color: var(--ink-3); }
+.btn.primary { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
+.btn.sm { padding: 3px 8px; font-size: 12px; }
+.btn.ghost { background: transparent; }
+
+.main { display: grid; grid-template-columns: 340px minmax(0, 1fr) 360px; gap: 12px; min-height: 0; }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); min-height: 0; overflow: auto; }
+
+/* Bàn điều khiển */
+.controls { display: flex; flex-direction: column; }
+.tabs { position: sticky; top: 0; z-index: 2; display: grid; grid-template-columns: repeat(4, 1fr); background: var(--surface); border-bottom: 1px solid var(--line); }
+.tabs button { padding: 10px 4px; border: 0; background: none; cursor: pointer; font-size: 12.5px; font-weight: 600; color: var(--ink-2); border-bottom: 2px solid transparent; }
+.tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); }
+.tabpane { padding: 14px; display: flex; flex-direction: column; gap: 14px; }
+.pane-head h2 { margin: 0 0 2px; font-size: 15px; }
+.pane-head p { margin: 0; color: var(--ink-2); font-size: 12.5px; }
+.seg { display: inline-grid; grid-auto-flow: column; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; width: max-content; }
+.seg button { border: 0; background: var(--surface); padding: 5px 12px; cursor: pointer; font-size: 12.5px; }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--surface); }
+.grp-title { font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-3); margin: 4px 0 -4px; }
+.wrow { display: grid; grid-template-columns: minmax(0, 1fr); gap: 2px; }
+.wrow .wl { font-size: 13px; min-width: 0; }
+.wrow .wl small { color: var(--ink-3); font-size: 11.5px; }
+.wrow .wctl { grid-column: 1 / -1; display: grid; grid-template-columns: 28px minmax(0, 1fr) 46px; gap: 8px; align-items: center; }
+.wrow.off .wl { color: var(--ink-3); }
+.dir { width: 28px; height: 22px; border-radius: 6px; border: 1px solid var(--line); background: var(--surface-2); cursor: pointer; font-weight: 700; font-family: var(--font-mono); padding: 0; }
+.dir.neg { color: var(--crit); }
+.dir.pos { color: var(--good); }
+.share { font-size: 12px; text-align: right; color: var(--ink-2); }
+input[type="range"] { width: 100%; accent-color: var(--accent); margin: 0; }
+textarea, input[type="text"], input[type="number"], select { background: var(--surface-2); border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; width: 100%; }
+textarea { font-family: var(--font-mono); font-size: 12.5px; resize: vertical; min-height: 70px; }
+.hint { font-size: 12px; color: var(--ink-2); }
+.err { font-size: 12px; color: var(--crit); }
+.ok { font-size: 12px; color: var(--good); }
+.chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.chip { font-family: var(--font-mono); font-size: 11px; padding: 1px 6px; border-radius: 5px; background: var(--surface-2); border: 1px solid var(--line-2); cursor: pointer; }
+.chip:hover { border-color: var(--accent); }
+.prow { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 8px; align-items: center; }
+.prow label { font-size: 13px; }
+.prow label code { font-family: var(--font-mono); font-size: 11px; color: var(--ink-3); }
+.prow output { font-family: var(--font-mono); font-size: 12px; }
+.prow input[type="range"] { grid-column: 1 / -1; }
+.prow .rm { grid-column: 2; }
+.box { border: 1px solid var(--line); border-radius: 8px; padding: 10px; display: flex; flex-direction: column; gap: 8px; background: var(--surface-2); }
+.box h3 { margin: 0; font-size: 13px; }
+.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.form-grid .full { grid-column: 1 / -1; }
+.form-grid label { font-size: 11.5px; color: var(--ink-2); display: flex; flex-direction: column; gap: 2px; }
+.ctl-foot { margin-top: auto; padding: 10px 14px; border-top: 1px solid var(--line); display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 12px; color: var(--ink-2); }
+.row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+
+/* Bản đồ */
+.mapcard { position: relative; background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; min-height: 0; }
+#map { width: 100%; height: 100%; display: block; cursor: grab; touch-action: none; user-select: none; }
+#map.drag { cursor: grabbing; }
+#map path.cell { stroke: var(--surface-2); stroke-width: 0.6; vector-effect: non-scaling-stroke; }
+#map path.cell:hover { stroke: var(--ink); stroke-width: 1.4; }
+.maptools { position: absolute; top: 10px; left: 10px; right: 10px; display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; pointer-events: none; }
+.maptools > * { pointer-events: auto; }
+.layerpick { display: flex; align-items: center; gap: 6px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 4px 4px 4px 10px; font-size: 12px; color: var(--ink-2); max-width: 100%; }
+.layerpick select { width: auto; max-width: 260px; padding: 4px 6px; font-size: 13px; color: var(--ink); background: var(--surface); }
+.zoom { display: flex; flex-direction: column; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--surface); height: max-content; }
+.zoom button { width: 32px; height: 30px; border: 0; background: none; cursor: pointer; font-size: 16px; }
+.zoom button + button { border-top: 1px solid var(--line); }
+.legend { position: absolute; left: 10px; bottom: 10px; max-width: calc(100% - 20px); background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; font-size: 12px; display: flex; flex-direction: column; gap: 6px; }
+.legend .lt { font-weight: 600; font-size: 12px; }
+.legend .ramp { width: 220px; max-width: 100%; height: 10px; border-radius: 3px; }
+.legend .rlab { display: flex; justify-content: space-between; color: var(--ink-2); font-family: var(--font-mono); font-size: 11px; }
+.legend .items { display: flex; flex-wrap: wrap; gap: 4px 12px; }
+.sw { display: inline-block; width: 11px; height: 11px; border-radius: 3px; vertical-align: -1px; margin-right: 5px; }
+.legend .ov { display: flex; flex-wrap: wrap; gap: 4px 12px; color: var(--ink-2); border-top: 1px solid var(--line-2); padding-top: 6px; }
+.legend .ov svg { vertical-align: middle; margin-right: 4px; }
+
+/* Tooltip dùng chung */
+#tip { position: fixed; z-index: 50; pointer-events: none; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; font-size: 12px; box-shadow: 0 6px 20px rgba(0,0,0,0.12); max-width: 260px; }
+#tip .tv { font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; }
+#tip .tl { color: var(--ink-2); }
+#tip .tr { display: flex; justify-content: space-between; gap: 12px; font-variant-numeric: tabular-nums; }
+#tip .key { display: inline-block; width: 10px; height: 2px; vertical-align: middle; margin-right: 5px; }
+
+/* Kết quả */
+.results { display: flex; flex-direction: column; }
+.results.stale .card-body { opacity: 0.55; transition: opacity .15s; }
+.card { padding: 14px; border-bottom: 1px solid var(--line); display: flex; flex-direction: column; gap: 10px; }
+.card:last-child { border-bottom: 0; }
+.card h2 { margin: 0; font-size: 13px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--ink-2); display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.card h2 select { width: auto; font-size: 12px; padding: 2px 4px; text-transform: none; letter-spacing: 0; }
+.card-body { display: flex; flex-direction: column; gap: 10px; }
+.headline { font-size: 14px; }
+.headline strong { font-weight: 700; }
+.srow { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 3px 8px; }
+.srow .sn { font-size: 13px; min-width: 0; }
+.srow .sn small { color: var(--ink-3); font-size: 11.5px; margin-left: 4px; }
+.srow .sv { font-family: var(--font-mono); font-size: 12.5px; text-align: right; }
+.srow .sv small { color: var(--ink-3); }
+.track { grid-column: 1 / -1; position: relative; height: 10px; background: var(--surface-2); border-radius: 3px; }
+.track .fill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 3px; }
+.track .whisk { position: absolute; top: -2px; bottom: -2px; border-left: 1.5px solid var(--ink); border-right: 1.5px solid var(--ink); }
+.track .whisk::after { content: ""; position: absolute; left: 0; right: 0; top: 50%; border-top: 1.5px solid var(--ink); }
+.status { display: flex; gap: 8px; align-items: flex-start; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line); font-size: 12.5px; }
+.status .ic { flex: none; width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center; color: #fff; font-size: 11px; font-weight: 700; }
+.status strong { font-variant-numeric: tabular-nums; }
+.chart { width: 100%; height: auto; display: block; overflow: visible; }
+.chart text { fill: var(--ink-2); font-size: 10px; font-family: var(--font-mono); }
+.chart .qlab { fill: var(--ink-3); font-family: var(--font-body); font-size: 10.5px; }
+.lg { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12px; color: var(--ink-2); }
+.tor { display: grid; grid-template-columns: minmax(0, 1fr); gap: 7px; }
+.tor .tl { font-size: 12px; display: flex; justify-content: space-between; gap: 8px; }
+.tor .tl span:last-child { font-family: var(--font-mono); color: var(--ink-2); white-space: nowrap; }
+.tor .tb { position: relative; height: 9px; }
+.tor .tb .mid { position: absolute; left: 50%; top: -2px; bottom: -2px; border-left: 1px solid var(--ink-3); }
+.tor .tb .b { position: absolute; top: 0; bottom: 0; border-radius: 2px; }
+.kv { display: grid; grid-template-columns: auto 1fr; gap: 3px 10px; font-size: 12.5px; }
+.kv dt { color: var(--ink-2); }
+.kv dd { margin: 0; text-align: right; font-family: var(--font-mono); }
+table.ind { width: 100%; border-collapse: collapse; font-size: 12px; }
+table.ind td { padding: 4px 0; border-top: 1px solid var(--line-2); vertical-align: middle; }
+table.ind td.v { text-align: right; font-family: var(--font-mono); white-space: nowrap; padding-left: 8px; }
+table.ind td.bar { width: 64px; padding-left: 8px; }
+.nb { height: 6px; background: var(--surface-2); border-radius: 3px; position: relative; overflow: hidden; }
+.nb i { position: absolute; left: 0; top: 0; bottom: 0; background: var(--ink-3); border-radius: 3px; }
+.role { font-size: 10.5px; font-family: var(--font-mono); color: var(--accent); margin-left: 4px; }
+.empty { color: var(--ink-3); font-size: 12.5px; }
+
+/* Hộp thoại */
+.modal { position: fixed; inset: 0; z-index: 60; background: rgba(8, 14, 18, 0.5); display: grid; place-items: center; padding: 16px; }
+.modal .dlg { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; width: min(760px, 100%); max-height: 100%; overflow: auto; padding: 20px 22px; display: flex; flex-direction: column; gap: 12px; }
+.dlg h2 { margin: 0; font-size: 18px; text-wrap: balance; }
+.dlg h3 { margin: 6px 0 0; font-size: 14px; }
+.dlg p, .dlg li { color: var(--ink-2); max-width: 68ch; }
+.dlg ol { padding-left: 20px; margin: 0; display: flex; flex-direction: column; gap: 6px; }
+.dlg code, .dlg pre { font-family: var(--font-mono); font-size: 12px; background: var(--surface-2); border-radius: 5px; padding: 1px 5px; }
+.dlg pre { padding: 10px; overflow-x: auto; white-space: pre; }
+.dlg .close { align-self: flex-end; }
+.dlg textarea { min-height: 140px; }
+
+@media (max-width: 1180px) {
+  .app { height: auto; }
+  .main { grid-template-columns: 320px minmax(0, 1fr); }
+  .mapcard { min-height: 70vh; }
+  .results { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+  .results .card { border-right: 1px solid var(--line); }
+  .panel { overflow: visible; }
+  .controls { max-height: 80vh; overflow: auto; }
+}
+@media (max-width: 760px) {
+  .main { grid-template-columns: minmax(0, 1fr); }
+  .mapcard { min-height: 62vh; order: -1; }
+  .controls { max-height: none; }
+  .actions { margin-left: 0; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <div class="brand">
+      <svg width="30" height="30" viewBox="0 0 30 30" aria-hidden="true">
+        <polygon points="15,2 26.3,8.5 26.3,21.5 15,28 3.7,21.5 3.7,8.5" fill="var(--accent)"></polygon>
+        <polygon points="15,9 20.2,12 20.2,18 15,21 9.8,18 9.8,12" fill="var(--surface)"></polygon>
+      </svg>
+      <div>
+        <h1>Sa bàn Kịch bản</h1>
+        <p>Phân tích không gian Finance × Behavior · xác suất kịch bản theo ô</p>
+      </div>
+    </div>
+    <div class="dsinfo"><span class="pill" id="ds-pill">Dữ liệu mẫu</span><span id="ds-meta" class="num"></span></div>
+    <div class="actions">
+      <label class="btn" for="file-in" tabindex="0">Nhập GeoJSON</label>
+      <input type="file" id="file-in" accept=".geojson,.json,application/geo+json,application/json" hidden>
+      <button class="btn" id="btn-sample" type="button">Dùng dữ liệu mẫu</button>
+      <button class="btn" id="btn-export" type="button">Xuất kết quả</button>
+      <button class="btn primary" id="btn-method" type="button">Phương pháp</button>
+    </div>
+  </header>
+
+  <main class="main">
+    <aside class="panel controls" aria-label="Thiết lập mô hình">
+      <nav class="tabs" role="tablist">
+        <button role="tab" id="tb-F" data-tab="F" aria-selected="true">Chỉ số F</button>
+        <button role="tab" id="tb-B" data-tab="B" aria-selected="false">Chỉ số B</button>
+        <button role="tab" id="tb-P" data-tab="P" aria-selected="false">Tham số</button>
+        <button role="tab" id="tb-D" data-tab="D" aria-selected="false">Phái sinh</button>
+      </nav>
+      <section class="tabpane" id="pane-F"></section>
+      <section class="tabpane" id="pane-B" hidden></section>
+      <section class="tabpane" id="pane-P" hidden></section>
+      <section class="tabpane" id="pane-D" hidden></section>
+      <footer class="ctl-foot">
+        <button class="btn sm ghost" id="btn-reset" type="button">Khôi phục mặc định</button>
+        <span id="status" class="num"></span>
+      </footer>
+    </aside>
+
+    <section class="mapcard" aria-label="Bản đồ">
+      <svg id="map" role="img" aria-label="Bản đồ lưới phân tích"></svg>
+      <div class="maptools">
+        <label class="layerpick">Lớp <select id="layer"></select></label>
+        <div class="zoom">
+          <button type="button" id="z-in" aria-label="Phóng to">+</button>
+          <button type="button" id="z-out" aria-label="Thu nhỏ">−</button>
+          <button type="button" id="z-fit" aria-label="Về toàn vùng">⤢</button>
+        </div>
+      </div>
+      <div class="legend" id="legend"></div>
+    </section>
+
+    <aside class="panel results" id="results" aria-label="Kết quả">
+      <section class="card">
+        <h2>Kịch bản toàn vùng</h2>
+        <div class="card-body" id="summary"></div>
+      </section>
+      <section class="card">
+        <h2>Không gian F × B</h2>
+        <div class="card-body" id="scatter"></div>
+      </section>
+      <section class="card">
+        <h2>Độ nhạy <select id="target" aria-label="Kịch bản mục tiêu"></select></h2>
+        <div class="card-body" id="tornado"></div>
+      </section>
+      <section class="card">
+        <h2>Ô đang chọn</h2>
+        <div class="card-body" id="detail"></div>
+      </section>
+    </aside>
+  </main>
+</div>
+
+<div id="tip" hidden></div>
+
+<div class="modal" id="modal-method" hidden>
+  <div class="dlg" role="dialog" aria-modal="true" aria-labelledby="mm-t">
+    <button class="btn sm close" type="button" data-close>Đóng</button>
+    <h2 id="mm-t">Phương pháp: Chỉ số không gian F × B và mô phỏng kịch bản</h2>
+    <p>Mỗi ô không gian được đánh giá trên hai trục. <b>F (Finance, nền tảng)</b> là giá trị cơ bản của vị trí. <b>B (Behavior, hành vi)</b> là tín hiệu đầu cơ và tâm lý bầy đàn. Vị trí của ô trên mặt phẳng F × B cho biết nó thuộc kịch bản nào. Mô phỏng Monte Carlo chuyển kết quả đó thành xác suất.</p>
+    <ol>
+      <li><b>Đơn vị không gian.</b> Lưới lục giác (kiểu H3, ~0,6 km) hoặc ranh giới phường/xã. Mọi chỉ tiêu được tổng hợp về đơn vị này.</li>
+      <li><b>Chuẩn hóa.</b> Mỗi chỉ tiêu được đưa về 0–1 theo phân vị 2–98% để không bị giá trị ngoại lai chi phối. Chiều tác động (+/−) quyết định giá trị cao là tốt hay xấu.</li>
+      <li><b>Chỉ số tổng hợp.</b> Dùng trung bình có trọng số (WLC): <code>I = Σ wᵢ·xᵢ / Σ wᵢ</code>, hoặc tự viết công thức (ví dụ thêm tương tác, ngưỡng, sigmoid).</li>
+      <li><b>Lan tỏa không gian.</b> <code>S = (1−ρ)·I + ρ·W·S</code>. W là ma trận 6 láng giềng gần nhất, chuẩn hóa theo hàng. Mặc định ρ của B lớn hơn ρ của F vì hành vi đầu cơ lan sang khu lân cận nhanh hơn nền tảng.</li>
+      <li><b>Kịch bản (ma trận 2×2).</b> F cao · B thấp: Tăng trưởng bền vững. F cao · B cao: Tăng nóng có nền tảng. F thấp · B cao: Bong bóng đầu cơ. F thấp · B thấp: Trầm lắng.</li>
+      <li><b>Monte Carlo.</b> Mỗi lần mô phỏng nhân trọng số với <code>exp(σw·z)</code> và cộng nhiễu <code>σx·z</code> vào dữ liệu. Kết quả là xác suất từng kịch bản ở từng ô, cùng phân bố tỉ lệ diện tích toàn vùng (trung bình và khoảng 90%).</li>
+      <li><b>Kiểm tra.</b> Moran's I đo mức phân cụm. LISA (99 hoán vị, p ≤ 0,05) tìm cụm nóng/lạnh. Độ nhạy cho biết kết luận phụ thuộc vào trọng số hoặc tham số nào nhiều nhất (±50%).</li>
+    </ol>
+    <h3>Công thức</h3>
+    <p>Biến <code>ten_chi_tieu</code> là giá trị đã chuẩn hóa 0–1, <code>ten_chi_tieu_raw</code> là giá trị gốc (đúng đơn vị). Tham số dùng theo mã. Toán tử: <code>+ − * / ^</code>, so sánh, <code>&amp;&amp; ||</code>, <code>a ? b : c</code>. Hàm: <code>min max abs sqrt log exp pow round clamp(x,a,b) step(x,t) sigmoid(x,k,m) if(c,a,b)</code>.</p>
+    <pre>p_trien_khai * exp(-kc_quy_hoach_raw / lambda_km)
+0.6*tang_tin_dang + 0.4*tu_khoa_dau_co * step(bien_dong_gia, 0.5)</pre>
+    <h3>Nhập dữ liệu thật</h3>
+    <p>Nhập file GeoJSON <code>FeatureCollection</code>. Các đối tượng Polygon/MultiPolygon trở thành ô phân tích, mọi thuộc tính số trở thành chỉ tiêu. LineString được vẽ làm lớp tham chiếu (tuyến đường, quy hoạch). Thuộc tính <code>id</code> nếu có sẽ dùng làm mã ô.</p>
+    <p><b>Lưu ý:</b> dữ liệu mẫu là giả lập có cấu trúc không gian, chỉ dùng để minh họa cách hoạt động. Không phải số liệu thật.</p>
+  </div>
+</div>
+
+<div class="modal" id="modal-export" hidden>
+  <div class="dlg" role="dialog" aria-modal="true" aria-labelledby="me-t">
+    <button class="btn sm close" type="button" data-close>Đóng</button>
+    <h2 id="me-t">Xuất kết quả và cấu hình</h2>
+    <div class="row"><b>Kết quả theo ô (CSV)</b> <button class="btn sm" type="button" id="cp-csv">Sao chép CSV</button> <button class="btn sm" type="button" id="dl-csv">Tải file</button></div>
+    <textarea id="out-csv" readonly></textarea>
+    <div class="row"><b>Cấu hình mô hình (JSON)</b> <button class="btn sm" type="button" id="cp-cfg">Sao chép</button> <button class="btn sm" type="button" id="ap-cfg">Áp dụng cấu hình đã dán</button></div>
+    <textarea id="out-cfg"></textarea>
+    <span id="exp-msg" class="hint"></span>
+  </div>
+</div>
+
+<script src="engine.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

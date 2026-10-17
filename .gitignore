@@ -1,0 +1,22 @@
+# Môi trường & bí mật
+.env
+.env.*
+!.env.example
+
+# Dữ liệu crawl / dữ liệu lớn (không đưa vào git)
+data/raw/
+data/cache/
+*.parquet
+*.gpkg
+
+# Hệ điều hành / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Node / Python
+node_modules/
+__pycache__/
+*.pyc
+.venv/

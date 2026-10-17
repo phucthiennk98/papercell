@@ -1,0 +1,33 @@
+services:
+  # Bản chạy thật: đóng gói mã vào image
+  web:
+    build: .
+    image: saban-kich-ban:latest
+    ports:
+      - "${PORT:-8765}:80"
+    restart: unless-stopped
+
+  # Bản phát triển: gắn trực tiếp thư mục platform, sửa file là F5 thấy ngay
+  # Chạy: docker compose --profile dev up dev
+  dev:
+    image: nginx:1.27-alpine
+    profiles: ["dev"]
+    ports:
+      - "${DEV_PORT:-8766}:80"
+    volumes:
+      - ./platform:/usr/share/nginx/html:ro
+      - ./docker/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+
+  # Dự phòng cho bước sau (crawler → cơ sở dữ liệu không gian)
+  # db:
+  #   image: postgis/postgis:16-3.4
+  #   environment:
+  #     POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?đặt trong file .env}
+  #     POSTGRES_DB: saban
+  #   volumes:
+  #     - pgdata:/var/lib/postgresql/data
+  #   ports:
+  #     - "5432:5432"
+
+# volumes:
+#   pgdata:
