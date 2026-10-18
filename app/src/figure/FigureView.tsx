@@ -23,7 +23,9 @@ export function FigureView({ js, params, scenarios, className, onError }: { js: 
     if (!width) return
     let alive = true
     runFigure(js, params, data, width, scenarios).then((r) => {
-      if (!alive || !out.current) return
+      // Lần vẽ đã bị thay bằng lần mới: giải phóng ngay bản đồ vừa tạo, nếu không mỗi lần
+      // vẽ lại sẽ giữ một ngữ cảnh WebGL; trình duyệt chỉ cho ~16 cái rồi bắt đầu tắt bản đồ (ô đen).
+      if (!alive || !out.current) { releaseNode(r.node); return }
       // Giải phóng bản đồ cũ (WebGL) trước khi vẽ lại
       out.current.querySelectorAll('*').forEach((el) => (el as any).__pcCleanup?.())
       out.current.replaceChildren()
@@ -42,6 +44,13 @@ export function FigureView({ js, params, scenarios, className, onError }: { js: 
       {error && <pre className="fig-error">{error}</pre>}
     </div>
   )
+}
+
+/** Gọi __pcCleanup cho phần tử và mọi phần tử con (bản đồ MapLibre giải phóng WebGL). */
+function releaseNode(n: Node | null) {
+  if (!(n instanceof Element)) return
+  ;(n as any).__pcCleanup?.()
+  n.querySelectorAll('*').forEach((el) => (el as any).__pcCleanup?.())
 }
 
 const decimals = (step: number) => (String(step).split('.')[1] ?? '').length

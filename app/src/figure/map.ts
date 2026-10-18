@@ -137,8 +137,18 @@ export function makeMap(o: MapOptions): HTMLElement {
     lg.innerHTML = legend
     box.append(lg)
   }
+  // Báo rõ thay vì để ô đen: nền không tải được (mất mạng) hoặc trình duyệt thu hồi WebGL
+  const note = (text: string) => {
+    let n = box.querySelector<HTMLDivElement>('.pcm-note')
+    if (!n) { n = document.createElement('div'); n.className = 'pcm-note'; box.append(n) }
+    n.textContent = text
+  }
+  const slow = setTimeout(() => { if (!map.isStyleLoaded()) note('Chưa tải được bản đồ nền từ OpenFreeMap. Kiểm tra kết nối mạng rồi tải lại trang.') }, 12000)
+  map.on('load', () => { clearTimeout(slow); box.querySelector('.pcm-note')?.remove() })
+  map.on('webglcontextlost', () => note('Trình duyệt đã tạm tắt bản đồ này vì mở quá nhiều bản đồ cùng lúc. Tải lại trang để xem.'))
   const ro = new ResizeObserver(() => map.resize())
   ro.observe(box)
-  ;(box as any).__pcCleanup = () => { ro.disconnect(); map.remove() }
+  ;(box as any).__pcCleanup = () => { clearTimeout(slow); ro.disconnect(); map.remove() }
+  ;(box as any).__map = map
   return box
 }

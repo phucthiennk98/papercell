@@ -123,6 +123,7 @@
 /* ---- Bản đồ ---- */
 .pc-map { position: relative; width: 100%; border-radius: 8px; overflow: hidden; background: #e8eef2; }
 .pcm-empty { position: absolute; inset: 0; display: grid; place-items: center; padding: 16px; text-align: center; font-size: 13px; color: var(--muted-foreground); }
+.pcm-note { position: absolute; left: 8px; right: 8px; top: 8px; z-index: 3; background: rgba(255,255,255,.95); border-radius: 6px; padding: 8px 10px; font: 12.5px/1.45 var(--font-ui, system-ui); color: #7a5200; box-shadow: 0 1px 4px rgba(0,0,0,.2); }
 .pcm-legend { position: absolute; left: 8px; bottom: 26px; z-index: 2; background: rgba(255,255,255,.92); border-radius: 6px; padding: 6px 8px; font: 11.5px/1.4 var(--font-ui, system-ui); color: #333; box-shadow: 0 1px 4px rgba(0,0,0,.15); max-width: 60%; }
 .pcm-title { font-weight: 600; margin-bottom: 3px; }
 .pcm-ramp { width: 140px; height: 8px; border-radius: 3px; }
