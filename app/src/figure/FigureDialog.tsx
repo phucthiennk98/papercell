@@ -140,7 +140,9 @@ const toRow = (p: FigureParam): ParamRow => ({
   value: String(p.value), unit: p.unit ?? '', options: (p.options ?? []).join(', '),
 })
 /** "a, b, 3" → ['a', 'b', 3]: numeric options stay numbers so code can compute with them. */
-const parseOptions = (t: string) => t.split(',').map((x) => x.trim()).filter(Boolean).map((x) => (isFinite(+x) ? +x : x))
+// "true"/"false" become real booleans: the string "false" would count as true in `if (x)`
+const parseOptions = (t: string): (string | number | boolean)[] => t.split(',').map((x) => x.trim()).filter(Boolean)
+  .map((x) => (x === 'true' ? true : x === 'false' ? false : isFinite(+x) ? +x : x))
 
 function ParamsTab({ fig, onUpdate }: { fig: FigureNode; onUpdate: (p: Partial<FigureNode>) => void }) {
   const [rows, setRows] = useState<ParamRow[]>(() => fig.params.map(toRow))

@@ -17,7 +17,7 @@ export type FigureParam = {
   value: ParamValue
   unit?: string
   /** Choices of a dropdown or radio buttons. */
-  options?: (string | number)[]
+  options?: (string | number | boolean)[]
 }
 export const paramKind = (p: FigureParam): ParamKind => p.kind ?? 'range'
 
