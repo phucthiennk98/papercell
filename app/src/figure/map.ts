@@ -109,7 +109,17 @@ export function makeMap(o: MapOptions): HTMLElement {
     map.addSource('pc', { type: 'geojson', data: fc })
     const kind = o.kind ?? (fs[0].geometry.type === 'Point' ? 'points' : 'regions')
     if (kind === 'heat') {
-      map.addLayer({ id: 'pc-heat', type: 'heatmap', source: 'pc', paint: { 'heatmap-weight': o.size ? ['get', '_w'] : 1, 'heatmap-radius': 18, 'heatmap-opacity': 0.85 } })
+      // Trọng số mỗi điểm giảm theo số điểm để nhiều điểm không thành một mảng đỏ; có cột trọng số thì chia theo giá trị lớn nhất
+      const per = Math.min(1, 40 / fs.length)
+      const wMax = o.size ? Math.max(...fs.map((f) => Number(f.properties._w) || 0), 1e-9) : 1
+      map.addLayer({
+        id: 'pc-heat', type: 'heatmap', source: 'pc', paint: {
+          'heatmap-weight': o.size ? ['*', per, ['/', ['get', '_w'], wMax]] : per,
+          'heatmap-radius': ['interpolate', ['linear'], ['zoom'], 3, 12, 8, 22, 13, 32],
+          'heatmap-intensity': ['interpolate', ['linear'], ['zoom'], 3, 1, 13, 3],
+          'heatmap-opacity': 0.85,
+        },
+      })
     } else if (kind === 'regions') {
       map.addLayer({ id: 'pc-fill', type: 'fill', source: 'pc', paint: { 'fill-color': ['get', '_c'], 'fill-opacity': 0.7 } })
       map.addLayer({ id: 'pc-line', type: 'line', source: 'pc', paint: { 'line-color': '#ffffff', 'line-width': 0.8 } })
