@@ -1,4 +1,5 @@
 // Server Papercell: route AI của Plate, (sau này) MCP, và phát giao diện đã build.
+import { existsSync } from 'node:fs'
 import { serve } from '@hono/node-server'
 import { serveStatic } from '@hono/node-server/serve-static'
 import { Hono } from 'hono'
@@ -22,7 +23,9 @@ const isLocal = (c: Parameters<typeof getConnInfo>[0]) => {
   return ip === '127.0.0.1' || ip === '::1' || ip === '::ffff:127.0.0.1'
 }
 app.get('/api/agents', async (c) => {
-  if (!isLocal(c)) return c.json({ agents: [], note: 'Agent trên máy chỉ dùng được khi mở Papercell trên chính máy chạy server.' })
+  if (!isLocal(c)) return c.json({ agents: [], inDocker: existsSync('/.dockerenv'), note: existsSync('/.dockerenv')
+    ? 'Bạn đang mở bản chạy trong Docker, mà container không thấy các agent cài trên máy. Bấm đúp file chay-tren-may.bat trong thư mục dự án rồi mở http://localhost:8780.'
+    : 'Agent trên máy chỉ dùng được khi mở Papercell trên chính máy chạy server.' })
   return c.json({ agents: await detectAgents(c.req.query('refresh') === '1') })
 })
 app.post('/api/agents/chat', async (c) => {

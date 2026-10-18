@@ -18,14 +18,7 @@ Muốn server có sẵn key để không phải nhập trong app, thêm biến m
 
 ### 2. Chạy thẳng trên máy: dùng được agent đã cài (Claude Code, Codex, Antigravity)
 
-```bash
-cd app
-npm install
-npm run build
-npm start
-```
-
-Mở http://localhost:8787. Trong **Trợ lý AI → Agent trên máy**, app tự dò các agent có trên máy và dùng tài khoản đã đăng nhập sẵn của agent đó. Agent chạy ở chế độ chỉ đọc trong một thư mục tạm chứa nội dung bài.
+Windows: bấm đúp **`chay-tren-may.bat`**. macOS/Linux: chạy `./chay-tren-may.sh`. Script tự cài thư viện (lần đầu), build, rồi mở http://localhost:8780. Trong **Trợ lý AI → Agent trên máy**, app tự dò các agent có trên máy và dùng tài khoản đã đăng nhập sẵn của agent đó. Agent chạy ở chế độ chỉ đọc trong một thư mục tạm chứa nội dung bài.
 
 Chế độ này không chạy trong Docker, vì container không thấy các chương trình cài trên máy. Vì lý do an toàn, server chỉ cho gọi agent từ chính máy đó (127.0.0.1).
 
