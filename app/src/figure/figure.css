@@ -214,3 +214,12 @@ body.dragging .insert-gap { display: none; }
 .pc-switch.on { background: #1d5fd1; }
 .pc-switch.on i { transform: translateX(14px); }
 .fig-param.is-select, .fig-param.is-toggle { grid-template-columns: minmax(70px, auto) auto 1fr; }
+
+/* Radio buttons parameter */
+.pc-radio { display: flex; flex-wrap: wrap; gap: 4px 12px; }
+.pc-radio button { display: inline-flex; align-items: center; gap: 5px; border: 0; background: none; padding: 2px 0; font: inherit; font-size: 12.5px; color: var(--ink-2); cursor: pointer; }
+.pc-radio button i { width: 14px; height: 14px; border-radius: 50%; border: 1.5px solid #94a3b8; display: inline-block; position: relative; flex: none; }
+.pc-radio button.on { color: var(--ink); font-weight: 500; }
+.pc-radio button.on i { border-color: #1d5fd1; }
+.pc-radio button.on i::after { content: ''; position: absolute; inset: 2.5px; border-radius: 50%; background: #1d5fd1; }
+.fig-param.is-radio { grid-template-columns: minmax(70px, auto) 1fr auto; }

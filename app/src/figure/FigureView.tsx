@@ -75,7 +75,16 @@ export function ParamSliders({ params, onChange, onCommit, idPrefix, large, grid
         return (
           <div key={p.name} className={'fig-param is-' + kind}>
             <label htmlFor={id}>{p.label}</label>
-            {kind === 'select' ? (
+            {kind === 'radio' ? (
+              <div id={id} className="pc-radio" role="radiogroup" aria-label={p.label}>
+                {(p.options ?? []).map((o) => (
+                  <button key={String(o)} type="button" role="radio" aria-checked={String(o) === String(p.value)}
+                    className={String(o) === String(p.value) ? 'on' : ''} onClick={() => pick(o)} onKeyDown={(e) => e.stopPropagation()}>
+                    <i />{String(o)}{p.unit ? ' ' + p.unit : ''}
+                  </button>
+                ))}
+              </div>
+            ) : kind === 'select' ? (
               <select id={id} value={String(p.value)} onKeyDown={(e) => e.stopPropagation()}
                 onChange={(e) => { const o = (p.options ?? []).find((x) => String(x) === e.target.value); pick(o ?? e.target.value) }}>
                 {(p.options ?? []).map((o) => <option key={String(o)} value={String(o)}>{String(o)}{p.unit ? ' ' + p.unit : ''}</option>)}

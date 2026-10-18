@@ -4,8 +4,10 @@ export type FigureDisplay = 'output' | 'both' | 'code' | 'hidden'
 export type CodeAccess = 'none' | 'js' | 'python' | 'both'
 
 export type ParamValue = number | string | boolean
-/** How a parameter is shown to readers: a slider, a dropdown or an on/off switch. */
-export type ParamKind = 'range' | 'select' | 'toggle'
+/** How a parameter is shown to readers: a slider, a dropdown, radio buttons or an on/off switch. */
+export type ParamKind = 'range' | 'select' | 'radio' | 'toggle'
+/** Kinds that pick one value from a list of options. */
+export const isChoice = (k: ParamKind) => k === 'select' || k === 'radio'
 export type FigureParam = {
   name: string; label: string
   /** Empty = 'range' (slider). */
@@ -14,7 +16,7 @@ export type FigureParam = {
   min: number; max: number; step: number
   value: ParamValue
   unit?: string
-  /** Choices of a dropdown (select only). */
+  /** Choices of a dropdown or radio buttons. */
   options?: (string | number)[]
 }
 export const paramKind = (p: FigureParam): ParamKind => p.kind ?? 'range'

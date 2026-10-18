@@ -1,6 +1,6 @@
 // "Kịch bản tính sẵn": chạy Python gốc cho mọi tổ hợp tham số một lần (trên máy tác giả),
 // nén kết quả vào tài liệu; khi đọc bài chỉ tra kết quả theo vị trí thanh trượt, không cần Python.
-import { paramKind, type DataFile, type FigureNode, type FigureParam, type ParamValue } from '@/editor/types'
+import { isChoice, paramKind, type DataFile, type FigureNode, type FigureParam, type ParamValue } from '@/editor/types'
 import { packText, unpackText } from '@/lib/pack'
 
 export type GridAxis = { name: string; values: ParamValue[] }
@@ -23,7 +23,7 @@ export type ScenarioCache = {
 /** Values to precompute: a slider goes from min to max by `step`; a dropdown uses its options; a switch is off/on. */
 export function axisValues(p: FigureParam, step = p.step): ParamValue[] {
   const kind = paramKind(p)
-  if (kind === 'select') return [...(p.options ?? [])]
+  if (isChoice(kind)) return [...(p.options ?? [])]
   if (kind === 'toggle') return [false, true]
   const n = Math.floor((p.max - p.min) / step + 1e-9) + 1
   const dec = (String(step).split('.')[1] ?? '').length

@@ -2,6 +2,8 @@
 import { makeGallery as makeLegacyGallery } from '@/legacy/gallery-vi'
 import { codegen } from '@/figure/builder'
 import type { FigureNode, PapercellDoc } from './types'
+import { GALLERY_TITLE } from '@/gallery'
+import { PARAMS_DEMO_ID, paramsDemo } from '@/demo-params'
 
 /** Title of the old Vietnamese chart gallery. */
 const LEGACY_GALLERY_TITLE = 'Bộ thử biểu đồ'
@@ -16,7 +18,20 @@ function collect(nodes: any[], out = new Map<string, FigureNode>()) {
   return out
 }
 
+/** Galleries made before the parameter controls existed: insert the dropdown/radio/switch example after the dot plot. */
+function addParamsDemo(content: any[], lang: 'en' | 'vi'): any[] {
+  let has = false
+  const scan = (ns: any[]) => ns.forEach((n) => { if (n.type === 'figure' && (n.id === PARAMS_DEMO_ID || /^Dropdown/.test(n.caption ?? ''))) has = true; else if (n.children) scan(n.children) })
+  scan(content)
+  if (has) return content
+  const at = content.findIndex((n) => n.type === 'figure' && /^(Dot plot|Biểu đồ chấm)/.test(n.caption ?? ''))
+  const i = at >= 0 ? at + 1 : Math.max(0, content.length - 1)
+  return [...content.slice(0, i), paramsDemo(lang), ...content.slice(i)]
+}
+
 export function upgradeDoc(doc: PapercellDoc): PapercellDoc {
+  if (doc.meta.title === GALLERY_TITLE) doc = { ...doc, content: addParamsDemo(doc.content, 'en') }
+  if (doc.meta.title === LEGACY_GALLERY_TITLE) doc = { ...doc, content: addParamsDemo(doc.content, 'vi') }
   // Hand-written gallery figures once overwritten by the Design tab (bug since fixed): put the original back
   const original = doc.meta.title === LEGACY_GALLERY_TITLE ? collect(makeLegacyGallery().content) : null
   return {

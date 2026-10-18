@@ -35,7 +35,7 @@ export function useCodeHints(params: FigureParam[]): CodeHints {
 /** Short description of a parameter for suggestions and for the AI. */
 const describeParam = (p: FigureParam) => {
   const k = paramKind(p)
-  return k === 'select' ? `dropdown: ${(p.options ?? []).map((o) => JSON.stringify(o)).join(' | ')}`
+  return k === 'select' || k === 'radio' ? `${k === 'radio' ? 'radio buttons' : 'dropdown'}: ${(p.options ?? []).map((o) => JSON.stringify(o)).join(' | ')}`
     : k === 'toggle' ? 'on/off switch: true | false'
     : `slider ${p.min}–${p.max}, step ${p.step}`
 }

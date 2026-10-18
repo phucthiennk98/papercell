@@ -3,6 +3,7 @@
 import type { DataFile, FigureNode, PapercellDoc } from './editor/types'
 import { codegen, defaultSpec, specParams, type ChartSpec } from './figure/builder'
 import { FIGURE_TEMPLATES, figureFromTemplate } from './figure/templates'
+import { paramsDemo } from './demo-params'
 
 export const GALLERY_TITLE = 'Chart gallery'
 
@@ -139,25 +140,6 @@ return Plot.plot({
   ],
 })`
 
-const CHOOSE_JS = `// Readers pick the variable (dropdown) and the order (on/off switch)
-const rows = data.provinces.slice()
-if (sort_desc) rows.sort((a, b) => b[metric] - a[metric])
-expose(rows.map(d => d[metric]))
-return Plot.plot({
-  width, height: 560, marginLeft: 130,
-  x: { label: pc.label("provinces", metric), grid: true },
-  y: { label: null, domain: rows.map(d => d.name) },
-  marks: [
-    Plot.barX(rows, { y: "name", x: metric, fill: "#2a78d6", tip: true }),
-    Plot.ruleX([0]),
-  ],
-})`
-
-const CHOOSE_PY = `rows = data["provinces"]
-if sort_desc:
-    rows = rows.sort_values(metric, ascending=False)
-ket_qua = rows[metric].tolist()`
-
 const DOT_PY = `provinces = data["provinces"]
 ket_qua = int((provinces.income >= threshold).sum())`
 
@@ -293,10 +275,7 @@ export function makeGallery(): PapercellDoc {
       ),
       codeFig('Dot plot: income by province, threshold set by a slider.', DOT_JS,
         [{ name: 'threshold', label: 'Income threshold', min: 4, max: 12, step: 0.5, value: 8, unit: 'M VND' }], DOT_PY),
-      codeFig('Dropdown and switch: readers choose the variable and the order.', CHOOSE_JS, [
-        { name: 'metric', label: 'Variable', kind: 'select', options: ['population', 'income', 'urban_share'], value: 'income', min: 0, max: 0, step: 1 },
-        { name: 'sort_desc', label: 'Sort by value', kind: 'toggle', value: true, min: 0, max: 1, step: 1 },
-      ], CHOOSE_PY),
+      paramsDemo('en'),
       cols(
         codeFig('Density of travel time by mode.', DENSITY_JS, [{ name: 'bins', label: 'Bins', min: 10, max: 60, step: 5, value: 30 }]),
         codeFig('Correlation matrix (with original Python to verify).', CORR_JS, [], CORR_PY),

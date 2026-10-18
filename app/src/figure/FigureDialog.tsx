@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { ChartColumn, CircleCheck, CircleX, Code, EyeOff, Loader2, Plus, Rows2, Trash2, X, type LucideIcon } from 'lucide-react'
 import { kernel } from '../python/kernel'
 import { MetaContext } from '@/editor/DocHeader'
-import { ACCESS_LABEL, CAPTION_LABEL, DEFAULT_FIG_PADDING, DISPLAY_LABEL, type CaptionKind, type CodeAccess, type FigureDisplay, type FigureNode, type FigureParam, type ParamKind, type ParamValue, paramKind } from '../editor/types'
+import { ACCESS_LABEL, CAPTION_LABEL, DEFAULT_FIG_PADDING, DISPLAY_LABEL, type CaptionKind, type CodeAccess, type FigureDisplay, type FigureNode, type FigureParam, type ParamKind, type ParamValue, isChoice, paramKind } from '../editor/types'
 import { visibleCode } from './FigureElement'
 import { captionKind, NEXT_CAPTION } from '@/editor/scan'
 import { DesignTab } from './DesignTab'
@@ -152,11 +152,11 @@ function ParamsTab({ fig, onUpdate }: { fig: FigureNode; onUpdate: (p: Partial<F
       if (!IDENT.test(r.name)) return setErr(`Name "${r.name}" is invalid: use letters, digits and _, not starting with a digit.`)
       if (out.some((p) => p.name === r.name)) return setErr(`Name "${r.name}" is used twice.`)
       const base = { name: r.name, label: r.label || r.name, unit: r.unit || undefined }
-      if (r.kind === 'select') {
+      if (isChoice(r.kind)) {
         const options = parseOptions(r.options)
-        if (options.length < 2) return setErr(`Parameter "${r.name}": a dropdown needs at least two options, separated by commas.`)
+        if (options.length < 2) return setErr(`Parameter "${r.name}": needs at least two options, separated by commas.`)
         const value = options.find((o) => String(o) === r.value.trim()) ?? options[0]
-        out.push({ ...base, kind: 'select', options, value, min: 0, max: 0, step: 1 })
+        out.push({ ...base, kind: r.kind, options, value, min: 0, max: 0, step: 1 })
       } else if (r.kind === 'toggle') {
         out.push({ ...base, kind: 'toggle', value: r.value === 'true', min: 0, max: 1, step: 1 })
       } else {
@@ -170,7 +170,7 @@ function ParamsTab({ fig, onUpdate }: { fig: FigureNode; onUpdate: (p: Partial<F
   const changeKind = (i: number, kind: ParamKind) => {
     const r = rows[i]
     set(i, kind === 'toggle' ? { kind, value: 'false' }
-      : kind === 'select' ? { kind, options: r.options || 'A, B, C', value: r.options ? r.value : 'A' }
+      : isChoice(kind) ? { kind, options: r.options || 'A, B, C', value: r.options ? r.value : 'A' }
       : { kind, value: isFinite(+r.value) ? r.value : r.min })
   }
   const num = (i: number, k: 'min' | 'max' | 'step') => (
@@ -178,7 +178,7 @@ function ParamsTab({ fig, onUpdate }: { fig: FigureNode; onUpdate: (p: Partial<F
   )
   return (
     <div className="dlg-params">
-      <p className="hint">Each parameter is a variable in both the JS and Python code, and shows on the figure as a slider, a dropdown or an on/off switch. In code a dropdown gives its chosen option (text or number) and a switch gives <code>true</code>/<code>false</code>.</p>
+      <p className="hint">Each parameter is a variable in both the JS and Python code, and shows on the figure as a slider, a dropdown, radio buttons or an on/off switch. In code a dropdown or radio gives its chosen option (text or number) and a switch gives <code>true</code>/<code>false</code>.</p>
       <table>
         <thead><tr><th>Variable</th><th>Label</th><th>Control</th><th>Settings</th><th>Default</th><th>Unit</th><th /></tr></thead>
         <tbody>
@@ -188,16 +188,16 @@ function ParamsTab({ fig, onUpdate }: { fig: FigureNode; onUpdate: (p: Partial<F
               <td><input value={r.label} aria-label="Label" onChange={(e) => set(i, { label: e.target.value })} /></td>
               <td>
                 <select value={r.kind} aria-label="Control" onChange={(e) => changeKind(i, e.target.value as ParamKind)}>
-                  <option value="range">Slider</option><option value="select">Dropdown</option><option value="toggle">On/off</option>
+                  <option value="range">Slider</option><option value="select">Dropdown</option><option value="radio">Radio buttons</option><option value="toggle">On/off</option>
                 </select>
               </td>
               <td className="param-settings">
                 {r.kind === 'range' && <>{num(i, 'min')}{num(i, 'max')}{num(i, 'step')}</>}
-                {r.kind === 'select' && <input value={r.options} placeholder="option A, option B, 3" aria-label="Options (comma-separated)" onChange={(e) => set(i, { options: e.target.value })} />}
+                {isChoice(r.kind) && <input value={r.options} placeholder="option A, option B, 3" aria-label="Options (comma-separated)" onChange={(e) => set(i, { options: e.target.value })} />}
                 {r.kind === 'toggle' && <span className="hint">true / false</span>}
               </td>
               <td>
-                {r.kind === 'select' ? (
+                {isChoice(r.kind) ? (
                   <select value={r.value} aria-label="Default" onChange={(e) => set(i, { value: e.target.value })}>
                     {parseOptions(r.options).map((o) => <option key={String(o)} value={String(o)}>{String(o)}</option>)}
                   </select>
