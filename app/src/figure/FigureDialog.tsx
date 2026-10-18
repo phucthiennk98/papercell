@@ -2,7 +2,8 @@ import { useContext, useEffect, useRef, useState, useSyncExternalStore } from 'r
 import { createPortal } from 'react-dom'
 import { ChartColumn, CircleCheck, CircleX, Code, EyeOff, Loader2, Plus, Rows2, Trash2, X, type LucideIcon } from 'lucide-react'
 import { kernel } from '../python/kernel'
-import { ACCESS_LABEL, CAPTION_LABEL, DISPLAY_LABEL, type CaptionKind, type CodeAccess, type FigureDisplay, type FigureNode, type FigureParam } from '../editor/types'
+import { MetaContext } from '@/editor/DocHeader'
+import { ACCESS_LABEL, CAPTION_LABEL, DEFAULT_FIG_PADDING, DISPLAY_LABEL, type CaptionKind, type CodeAccess, type FigureDisplay, type FigureNode, type FigureParam } from '../editor/types'
 import { visibleCode } from './FigureElement'
 import { captionKind, NEXT_CAPTION } from '@/editor/scan'
 import { DesignTab } from './DesignTab'
@@ -21,9 +22,10 @@ type Props = {
   fig: FigureNode; params: FigureParam[]; number?: string; readOnly: boolean; initialTab: DialogTab
   onParam: (name: string, v: number) => void; onCommitParams: () => void
   onUpdate: (p: Partial<FigureNode>) => void; onClose: () => void
+  applyPaddingAll?: (px: number) => void
 }
 
-export function FigureDialog({ fig, params, number, readOnly, initialTab, onParam, onCommitParams, onUpdate, onClose }: Props) {
+export function FigureDialog({ fig, params, number, readOnly, initialTab, onParam, onCommitParams, onUpdate, onClose, applyPaddingAll }: Props) {
   const readTabs: [DialogTab, string][] = [['figure', 'Figure'], ...visibleCode(fig).map((c) => [c.lang === 'JS' ? 'js' : 'python', c.lang === 'JS' ? 'JS code' : 'Original Python'] as [DialogTab, string])]
   const editTabs: [DialogTab, string][] = [['design', 'Design'], ['figure', 'Figure'], ['js', 'JS code'], ['python', 'Original Python'], ['params', 'Parameters'], ['verify', 'Verify'], ['scenarios', 'Precompute'], ['settings', 'Settings']]
   const tabs = readOnly ? readTabs : editTabs
@@ -79,7 +81,7 @@ export function FigureDialog({ fig, params, number, readOnly, initialTab, onPara
           {!readOnly && tab === 'params' && <ParamsTab fig={fig} onUpdate={onUpdate} />}
           {!readOnly && tab === 'verify' && <VerifyTab fig={fig} onUpdate={onUpdate} />}
           {!readOnly && tab === 'scenarios' && <ScenarioTab fig={fig} onUpdate={onUpdate} />}
-          {!readOnly && tab === 'settings' && <SettingsTab fig={fig} onUpdate={onUpdate} />}
+          {!readOnly && tab === 'settings' && <SettingsTab fig={fig} onUpdate={onUpdate} applyPaddingAll={applyPaddingAll} />}
         </div>
       </div>
     </div>,
@@ -186,9 +188,27 @@ function VerifyTab({ fig, onUpdate }: { fig: FigureNode; onUpdate: (p: Partial<F
   )
 }
 
-function SettingsTab({ fig, onUpdate }: { fig: FigureNode; onUpdate: (p: Partial<FigureNode>) => void }) {
+function SettingsTab({ fig, onUpdate, applyPaddingAll }: { fig: FigureNode; onUpdate: (p: Partial<FigureNode>) => void; applyPaddingAll?: (px: number) => void }) {
+  const { meta } = useContext(MetaContext)
+  const docPad = meta.figurePadding ?? DEFAULT_FIG_PADDING
+  const pad = fig.padding ?? docPad
+  const [applied, setApplied] = useState(false)
   return (
     <div className="dlg-settings">
+      <section>
+        <h3>Inner padding</h3>
+        <p className="hint">Space between the card border and the chart. Figures without their own value use the document default ({docPad}px), so they line up.</p>
+        <div className="row pad-row">
+          <input type="range" min={0} max={48} step={2} value={pad} aria-label="Inner padding (px)" onChange={(e) => { setApplied(false); onUpdate({ padding: +e.target.value }) }} />
+          <output>{pad}px</output>
+          <span className="hint">{fig.padding === undefined ? 'document default' : 'this figure only'}</span>
+        </div>
+        <div className="row">
+          {applyPaddingAll && <button className="btn primary" onClick={() => { applyPaddingAll(pad); setApplied(true) }}>Apply to all figures</button>}
+          {fig.padding !== undefined && <button className="btn" onClick={() => onUpdate({ padding: undefined })}>Use document default</button>}
+          {applied && <span className="ok">Every figure now uses {pad}px.</span>}
+        </div>
+      </section>
       <section>
         <h3>Display in the document</h3>
         <div className="choice-grid">

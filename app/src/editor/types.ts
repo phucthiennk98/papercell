@@ -28,6 +28,8 @@ export type FigureNode = {
   specDetached?: boolean
   /** Caption label: numbered as a Figure or a Table (separate counters), or not numbered. Empty = automatic. */
   label?: CaptionKind
+  /** Inner padding around the chart (px). Empty = the document default (DocMeta.figurePadding). */
+  padding?: number
   /** Code trước khi bị thiết kế thay thế, để nút "Quay lại code cũ" dùng. */
   codeBackup?: { js: string; params: FigureParam[]; spec?: ChartSpec; specDetached?: boolean }
   /** Kết quả Python đã tính sẵn cho mọi tổ hợp tham số (để xuất bản không cần Python). */
@@ -49,7 +51,13 @@ export type DataFile = {
   labels?: Record<string, string>
 }
 
-export type DocMeta = { title: string; authors: string; date: string }
+export type DocMeta = {
+  title: string; authors: string; date: string
+  /** Default inner padding of figure cards (px); figures can override it. */
+  figurePadding?: number
+}
+
+export const DEFAULT_FIG_PADDING = 12
 
 export type PapercellDoc = {
   version: 3

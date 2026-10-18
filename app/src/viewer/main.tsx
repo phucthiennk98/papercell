@@ -7,6 +7,7 @@ import { EditorStatic } from '@/components/ui/editor-static'
 import { scan } from '@/editor/scan'
 import type { PapercellDoc } from '@/editor/types'
 import { FigureNumbers } from '@/figure/FigureElement'
+import { MetaContext } from '@/editor/DocHeader'
 import { FigureStaticPlugin } from '@/figure/FigureStatic'
 import { DataContext, parseData } from '@/figure/runtime'
 import { unpackText } from '@/lib/pack'
@@ -29,9 +30,11 @@ function Viewer({ doc }: { doc: PapercellDoc }) {
   const { figs, headings } = useMemo(() => scan(doc.content), [doc])
   const data = useMemo(() => ({ files: doc.data ?? [], data: parseData(doc.data ?? []), setFiles: () => {} }), [doc])
   const { title, authors, date } = doc.meta
+  const metaCtx = useMemo(() => ({ meta: doc.meta, setMeta: () => {} }), [doc])
   useEffect(() => { if (title) document.title = title }, [title])
   return (
     <DataContext.Provider value={data}>
+      <MetaContext.Provider value={metaCtx}>
       <FigureNumbers.Provider value={figs}>
         <div className="pv">
           {headings.length > 1 && (
@@ -51,6 +54,7 @@ function Viewer({ doc }: { doc: PapercellDoc }) {
           </main>
         </div>
       </FigureNumbers.Provider>
+      </MetaContext.Provider>
     </DataContext.Provider>
   )
 }

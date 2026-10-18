@@ -11,7 +11,7 @@
 .fig-verify { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; padding: 1px 7px; border-radius: 5px; font-weight: 500; }
 .fig-verify.ok { background: #e6f4ea; color: var(--ok); }
 .fig-verify.bad { background: #fdeceb; color: var(--err); }
-.fig-click { cursor: zoom-in; padding: 6px 12px 4px; }
+.fig-click { cursor: zoom-in; }
 .fig-click:focus-visible { outline: 2px solid #1d5fd1; outline-offset: -2px; }
 .fig-view { width: 100%; min-width: 0; }
 .fig-out { overflow-x: auto; }
@@ -200,4 +200,5 @@ body.dragging .insert-gap { display: none; }
 .fig-card:hover .fig-tools, .fig-tools:focus-within { opacity: 1; pointer-events: auto; }
 .fig-alerts { position: absolute; top: 8px; left: 10px; z-index: 2; display: flex; gap: 6px; }
 .pc-icon-btn.danger:hover { color: var(--err); background: #fdeceb; }
-.fig-card > .fig-click { padding-top: 6px; }
+.pad-row input[type=range] { flex: 1; max-width: 260px; accent-color: #1d5fd1; }
+.pad-row output { font: 500 12px var(--font-mono); min-width: 40px; }

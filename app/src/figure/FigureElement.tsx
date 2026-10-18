@@ -2,7 +2,8 @@ import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState
 import { PlateElement, type PlateElementProps, useReadOnly } from 'platejs/react'
 import { CircleCheck, CircleX, Maximize2, Pencil, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
-import { CAPTION_LABEL, type FigureNode, type FigureParam } from '../editor/types'
+import { CAPTION_LABEL, DEFAULT_FIG_PADDING, type FigureNode, type FigureParam } from '../editor/types'
+import { MetaContext } from '../editor/DocHeader'
 import { captionKind, NEXT_CAPTION } from '../editor/scan'
 import { FigureDialog, type DialogTab } from './FigureDialog'
 import { FigureView, ParamSliders } from './FigureView'
@@ -24,6 +25,12 @@ export function FigureElement(props: PlateElementProps) {
   const fig = props.element as unknown as FigureNode
   const readOnly = useReadOnly()
   const update = (patch: Partial<FigureNode>) => { const at = editor.api.findPath(props.element); if (at) editor.tf.setNodes(patch, { at }) }
+  const { meta, setMeta } = useContext(MetaContext)
+  /** Make every figure use this padding: it becomes the document default and per-figure overrides are cleared. */
+  const applyPaddingAll = (px: number) => {
+    setMeta({ ...meta, figurePadding: px })
+    editor.tf.setNodes({ padding: undefined } as Partial<FigureNode>, { at: [], mode: 'all', match: (n) => (n as { type?: string }).type === 'figure' })
+  }
   const remove = () => {
     const at = editor.api.findPath(props.element); if (!at) return
     editor.tf.removeNodes({ at })
@@ -31,7 +38,7 @@ export function FigureElement(props: PlateElementProps) {
   }
   return (
     <PlateElement {...props} className={figClass(fig, readOnly)}>
-      {readOnly && fig.display === 'hidden' ? null : <FigureCard fig={fig} readOnly={readOnly} update={update} remove={remove} />}
+      {readOnly && fig.display === 'hidden' ? null : <FigureCard fig={fig} readOnly={readOnly} update={update} remove={remove} applyPaddingAll={applyPaddingAll} />}
       {props.children}
     </PlateElement>
   )
@@ -41,8 +48,12 @@ export const figClass = (fig: FigureNode, readOnly: boolean) =>
   readOnly && fig.display === 'hidden' ? 'fig-hidden' : 'fig' + (readOnly ? ' is-read' : ' is-edit') + (fig.display === 'hidden' ? ' is-hidden' : '')
 
 /** Thân thẻ hình (dùng chung cho editor và trang đọc tĩnh khi xuất HTML). */
-export function FigureCard({ fig, readOnly, update, remove }: { fig: FigureNode; readOnly: boolean; update: (p: Partial<FigureNode>) => void; remove?: () => void }) {
+export function FigureCard({ fig, readOnly, update, remove, applyPaddingAll }: {
+  fig: FigureNode; readOnly: boolean; update: (p: Partial<FigureNode>) => void; remove?: () => void; applyPaddingAll?: (px: number) => void
+}) {
   const no = useContext(FigureNumbers).get(fig.id)
+  const { meta } = useContext(MetaContext)
+  const pad = fig.padding ?? meta.figurePadding ?? DEFAULT_FIG_PADDING
   // Giá trị tham số đang kéo; người đọc kéo thì không ghi vào tài liệu.
   const [params, setParams] = useState<FigureParam[]>(fig.params)
   const [dialog, setDialog] = useState<DialogTab | null>(null)
@@ -78,7 +89,7 @@ export function FigureCard({ fig, readOnly, update, remove }: { fig: FigureNode;
           {!readOnly && remove && <button type="button" className="pc-icon-btn danger" aria-label="Delete figure" data-tip="Delete (Ctrl+Z to undo)" onClick={remove}><Trash2 size={15} /></button>}
         </div>
         {fig.display !== 'code' && (
-          <div className="fig-click" onClick={() => setDialog('figure')} role="button" tabIndex={0} aria-label="Open large figure"
+          <div className="fig-click" style={{ padding: pad }} onClick={() => setDialog('figure')} role="button" tabIndex={0} aria-label="Open large figure"
             onKeyDown={(e) => { e.stopPropagation(); if (e.key === 'Enter') setDialog('figure') }}>
             <FigureView js={fig.js} params={params} scenarios={fig.scenarios} />
           </div>
@@ -103,7 +114,7 @@ export function FigureCard({ fig, readOnly, update, remove }: { fig: FigureNode;
       </div>
       {dialog && (
         <FigureDialog fig={fig} params={params} onParam={slide} onCommitParams={commit} readOnly={readOnly}
-          number={no} initialTab={dialog} onClose={() => setDialog(null)} onUpdate={update} />
+          number={no} initialTab={dialog} onClose={() => setDialog(null)} onUpdate={update} applyPaddingAll={applyPaddingAll} />
       )}
     </>
   )
