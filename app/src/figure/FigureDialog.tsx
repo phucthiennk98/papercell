@@ -4,7 +4,7 @@ import { ChartColumn, CircleCheck, CircleX, Code, EyeOff, Loader2, Plus, Rows2, 
 import { kernel } from '../python/kernel'
 import { ACCESS_LABEL, CAPTION_LABEL, DISPLAY_LABEL, type CaptionKind, type CodeAccess, type FigureDisplay, type FigureNode, type FigureParam } from '../editor/types'
 import { visibleCode } from './FigureElement'
-import { captionKind } from '@/editor/scan'
+import { captionKind, NEXT_CAPTION } from '@/editor/scan'
 import { DesignTab } from './DesignTab'
 import { ScenarioTab } from './ScenarioTab'
 import { CodeAssist, CodeEditor, useCodeHints } from './CodeEditor'
@@ -42,13 +42,24 @@ export function FigureDialog({ fig, params, number, readOnly, initialTab, onPara
   }, [])
 
   const title = `${number ? `${number}. ` : ''}${fig.caption || 'Untitled figure'}`
+  const kind = captionKind(fig)
 
   return createPortal(
     <div className="dlg-backdrop" onMouseDown={onClose}>
       <div ref={dlg} className="dlg" role="dialog" aria-modal="true" aria-label={title} tabIndex={-1} onMouseDown={(e) => e.stopPropagation()}
         onKeyDown={(e) => e.stopPropagation()}>
         <header className="dlg-head">
-          <span className="dlg-title">{title}</span>
+          {readOnly ? <span className="dlg-title">{title}</span> : (
+            <div className="dlg-title dlg-title-edit">
+              <button type="button" className={'fig-no-btn' + (number ? '' : ' none')} data-tip="Click to switch: Figure → Table → no number"
+                aria-label="Caption label" onClick={() => onUpdate({ label: NEXT_CAPTION[kind] })}>
+                {number ? `${number}.` : kind === 'none' ? 'No number' : CAPTION_LABEL[kind]}
+              </button>
+              <input key={fig.caption} defaultValue={fig.caption} placeholder="Add a caption…" aria-label="Caption"
+                onBlur={(e) => { if (e.target.value !== fig.caption) onUpdate({ caption: e.target.value }) }}
+                onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur() }} />
+            </div>
+          )}
           <nav className="dlg-tabs" role="tablist">
             {tabs.map(([t, l]) => <button key={t} role="tab" aria-selected={tab === t} className={tab === t ? 'on' : ''} onClick={() => setTab(t)}>{l}</button>)}
           </nav>

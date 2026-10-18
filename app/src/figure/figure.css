@@ -178,3 +178,9 @@
 .fig-no-btn { border: 0; background: none; padding: 1px 4px; margin-left: -4px; border-radius: 4px; cursor: pointer; font: inherit; font-weight: 600; color: var(--ink); white-space: nowrap; }
 .fig-no-btn:hover { background: var(--accent-soft); color: #1d5fd1; }
 .fig-no-btn.none { font-weight: 500; color: var(--ink-3); }
+
+.dlg-title-edit { display: flex; align-items: baseline; gap: 4px; }
+.dlg-title-edit input { flex: 1; min-width: 0; border: 0; border-bottom: 1px dashed transparent; background: none; padding: 2px 0; font: inherit; color: var(--ink); outline: none; }
+.dlg-title-edit input:hover { border-bottom-color: var(--line); }
+.dlg-title-edit input:focus { border-bottom-color: #1d5fd1; }
+.design-row .col-name { font: 12px var(--font-mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

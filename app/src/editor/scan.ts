@@ -11,6 +11,9 @@ export function captionKind(f: FigureNode): CaptionKind {
   return 'figure'
 }
 
+/** Clicking a caption label always changes what is shown: Figure → Table → no number → Figure (Automatic is in Settings). */
+export const NEXT_CAPTION: Record<CaptionKind, CaptionKind> = { figure: 'table', table: 'none', none: 'figure' }
+
 /** Number figures and tables separately ("Figure 3", "Table 1") and collect the outline from headings. */
 export function scan(content: any[]) {
   const figs = new Map<string, string>(); const headings: Heading[] = []

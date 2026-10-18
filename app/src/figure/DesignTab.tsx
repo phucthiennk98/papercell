@@ -45,6 +45,19 @@ export function DesignTab({ fig, onUpdate }: { fig: FigureNode; onUpdate: (p: Pa
     apply(next)
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Columns whose display names can be edited here: all of them for a plain table, otherwise the ones in use
+  const cur = files.find((f) => dataKey(f.name) === spec.data)
+  const aliasCols = spec.type === 'table' && !spec.x
+    ? columns.map((c) => c.name)
+    : [...new Set([spec.x, spec.y, spec.color, spec.size, spec.facet].filter((c): c is string => !!c))]
+  const setLabel = (col: string, value: string) => {
+    if (!cur) return
+    const labels = { ...(cur.labels ?? {}) }
+    if (value.trim() && value.trim() !== col) labels[col] = value.trim(); else delete labels[col]
+    if ((cur.labels?.[col] ?? '') === (labels[col] ?? '')) return
+    setFiles(files.map((f) => (f === cur ? { ...f, labels } : f)))
+  }
+
   const apply = (next: ChartSpec, force = false) => {
     setSpec(next); setTouched(true)
     if (detached && !force) { if (fig.spec) onUpdate({ spec: next }); return }
@@ -152,6 +165,19 @@ export function DesignTab({ fig, onUpdate }: { fig: FigureNode; onUpdate: (p: Pa
           )}
           {info.bins && <p className="hint">The number of bins is a slider readers can drag.</p>}
         </section>
+
+        {aliasCols.length > 0 && cur && (
+          <section>
+            <h3>Column names</h3>
+            <p className="hint">Display names used in table headers, axes and legends (empty = the name from the file). Shared by every figure using <code>{spec.data}</code>.</p>
+            {aliasCols.map((c) => (
+              <label key={c} className="design-row"><span className="col-name" title={c}>{c}</span>
+                <input key={c + (cur.labels?.[c] ?? '')} className={field} defaultValue={cur.labels?.[c] ?? ''} placeholder={c}
+                  onBlur={(e) => setLabel(c, e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur() }} />
+              </label>
+            ))}
+          </section>
+        )}
 
         <section>
           <h3>Display</h3>

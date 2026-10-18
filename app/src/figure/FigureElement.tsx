@@ -1,11 +1,8 @@
 import { createContext, useContext, useEffect, useState } from 'react'
 import { PlateElement, type PlateElementProps, useReadOnly } from 'platejs/react'
 import { CircleCheck, CircleX, Maximize2, Pencil } from 'lucide-react'
-import { CAPTION_LABEL, type CaptionKind, type FigureNode, type FigureParam } from '../editor/types'
-import { captionKind } from '../editor/scan'
-
-/** Clicking the caption label always changes what is shown: Figure → Table → no number → Figure (Automatic is in Settings). */
-const NEXT_LABEL: Record<CaptionKind, CaptionKind> = { figure: 'table', table: 'none', none: 'figure' }
+import { CAPTION_LABEL, type FigureNode, type FigureParam } from '../editor/types'
+import { captionKind, NEXT_CAPTION } from '../editor/scan'
 import { FigureDialog, type DialogTab } from './FigureDialog'
 import { FigureView, ParamSliders } from './FigureView'
 
@@ -90,10 +87,10 @@ export function FigureCard({ fig, readOnly, update }: { fig: FigureNode; readOnl
           {readOnly ? caption : (
             <>
               <button type="button" className={'fig-no fig-no-btn' + (no ? '' : ' none')} data-tip="Click to switch: Figure → Table → no number"
-                aria-label="Caption label" onClick={() => update({ label: NEXT_LABEL[captionKind(fig)] })}>
+                aria-label="Caption label" onClick={() => update({ label: NEXT_CAPTION[captionKind(fig)] })}>
                 {no ? `${no}.` : captionKind(fig) === 'none' ? 'No number' : CAPTION_LABEL[captionKind(fig)]}
               </button>
-              <input defaultValue={fig.caption} placeholder="Caption (needed for numbering)" aria-label="Caption"
+              <input key={fig.caption} defaultValue={fig.caption} placeholder="Caption (needed for numbering)" aria-label="Caption"
                 onBlur={(e) => { if (e.target.value !== fig.caption) update({ caption: e.target.value }) }} onKeyDown={(e) => e.stopPropagation()} />
             </>
           )}
