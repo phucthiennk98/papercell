@@ -16,6 +16,21 @@ export type PythonNode = {
   children: [{ text: '' }]
 }
 
+export type ParamNode = {
+  type: 'param'
+  id: string
+  name: string
+  label: string
+  min: number
+  max: number
+  step: number
+  value: number
+  unit?: string
+  children: [{ text: '' }]
+}
+
+export type EquationNode = { type: 'equation'; id: string; texExpression: string; children: [{ text: '' }] }
+
 export type DocMeta = { title: string; authors: string; date: string }
 
 export type PapercellDoc = {
@@ -36,3 +51,9 @@ export const newId = () => Math.random().toString(36).slice(2, 10)
 export const newPythonNode = (code = ''): PythonNode => ({
   type: 'python', id: newId(), code, display: 'both', caption: '', children: [{ text: '' }],
 })
+
+export const newParamNode = (name: string): ParamNode => ({
+  type: 'param', id: newId(), name, label: 'Tham số mới', min: 0, max: 10, step: 1, value: 5, unit: '', children: [{ text: '' }],
+})
+
+export const newEquationNode = (tex = 'E = mc^2'): EquationNode => ({ type: 'equation', id: newId(), texExpression: tex, children: [{ text: '' }] })

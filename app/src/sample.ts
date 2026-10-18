@@ -3,6 +3,9 @@ import type { PapercellDoc } from './editor/types'
 const p = (text: string, extra: Record<string, unknown> = {}) => ({ type: 'p', ...extra, children: [{ text }] })
 const h = (level: 1 | 2 | 3, text: string) => ({ type: 'h' + level, children: [{ text }] })
 const py = (id: string, code: string, display: string, caption = '') => ({ type: 'python', id, code, display, caption, children: [{ text: '' }] })
+const param = (name: string, label: string, min: number, max: number, step: number, value: number, unit = '') =>
+  ({ type: 'param', id: 'p_' + name, name, label, min, max, step, value, unit, children: [{ text: '' }] })
+const eq = (id: string, texExpression: string) => ({ type: 'equation', id, texExpression, children: [{ text: '' }] })
 const cols = (widths: string[], ...columns: any[][]) => ({
   type: 'column_group',
   children: columns.map((children, i) => ({ type: 'column', width: widths[i], children })),
@@ -30,8 +33,12 @@ print(f"{len(trips):,} chuyến đi, {len(ga)} ga")`
 
 const MAP = `import matplotlib.pyplot as plt
 
+gan = trips[trips.khoang_cach_km <= ban_kinh_km]
 fig, ax = plt.subplots(figsize=(5, 3.4))
-hb = ax.hexbin(trips.x, trips.y, gridsize=24, cmap="Blues", mincnt=1, linewidths=0.2)
+hb = ax.hexbin(gan.x, gan.y, gridsize=int(so_o_luoi), cmap="Blues", mincnt=1, linewidths=0.2)
+so = f"{len(gan):,}".replace(",", ".")
+bk = f"{ban_kinh_km:.1f}".replace(".", ",")
+ax.set_title(f"{so} chuyến trong bán kính {bk} km quanh ga", fontsize=9)
 ax.plot(ga[:, 0], ga[:, 1], "o-", color="#1f2937", ms=3, lw=1, label="Tuyến metro")
 ax.set_xlabel("Đông (km)")
 ax.set_ylabel("Bắc (km)")
@@ -61,10 +68,13 @@ export const SAMPLE: PapercellDoc = {
     h(2, '1. Dữ liệu'),
     p('Ô đầu tiên sinh dữ liệu và được đặt chế độ "Ẩn khi xuất bản": người đọc không thấy nó, nhưng các hình phía sau vẫn dùng kết quả của nó.', { align: 'justify' }),
     py('data', DATA, 'hidden'),
-    cols(['45%', '55%'],
+    p('Mỗi chuyến đi là một quyết định có tọa độ. Khoảng cách d từ điểm xuất phát tới ga theo phân phối mũ với trung bình μ = 0,6 km:', { align: 'justify' }),
+    eq('eq1', String.raw`f(d) = \frac{1}{\mu}\, e^{-d/\mu}, \qquad d \ge 0`),
+    cols(['42%', '58%'],
       [
-        p('Mỗi chuyến đi là một quyết định có tọa độ. Điểm xuất phát nằm quanh một ga, khoảng cách tới ga theo phân phối mũ với trung bình 0,6 km.', { align: 'justify' }),
-        p('Hình 1 cho thấy mật độ chuyến đi tập trung dọc tuyến và thưa dần khi ra xa ga.', { align: 'justify' }),
+        p('Hình 1 cho thấy mật độ chuyến đi tập trung dọc tuyến và thưa dần khi ra xa ga. Kéo hai thanh trượt bên dưới để đổi bán kính lọc và độ mịn của lưới; hình tự vẽ lại.', { align: 'justify' }),
+        param('ban_kinh_km', 'Bán kính quanh ga', 0.2, 3, 0.1, 1.5, 'km'),
+        param('so_o_luoi', 'Độ mịn lưới', 10, 40, 2, 24, 'ô'),
       ],
       [py('map', MAP, 'output', 'Mật độ chuyến đi theo ô lục giác quanh tuyến metro.')],
     ),

@@ -1,29 +1,34 @@
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { Plate, PlateContent, usePlateEditor } from 'platejs/react'
+import { DndProvider } from 'react-dnd'
+import { HTML5Backend } from 'react-dnd-html5-backend'
+import { EquationNumbers } from './editor/EquationBlock'
 import { plugins } from './editor/plugins'
 import { FigureNumbers } from './editor/PythonCell'
+import { checkSlashTrigger, handleSlashKey, SlashMenu } from './editor/SlashMenu'
 import { Toolbar } from './editor/Toolbar'
 import { runAll } from './editor/run'
 import type { DocMeta, PapercellDoc, PythonNode } from './editor/types'
 import { kernel } from './python/kernel'
 import { SAMPLE } from './sample'
 
-const STORE = 'papercell.doc.v1'
+const STORE = 'papercell.doc.v2'
 let booted = false
 
 function loadStored(): PapercellDoc | null {
   try { const s = localStorage.getItem(STORE); const d = s && JSON.parse(s); return d?.version === 1 && Array.isArray(d.content) ? d : null } catch { return null }
 }
 
-/** Đánh số hình theo thứ tự xuất hiện: chỉ ô có chú thích và không bị ẩn. */
-function figureNumbers(content: any[]) {
-  const m = new Map<string, number>(); let i = 0
+/** Đánh số theo thứ tự xuất hiện: hình (ô Python có chú thích, không ẩn) và công thức. */
+function numbering(content: any[]) {
+  const figs = new Map<string, number>(), eqs = new Map<string, number>()
   const walk = (nodes: any[]) => nodes.forEach((n) => {
-    if (n.type === 'python') { const c = n as PythonNode; if (c.caption?.trim() && c.display !== 'hidden') m.set(c.id, ++i) }
+    if (n.type === 'python') { const c = n as PythonNode; if (c.caption?.trim() && c.display !== 'hidden') figs.set(c.id, figs.size + 1) }
+    else if (n.type === 'equation') eqs.set(n.id, eqs.size + 1)
     else if (n.children) walk(n.children)
   })
   walk(content)
-  return m
+  return { figs, eqs }
 }
 
 function KernelStatus() {
@@ -35,8 +40,9 @@ export default function App() {
   const initial = useMemo(() => loadStored() ?? SAMPLE, [])
   const [meta, setMeta] = useState<DocMeta>(initial.meta)
   const [mode, setMode] = useState<'edit' | 'read'>(() => (location.hash === '#read' ? 'read' : 'edit'))
-  const [figs, setFigs] = useState(() => figureNumbers(initial.content))
+  const [nums, setNums] = useState(() => numbering(initial.content))
   const editor = usePlateEditor({ plugins, value: initial.content })
+  if (import.meta.env.DEV) (window as any).__editor = editor
   const fileRef = useRef<HTMLInputElement>(null)
   const metaRef = useRef(meta); metaRef.current = meta
 
@@ -56,7 +62,7 @@ export default function App() {
   }, [editor])
 
   const loadDoc = (d: PapercellDoc) => {
-    setMeta(d.meta); editor.tf.setValue(d.content); setFigs(figureNumbers(d.content)); kernel.restart(); runAll(editor)
+    setMeta(d.meta); editor.tf.setValue(d.content); setNums(numbering(d.content)); kernel.restart(); runAll(editor)
   }
   const download = () => {
     const blob = new Blob([JSON.stringify({ version: 1, meta, content: editor.children }, null, 2)], { type: 'application/json' })
@@ -72,8 +78,10 @@ export default function App() {
 
   const readOnly = mode === 'read'
   return (
-    <FigureNumbers.Provider value={figs}>
-      <Plate editor={editor} readOnly={readOnly} onChange={({ value }) => { setFigs(figureNumbers(value)); save(value) }}>
+    <DndProvider backend={HTML5Backend}>
+    <FigureNumbers.Provider value={nums.figs}>
+    <EquationNumbers.Provider value={nums.eqs}>
+      <Plate editor={editor} readOnly={readOnly} onChange={({ value }) => { setNums(numbering(value)); save(value); if (!readOnly) checkSlashTrigger(editor) }}>
         <div className="chrome">
         <header className="appbar">
           <div className="brand"><span className="logo" aria-hidden="true">▤</span>Papercell</div>
@@ -103,10 +111,14 @@ export default function App() {
                     <input type="date" value={meta.date} onChange={(e) => setMeta({ ...meta, date: e.target.value })} />
                   </div>}
             </header>
-            <PlateContent className="doc-body" placeholder="Bắt đầu viết…" spellCheck={false} />
+            <PlateContent className="doc-body" placeholder="Bắt đầu viết, hoặc gõ / để chèn khối…" spellCheck={false}
+              onKeyDown={(e) => { handleSlashKey(editor, e) }} />
           </article>
         </main>
+        {!readOnly && <SlashMenu />}
       </Plate>
+    </EquationNumbers.Provider>
     </FigureNumbers.Provider>
+    </DndProvider>
   )
 }

@@ -1,8 +1,28 @@
 import { createContext, useContext, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { PlateElement, type PlateElementProps, useReadOnly } from 'platejs/react'
+import { ChartColumn, Code2, EyeOff, Loader2, Play, Rows2, type LucideIcon } from 'lucide-react'
 import type { CellOutput } from '../python/kernel'
 import { isRunning, onRunningChange, runCell } from './run'
 import { DISPLAY_LABEL, type CellDisplay, type PythonNode } from './types'
+
+const DISPLAY_ICON: Record<CellDisplay, LucideIcon> = { both: Rows2, output: ChartColumn, code: Code2, hidden: EyeOff }
+
+/** Nhóm icon chọn chế độ hiển thị, thay cho menu xổ xuống. */
+function DisplayPicker({ value, onChange }: { value: CellDisplay; onChange: (d: CellDisplay) => void }) {
+  return (
+    <span className="pc-seg" role="radiogroup" aria-label="Chế độ hiển thị">
+      {(Object.keys(DISPLAY_LABEL) as CellDisplay[]).map((k) => {
+        const Icon = DISPLAY_ICON[k]
+        return (
+          <button key={k} type="button" role="radio" aria-checked={value === k} aria-label={DISPLAY_LABEL[k]} data-tip={DISPLAY_LABEL[k]}
+            className={value === k ? 'on' : ''} onClick={() => onChange(k)}>
+            <Icon size={15} strokeWidth={1.8} />
+          </button>
+        )
+      })}
+    </span>
+  )
+}
 
 /** Số thứ tự hình theo id ô (chỉ đếm ô có chú thích và không ẩn). */
 export const FigureNumbers = createContext<Map<string, number>>(new Map())
@@ -91,11 +111,14 @@ export function PythonCellElement(props: PlateElementProps) {
         <div className="pc-cell-head">
           <span className="pc-cell-tag">[{node.execCount ?? ' '}] Python{d === 'hidden' ? ' · ẩn khi xuất bản' : ''}</span>
           <span className="pc-cell-tools">
-            {d === 'output' && <button className="pc-btn-ghost" onClick={() => setShowCode(!showCode)}>{showCode ? 'Thu code' : '‹/› Code'}</button>}
-            <select value={d} onChange={(e) => set({ display: e.target.value as CellDisplay })} aria-label="Chế độ hiển thị">
-              {(Object.keys(DISPLAY_LABEL) as CellDisplay[]).map((k) => <option key={k} value={k}>{DISPLAY_LABEL[k]}</option>)}
-            </select>
-            <button className="pc-run" onClick={run} disabled={running} title="Chạy (Shift+Enter)">{running ? '…' : '▶'}</button>
+            {d === 'output' && (
+              <button className={'pc-icon-btn' + (showCode ? ' on' : '')} onClick={() => setShowCode(!showCode)}
+                aria-label={showCode ? 'Thu gọn code' : 'Xem code'} data-tip={showCode ? 'Thu gọn code' : 'Xem code'}><Code2 size={15} strokeWidth={1.8} /></button>
+            )}
+            <DisplayPicker value={d} onChange={(v) => set({ display: v })} />
+            <button className="pc-run" onClick={run} disabled={running} aria-label="Chạy ô" data-tip="Chạy (Shift+Enter)">
+              {running ? <Loader2 size={14} className="spin" /> : <Play size={13} fill="currentColor" />}
+            </button>
           </span>
         </div>
         {showEditorCode && <CodeArea value={code} onChange={setCode} onRun={run} onBlur={commit} />}

@@ -1,30 +1,35 @@
 import type { ReactNode } from 'react'
-import type { TElement } from 'platejs'
+import type { Path, TElement } from 'platejs'
 import { useEditorRef, useEditorSelector } from 'platejs/react'
 import { setAlign, type Alignment } from '@platejs/basic-styles'
 import { indent, outdent } from '@platejs/indent'
 import { setColumns, toggleColumnGroup } from '@platejs/layout'
-import { newPythonNode } from './types'
+import {
+  Bold, Code, Columns2, Columns3, Italic, ListIndentDecrease, ListIndentIncrease, Minus, RectangleHorizontal, Sigma,
+  SlidersHorizontal, SquareCode, Subscript, Superscript, TextAlignCenter, TextAlignEnd, TextAlignJustify, TextAlignStart, Underline,
+  type LucideIcon,
+} from 'lucide-react'
+import { ITEMS } from './SlashMenu'
 
 const BLOCKS: [string, string][] = [['p', 'Đoạn văn'], ['h1', 'Tiêu đề 1'], ['h2', 'Tiêu đề 2'], ['h3', 'Tiêu đề 3'], ['blockquote', 'Trích dẫn']]
-const MARKS: [string, ReactNode, string][] = [
-  ['bold', <b>B</b>, 'Đậm (Ctrl+B)'], ['italic', <i>I</i>, 'Nghiêng (Ctrl+I)'], ['underline', <u>U</u>, 'Gạch chân (Ctrl+U)'],
-  ['superscript', <span>x<sup>2</sup></span>, 'Chỉ số trên'], ['subscript', <span>x<sub>2</sub></span>, 'Chỉ số dưới'], ['code', <span className="mono">{'<>'}</span>, 'Code trong dòng'],
+const MARKS: [string, LucideIcon, string][] = [
+  ['bold', Bold, 'Đậm (Ctrl+B)'], ['italic', Italic, 'Nghiêng (Ctrl+I)'], ['underline', Underline, 'Gạch chân (Ctrl+U)'],
+  ['superscript', Superscript, 'Chỉ số trên'], ['subscript', Subscript, 'Chỉ số dưới'], ['code', Code, 'Code trong dòng'],
 ]
-const ALIGNS: [Alignment, string, string][] = [['left', 'M3 6h18M3 12h12M3 18h16', 'Căn trái'], ['center', 'M3 6h18M6 12h12M4 18h16', 'Căn giữa'], ['right', 'M3 6h18M9 12h12M5 18h16', 'Căn phải'], ['justify', 'M3 6h18M3 12h18M3 18h18', 'Căn đều']]
-const COLUMNS: [string, string[]][] = [['1 cột', ['100%']], ['2 cột · 50/50', ['50%', '50%']], ['2 cột · 33/67', ['33.33%', '66.67%']], ['2 cột · 67/33', ['66.67%', '33.33%']], ['3 cột', ['33.33%', '33.33%', '33.34%']]]
+const ALIGNS: [Alignment, LucideIcon, string][] = [['left', TextAlignStart, 'Căn trái'], ['center', TextAlignCenter, 'Căn giữa'], ['right', TextAlignEnd, 'Căn phải'], ['justify', TextAlignJustify, 'Căn đều hai bên']]
+const COLUMNS: [LucideIcon, string, string[]][] = [[RectangleHorizontal, '1 cột (gộp cột)', ['100%']], [Columns2, '2 cột', ['50%', '50%']], [Columns3, '3 cột', ['33.33%', '33.33%', '33.34%']]]
+const INSERTS: [string, LucideIcon, string][] = [['python', SquareCode, 'Chèn ô Python'], ['param', SlidersHorizontal, 'Chèn tham số (thanh trượt)'], ['equation', Sigma, 'Chèn công thức'], ['hr', Minus, 'Chèn đường kẻ']]
 
-const Icon = ({ d }: { d: string }) => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d={d} /></svg>
-
-function Btn({ on, title, onAct, children }: { on?: boolean; title: string; onAct: () => void; children: ReactNode }) {
-  return <button type="button" className={'tb' + (on ? ' on' : '')} title={title} aria-label={title} onMouseDown={(e) => { e.preventDefault(); onAct() }}>{children}</button>
+function Btn({ on, tip, onAct, children }: { on?: boolean; tip: string; onAct: () => void; children: ReactNode }) {
+  return <button type="button" className={'tb' + (on ? ' on' : '')} data-tip={tip} aria-label={tip} aria-pressed={on} onMouseDown={(e) => { e.preventDefault(); onAct() }}>{children}</button>
 }
+const I = ({ icon: Icon }: { icon: LucideIcon }) => <Icon size={16} strokeWidth={1.8} />
 
 export function Toolbar() {
   const editor = useEditorRef()
-  const block = useEditorSelector((ed) => (ed.api.block({ highest: false })?.[0] as TElement | undefined), [])
+  const block = useEditorSelector((ed) => ed.api.block({ highest: false })?.[0] as TElement | undefined, [])
   const marks = useEditorSelector((ed) => ed.api.marks() ?? {}, []) as Record<string, unknown>
-  const inColumns = useEditorSelector((ed) => !!ed.api.above({ match: { type: 'column_group' } }), [])
+  const colCount = useEditorSelector((ed) => (ed.api.above({ match: { type: 'column_group' } })?.[0] as TElement | undefined)?.children.length ?? 1, [])
   const type = (block?.type as string) ?? 'p'
   const align = ((block as any)?.align as string) ?? 'left'
 
@@ -40,6 +45,13 @@ export function Toolbar() {
     else toggleColumnGroup(editor, { widths })
   }
 
+  const insert = (key: string) => {
+    const item = ITEMS.find((i) => i.key === key)!
+    const top = editor.api.block({ highest: true })
+    const at: Path = top ? [top[1][0] + 1] : [editor.children.length]
+    editor.tf.insertNodes(item.make(editor), { at, select: true })
+  }
+
   return (
     <div className="toolbar" role="toolbar" aria-label="Định dạng">
       <select className="tb-select" value={BLOCKS.some(([k]) => k === type) ? type : 'p'} aria-label="Kiểu khối"
@@ -47,19 +59,16 @@ export function Toolbar() {
         {BLOCKS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
       </select>
       <span className="sep" />
-      {MARKS.map(([k, label, title]) => <Btn key={k} on={!!marks[k]} title={title} onAct={() => editor.tf.toggleMark(k)}>{label}</Btn>)}
+      {MARKS.map(([k, icon, tip]) => <Btn key={k} on={!!marks[k]} tip={tip} onAct={() => editor.tf.toggleMark(k)}><I icon={icon} /></Btn>)}
       <span className="sep" />
-      {ALIGNS.map(([k, d, title]) => <Btn key={k} on={align === k} title={title} onAct={() => setAlign(editor, k)}><Icon d={d} /></Btn>)}
-      <Btn title="Giảm thụt lề" onAct={() => outdent(editor)}><Icon d="M21 6H11M21 12H11M21 18H11M7 9l-3 3 3 3" /></Btn>
-      <Btn title="Tăng thụt lề" onAct={() => indent(editor)}><Icon d="M21 6H11M21 12H11M21 18H11M3 9l3 3-3 3" /></Btn>
+      {ALIGNS.map(([k, icon, tip]) => <Btn key={k} on={align === k} tip={tip} onAct={() => setAlign(editor, k)}><I icon={icon} /></Btn>)}
+      <Btn tip="Giảm thụt lề" onAct={() => outdent(editor)}><I icon={ListIndentDecrease} /></Btn>
+      <Btn tip="Tăng thụt lề" onAct={() => indent(editor)}><I icon={ListIndentIncrease} /></Btn>
       <span className="sep" />
-      <select className="tb-select" value="" aria-label="Chia cột" onChange={(e) => { const c = COLUMNS[+e.target.value]; if (c) applyColumns(c[1]); e.target.value = '' }}>
-        <option value="" disabled>{inColumns ? 'Đổi cột…' : 'Chia cột…'}</option>
-        {COLUMNS.map(([l], i) => <option key={l} value={i} disabled={i === 0 && !inColumns}>{l}</option>)}
-      </select>
+      {COLUMNS.map(([icon, tip, widths]) => <Btn key={tip} on={colCount === widths.length} tip={tip} onAct={() => applyColumns(widths)}><I icon={icon} /></Btn>)}
       <span className="sep" />
-      <Btn title="Chèn ô Python" onAct={() => editor.tf.insertNodes(newPythonNode('# Viết code Python, nhấn Shift+Enter để chạy\n'), { select: true })}><span className="tb-text">+ Python</span></Btn>
-      <Btn title="Chèn đường kẻ" onAct={() => editor.tf.insertNodes({ type: 'hr', children: [{ text: '' }] } as any)}><Icon d="M3 12h18" /></Btn>
+      {INSERTS.map(([k, icon, tip]) => <Btn key={k} tip={tip} onAct={() => insert(k)}><I icon={icon} /></Btn>)}
+      <span className="tb-hint">Gõ <kbd>/</kbd> ở dòng trống để chèn khối</span>
     </div>
   )
 }

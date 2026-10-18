@@ -27,7 +27,13 @@ Giai đoạn 1 (đã xong):
 - Ô Python với 4 chế độ hiển thị: code + kết quả, chỉ kết quả, chỉ code, ẩn khi xuất bản
 - Đánh số hình tự động; xem trước kiểu bài báo; lưu và mở file `.papercell.json`
 
-Các giai đoạn tiếp theo: tham số (thanh trượt), bản đồ, công thức, trích dẫn, trình xuất bản, AI/MCP, PDF. Xem mục 8 trong tài liệu thiết kế.
+Giai đoạn 2 (đã xong một phần):
+- Chọn chế độ hiển thị ô bằng nhóm icon có tooltip
+- Khối tham số (thanh trượt): kéo là các ô phụ thuộc tự chạy lại
+- Công thức toán (KaTeX), tự đánh số
+- Menu `/` và nút `+` để chèn khối; tay cầm kéo thả khối; kéo mép để đổi độ rộng cột
+
+Còn lại: trích dẫn, khối bản đồ, trình xuất bản, AI/MCP, PDF. Xem mục 8 trong tài liệu thiết kế.
 
 ## Giấy phép
 

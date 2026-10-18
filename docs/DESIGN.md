@@ -127,7 +127,7 @@ Khung AI trong trình soạn và MCP server dùng **chung một bộ công cụ*
 | Giai đoạn | Nội dung | Xong khi |
 |---|---|---|
 | **1** | Trình soạn: văn bản, căn lề, chia cột, ô Python + 4 chế độ hiển thị, lưu/mở file. Docker. | Soạn được bài 2 cột có hình matplotlib chạy thật |
-| 2 | Khối tham số (thanh trượt) + chạy lại phụ thuộc; khối bản đồ; công thức; trích dẫn; đánh số hình | Kéo thanh trượt là hình đổi |
+| 2 | Khối tham số (thanh trượt) + chạy lại phụ thuộc; công thức; menu `/`, kéo thả khối, đổi độ rộng cột *(đã xong)*; trích dẫn; khối bản đồ | Kéo thanh trượt là hình đổi |
 | 3 | Trình xuất bản: giao diện đọc, mục lục, nút code, xuất file HTML tĩnh | Gửi link là người khác đọc được |
 | 4 | Khung AI + MCP server | Claude viết được một hình mới từ một câu lệnh |
 | 5 | Xuất PDF (khổ trang, lề, ảnh chụp hình tương tác) | Ra PDF dùng được để nộp |
