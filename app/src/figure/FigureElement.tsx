@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState } from 'react'
+import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { PlateElement, type PlateElementProps, useReadOnly } from 'platejs/react'
 import { CircleCheck, CircleX, Maximize2, Pencil } from 'lucide-react'
 import { CAPTION_LABEL, type FigureNode, type FigureParam } from '../editor/types'
@@ -90,8 +90,7 @@ export function FigureCard({ fig, readOnly, update }: { fig: FigureNode; readOnl
                 aria-label="Caption label" onClick={() => update({ label: NEXT_CAPTION[captionKind(fig)] })}>
                 {no ? `${no}.` : captionKind(fig) === 'none' ? 'No number' : CAPTION_LABEL[captionKind(fig)]}
               </button>
-              <input key={fig.caption} defaultValue={fig.caption} placeholder="Caption (needed for numbering)" aria-label="Caption"
-                onBlur={(e) => { if (e.target.value !== fig.caption) update({ caption: e.target.value }) }} onKeyDown={(e) => e.stopPropagation()} />
+              <CaptionInput key={fig.caption} value={fig.caption} onSave={(v) => update({ caption: v })} />
             </>
           )}
         </div>
@@ -101,5 +100,25 @@ export function FigureCard({ fig, readOnly, update }: { fig: FigureNode; readOnl
           number={no} initialTab={dialog} onClose={() => setDialog(null)} onUpdate={update} />
       )}
     </>
+  )
+}
+
+/** Caption field that wraps onto several lines and grows with its text; Enter saves instead of adding a line. */
+function CaptionInput({ value, onSave }: { value: string; onSave: (v: string) => void }) {
+  const ref = useRef<HTMLTextAreaElement>(null)
+  const fit = () => { const t = ref.current; if (!t) return; t.style.height = 'auto'; t.style.height = t.scrollHeight + 'px' }
+  useLayoutEffect(() => {
+    fit()
+    const ro = new ResizeObserver(fit)
+    if (ref.current) ro.observe(ref.current)
+    // Web fonts change text width without resizing the box: measure again once they have loaded
+    document.fonts?.ready.then(fit)
+    return () => ro.disconnect()
+  }, [])
+  return (
+    <textarea ref={ref} rows={1} defaultValue={value} placeholder="Caption (needed for numbering)" aria-label="Caption"
+      onInput={fit}
+      onBlur={(e) => { const v = e.target.value.replace(/\s*\n\s*/g, ' '); if (v !== value) onSave(v) }}
+      onKeyDown={(e) => { e.stopPropagation(); if (e.key === 'Enter') { e.preventDefault(); e.currentTarget.blur() } }} />
   )
 }

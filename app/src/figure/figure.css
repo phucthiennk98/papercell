@@ -34,8 +34,8 @@
 .fig-inline-code pre { margin: 0; padding: 8px 12px 10px; background: var(--code-bg); font: 11.5px/1.55 var(--font-mono); overflow-x: auto; }
 .fig-caption { display: flex; align-items: baseline; gap: 6px; padding: 6px 12px 9px; border-top: 1px solid var(--line-2); font-size: 13px; color: var(--ink-2); }
 .fig.is-read .fig-caption { border-top: 0; padding-top: 2px; font-size: 13.5px; }
-.fig-caption input { flex: 1; min-width: 0; border: 0; padding: 0; background: none; font-size: 13px; color: var(--ink-2); }
-.fig-caption input:focus { outline: none; }
+.fig-caption textarea { flex: 1; min-width: 0; border: 0; padding: 0; background: none; font: inherit; font-size: 13px; line-height: 1.45; color: var(--ink-2); resize: none; overflow: hidden; white-space: pre-wrap; overflow-wrap: anywhere; }
+.fig-caption textarea:focus { outline: none; }
 .fig-no { font-weight: 600; color: var(--ink); white-space: nowrap; }
 .fig-table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
 .fig-table td { white-space: nowrap; }
