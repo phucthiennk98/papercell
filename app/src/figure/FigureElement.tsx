@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { PlateElement, type PlateElementProps, useReadOnly } from 'platejs/react'
-import { CircleCheck, CircleX, Maximize2, Pencil } from 'lucide-react'
+import { CircleCheck, CircleX, Maximize2, Pencil, Trash2 } from 'lucide-react'
+import { toast } from 'sonner'
 import { CAPTION_LABEL, type FigureNode, type FigureParam } from '../editor/types'
 import { captionKind, NEXT_CAPTION } from '../editor/scan'
 import { FigureDialog, type DialogTab } from './FigureDialog'
@@ -23,9 +24,14 @@ export function FigureElement(props: PlateElementProps) {
   const fig = props.element as unknown as FigureNode
   const readOnly = useReadOnly()
   const update = (patch: Partial<FigureNode>) => { const at = editor.api.findPath(props.element); if (at) editor.tf.setNodes(patch, { at }) }
+  const remove = () => {
+    const at = editor.api.findPath(props.element); if (!at) return
+    editor.tf.removeNodes({ at })
+    toast('Figure deleted', { action: { label: 'Undo', onClick: () => editor.undo() } })
+  }
   return (
     <PlateElement {...props} className={figClass(fig, readOnly)}>
-      {readOnly && fig.display === 'hidden' ? null : <FigureCard fig={fig} readOnly={readOnly} update={update} />}
+      {readOnly && fig.display === 'hidden' ? null : <FigureCard fig={fig} readOnly={readOnly} update={update} remove={remove} />}
       {props.children}
     </PlateElement>
   )
@@ -35,7 +41,7 @@ export const figClass = (fig: FigureNode, readOnly: boolean) =>
   readOnly && fig.display === 'hidden' ? 'fig-hidden' : 'fig' + (readOnly ? ' is-read' : ' is-edit') + (fig.display === 'hidden' ? ' is-hidden' : '')
 
 /** Thân thẻ hình (dùng chung cho editor và trang đọc tĩnh khi xuất HTML). */
-export function FigureCard({ fig, readOnly, update }: { fig: FigureNode; readOnly: boolean; update: (p: Partial<FigureNode>) => void }) {
+export function FigureCard({ fig, readOnly, update, remove }: { fig: FigureNode; readOnly: boolean; update: (p: Partial<FigureNode>) => void; remove?: () => void }) {
   const no = useContext(FigureNumbers).get(fig.id)
   // Giá trị tham số đang kéo; người đọc kéo thì không ghi vào tài liệu.
   const [params, setParams] = useState<FigureParam[]>(fig.params)
@@ -55,21 +61,21 @@ export function FigureCard({ fig, readOnly, update }: { fig: FigureNode; readOnl
   return (
     <>
       <div contentEditable={false} className="fig-card">
-        <div className="fig-head">
-          <span className="fig-badges">
-            {!readOnly && <span className="fig-badge">JS{fig.python.trim() ? ' · has original Python' : ''}</span>}
-            {!readOnly && fig.verify && (
-              <span className={'fig-verify ' + (fig.verify.ok ? 'ok' : 'bad')} data-tip={fig.verify.message}>
-                {fig.verify.ok ? <CircleCheck size={13} /> : <CircleX size={13} />}{fig.verify.ok ? 'Verified' : 'Mismatch'}
-              </span>
-            )}
-            {!readOnly && fig.scenarios && <span className="fig-badge" data-tip={`${fig.scenarios.count} combinations precomputed with Python`}>Precomputed {fig.scenarios.count.toLocaleString('en-US')}</span>}
-            {!readOnly && fig.display === 'hidden' && <span className="fig-badge muted">Hidden when published</span>}
-          </span>
-          <span className="fig-actions">
-            {!readOnly && <button type="button" className="pc-icon-btn" aria-label="Edit figure and code" data-tip="Edit figure and code" onClick={() => setDialog(fig.spec && !fig.specDetached ? 'design' : 'js')}><Pencil size={15} /></button>}
-            <button type="button" className="pc-icon-btn" aria-label="Enlarge" data-tip="Enlarge" onClick={() => setDialog('figure')}><Maximize2 size={15} /></button>
-          </span>
+        {/* Always visible: states the author must not miss */}
+        {!readOnly && (fig.verify?.ok === false || fig.display === 'hidden') && (
+          <div className="fig-alerts">
+            {fig.verify?.ok === false && <span className="fig-verify bad" data-tip={fig.verify.message}><CircleX size={13} />Mismatch</span>}
+            {fig.display === 'hidden' && <span className="fig-badge muted">Hidden when published</span>}
+          </div>
+        )}
+        {/* Floating toolbar, shown on hover: status + actions */}
+        <div className="fig-tools">
+          {!readOnly && fig.python.trim() && <span className="fig-badge" data-tip="Has original Python code">Python</span>}
+          {!readOnly && fig.verify?.ok && <span className="fig-verify ok" data-tip={fig.verify.message}><CircleCheck size={13} />Verified</span>}
+          {!readOnly && fig.scenarios && <span className="fig-badge" data-tip={`${fig.scenarios.count} combinations precomputed with Python`}>Precomputed {fig.scenarios.count.toLocaleString('en-US')}</span>}
+          {!readOnly && <button type="button" className="pc-icon-btn" aria-label="Edit figure and code" data-tip="Edit figure and code" onClick={() => setDialog(fig.spec && !fig.specDetached ? 'design' : 'js')}><Pencil size={15} /></button>}
+          <button type="button" className="pc-icon-btn" aria-label="Enlarge" data-tip="Enlarge" onClick={() => setDialog('figure')}><Maximize2 size={15} /></button>
+          {!readOnly && remove && <button type="button" className="pc-icon-btn danger" aria-label="Delete figure" data-tip="Delete (Ctrl+Z to undo)" onClick={remove}><Trash2 size={15} /></button>}
         </div>
         {fig.display !== 'code' && (
           <div className="fig-click" onClick={() => setDialog('figure')} role="button" tabIndex={0} aria-label="Open large figure"
