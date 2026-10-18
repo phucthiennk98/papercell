@@ -142,6 +142,7 @@ function Draggable(props: PlateElementProps) {
         setDragButtonTop(calcDragButtonTop(editor, element));
       }}
     >
+      {!isInTable && <InsertGap editor={editor} element={element} />}
       {!isInTable && (
         <Gutter>
           <div
@@ -220,6 +221,28 @@ function Draggable(props: PlateElementProps) {
         <MemoizedChildren>{children}</MemoizedChildren>
         {side ? <div className={cn('pointer-events-none absolute inset-y-0 z-50 w-1 rounded-full bg-brand', side === 'left' ? '-left-1' : '-right-1')} /> : <DropLine />}
       </div>
+    </div>
+  );
+}
+
+/**
+ * Lark-style gap above every block: hovering the space between two blocks shows a line with a "+",
+ * clicking inserts an empty paragraph there (useful between figures, tables and column groups,
+ * where there is nowhere to put the caret).
+ */
+function InsertGap({ editor, element }: { editor: PlateEditor; element: TElement }) {
+  const insert = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const path = editor.api.findPath(element);
+    if (!path) return;
+    editor.tf.insertNodes({ type: KEYS.p, children: [{ text: '' }] } as TElement, { at: path, select: true });
+    editor.tf.focus();
+  };
+  return (
+    <div className="insert-gap" contentEditable={false} onMouseDown={insert} role="button" aria-label="Insert a line here">
+      <span className="insert-gap-line" />
+      <span className="insert-gap-plus" data-tip="Insert a line here"><Plus className="size-3" /></span>
     </div>
   );
 }
