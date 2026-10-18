@@ -1,6 +1,7 @@
 // Example figure with every reader control: a dropdown (variable), radio buttons (how many) and a switch (order).
 // Added to new chart galleries and inserted into existing ones when they are opened.
 import type { FigureNode } from './editor/types'
+import { FIGURE_TEMPLATES, figureFromTemplate } from './figure/templates'
 
 export const PARAMS_DEMO_ID = 'demo-params'
 
@@ -38,4 +39,19 @@ ket_qua = rows[metric].head(top_n).tolist()`
       { name: 'sort_desc', label: lang === 'en' ? 'Sort by value' : 'Sắp xếp theo giá trị', kind: 'toggle', value: true, min: 0, max: 1, step: 1 },
     ],
   }
+}
+
+export const CONTROLS_ID_PREFIX = 'demo-ctl-'
+
+/** Gallery section with every reader-controls template, side by side in pairs. */
+export function controlsSection(): any[] {
+  const fig = (id: string) => ({ ...figureFromTemplate(FIGURE_TEMPLATES.find((t) => t.id === id)!), id: CONTROLS_ID_PREFIX + id })
+  const cols = (...f: FigureNode[]) => ({ type: 'column_group', children: f.map((x) => ({ type: 'column', width: `${100 / f.length}%`, children: [x] })) })
+  return [
+    { type: 'h2', children: [{ text: '5. Reader controls (dropdown, radio buttons, switch)' }] },
+    { type: 'p', children: [{ text: 'Templates from the Figure menu → "With reader controls". The controls under each figure are variables in its code; set them up in the Parameters tab (Control: Slider, Dropdown, Radio buttons or On/off).' }] },
+    cols(fig('controls-bar'), fig('controls-line')),
+    cols(fig('controls-scatter'), fig('controls-hist')),
+    fig('controls-map'),
+  ]
 }

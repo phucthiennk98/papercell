@@ -53,7 +53,25 @@ export function FigureToolbarButton(props: DropdownMenuProps) {
         </div>
         <DropdownMenuSeparator />
         <DropdownMenuLabel className="text-xs text-muted-foreground">Code templates (sample data, with sliders)</DropdownMenuLabel>
-        {FIGURE_TEMPLATES.filter((t) => t.id !== 'data').map((t) => (
+        {FIGURE_TEMPLATES.filter((t) => t.id !== 'data' && !t.id.startsWith('controls-')).map((t) => (
+          <DropdownMenuItem
+            key={t.id}
+            className="items-start gap-3 py-1.5"
+            onSelect={() => {
+              insertFigure(editor, t.id);
+              editor.tf.focus();
+            }}
+          >
+            <t.icon className="mt-0.5 size-4 shrink-0" />
+            <span className="flex flex-col">
+              <span className="font-medium">{t.label}</span>
+              <span className="text-xs text-muted-foreground">{t.hint}</span>
+            </span>
+          </DropdownMenuItem>
+        ))}
+        <DropdownMenuSeparator />
+        <DropdownMenuLabel className="text-xs text-muted-foreground">With reader controls (dropdown, radio buttons, switch)</DropdownMenuLabel>
+        {FIGURE_TEMPLATES.filter((t) => t.id.startsWith('controls-')).map((t) => (
           <DropdownMenuItem
             key={t.id}
             className="items-start gap-3 py-1.5"

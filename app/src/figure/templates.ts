@@ -3,6 +3,7 @@
 import { Database, ChartColumn, ChartLine, ChartScatter, ChartNoAxesColumn, Hexagon, Table2, SquareCode, FlaskConical, type LucideIcon } from 'lucide-react'
 import { newId, type FigureNode, type FigureParam } from '@/editor/types'
 import { codegen, defaultSpec, specParams, type ChartType } from './builder'
+import { CONTROL_TEMPLATES } from './control-templates'
 
 export type FigureTemplate = { id: string; label: string; hint: string; icon: LucideIcon; keywords: string[]; js: string; python?: string; params?: FigureParam[]; caption?: string }
 
@@ -154,6 +155,7 @@ return Plot.plot({
   ],
 })`,
   },
+  ...CONTROL_TEMPLATES,
   {
     id: 'blank', label: 'Blank figure', hint: 'Write your own code, or ask AI', icon: SquareCode, keywords: ['blank', 'code', 'js'],
     js: `${HEAD('Blank figure')}

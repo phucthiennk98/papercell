@@ -3,7 +3,7 @@
 import type { DataFile, FigureNode, PapercellDoc } from './editor/types'
 import { codegen, defaultSpec, specParams, type ChartSpec } from './figure/builder'
 import { FIGURE_TEMPLATES, figureFromTemplate } from './figure/templates'
-import { paramsDemo } from './demo-params'
+import { controlsSection, paramsDemo } from './demo-params'
 
 export const GALLERY_TITLE = 'Chart gallery'
 
@@ -281,6 +281,7 @@ export function makeGallery(): PapercellDoc {
         codeFig('Correlation matrix (with original Python to verify).', CORR_JS, [], CORR_PY),
       ),
       codeFig('Trend with moving average (Southeast).', TREND_JS, [{ name: 'window_size', label: 'Moving window', min: 1, max: 12, step: 1, value: 3, unit: 'months' }]),
+      ...controlsSection(),
       p('Add a figure: use the "Figure" button on the toolbar, type / on an empty line, or click + next to the ⠿ handle left of any block.'),
     ],
   }
