@@ -34,6 +34,14 @@ export function DataPanel({ onChange, onClose }: { onChange: (files: DataFile[])
   const curData = cur ? data[dataKey(cur.name)] : undefined
   const rows = useMemo(() => asRows(curData), [curData])
   const cols = useMemo(() => describeColumns(rows), [rows])
+  /** Save a column's display name (empty = use the name from the file). */
+  const setLabel = (col: string, value: string) => {
+    if (!cur) return
+    const labels = { ...(cur.labels ?? {}) }
+    if (value.trim() && value.trim() !== col) labels[col] = value.trim(); else delete labels[col]
+    if ((cur.labels?.[col] ?? '') === (labels[col] ?? '')) return
+    onChange(files.map((f) => (f === cur ? { ...f, labels } : f)))
+  }
 
   return createPortal(
     <div className="dlg-backdrop" onMouseDown={onClose}>
@@ -66,10 +74,16 @@ export function DataPanel({ onChange, onClose }: { onChange: (files: DataFile[])
           </div>
           {cur && cols.length > 0 && (
             <div className="data-preview">
-              <div className="hint">Preview of <b>{cur.name}</b>: {cols.length} columns, first 8 rows</div>
+              <div className="hint">Preview of <b>{cur.name}</b>: {cols.length} columns, first 8 rows. Type a <b>display name</b> under a column to use it in tables, axes and legends (empty = the name from the file).</div>
               <div className="data-preview-scroll">
                 <table>
-                  <thead><tr>{cols.map((c) => <th key={c.name}>{c.name}<span className="col-type">{TYPE_LABEL[c.type]}</span></th>)}</tr></thead>
+                  <thead><tr>{cols.map((c) => (
+                    <th key={c.name}>{c.name}<span className="col-type">{TYPE_LABEL[c.type]}</span>
+                      <input key={cur.name + c.name + (cur.labels?.[c.name] ?? '')} className="col-alias" defaultValue={cur.labels?.[c.name] ?? ''} placeholder="display name"
+                        aria-label={`Display name for ${c.name}`} onBlur={(e) => setLabel(c.name, e.target.value)}
+                        onKeyDown={(e) => { e.stopPropagation(); if (e.key === 'Enter') e.currentTarget.blur() }} />
+                    </th>
+                  ))}</tr></thead>
                   <tbody>{rows.slice(0, 8).map((r, i) => <tr key={i}>{cols.map((c) => <td key={c.name}>{String(r[c.name] instanceof Date ? (r[c.name] as Date).toISOString().slice(0, 10) : r[c.name] ?? '')}</td>)}</tr>)}</tbody>
                 </table>
               </div>

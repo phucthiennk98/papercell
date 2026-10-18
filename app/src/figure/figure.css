@@ -41,6 +41,9 @@
 .fig-table td { white-space: nowrap; }
 .fig-table th, .fig-table td { padding: 6px 8px; border-bottom: 1px solid var(--line-2); text-align: right; }
 .fig-table th:first-child, .fig-table td:first-child { text-align: left; }
+/* Typed tables (chart builder, new templates): text left, numbers right */
+.fig-table.typed th, .fig-table.typed td { text-align: left; }
+.fig-table.typed th.num, .fig-table.typed td.num { text-align: right; }
 .fig-table thead th { border-bottom: 1px solid var(--ink-3); font-weight: 600; }
 
 /* ---- Popup ---- */
@@ -63,7 +66,6 @@
 .dlg-code-edit { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); height: 100%; }
 .dlg-editor { display: flex; flex-direction: column; border-right: 1px solid var(--line); min-height: 0; }
 .dlg-editor .hint, .dlg-preview .hint { margin: 0; padding: 8px 14px; border-bottom: 1px solid var(--line-2); }
-.dlg-editor textarea { flex: 1; border: 0; resize: none; padding: 12px 14px; font: 12.5px/1.6 var(--font-mono); background: var(--code-bg); tab-size: 2; white-space: pre; outline: none; }
 .dlg-preview { display: flex; flex-direction: column; min-height: 0; overflow: auto; }
 .dlg-preview .fig-view { padding: 14px; }
 .dlg-params, .dlg-verify, .dlg-settings, .dlg-scen, .data-panel { padding: 18px 22px; display: flex; flex-direction: column; gap: 12px; }
@@ -149,9 +151,18 @@
 .code-host { flex: 1; min-height: 0; overflow: hidden; }
 .code-host .cm-editor { height: 100%; }
 .code-assist { border-top: 1px solid var(--line); padding: 8px 10px 10px; display: flex; flex-direction: column; gap: 6px; background: var(--chrome); }
-.code-assist-box { display: flex; align-items: flex-end; gap: 6px; border: 1px solid var(--line); border-radius: 10px; background: #fff; padding: 6px 6px 6px 10px; }
+.code-assist-box { position: relative; display: flex; align-items: flex-end; gap: 6px; border: 1px solid var(--line); border-radius: 10px; background: #fff; padding: 6px 6px 6px 10px; }
 .code-assist-box:focus-within { border-color: #1d5fd1; box-shadow: 0 0 0 2px var(--accent-soft); }
-.code-assist-box textarea { flex: 1; border: 0; outline: none; resize: none; font: 13px/1.45 var(--font-ui); background: transparent; max-height: 120px; }
+.code-assist-input { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.code-assist-box textarea { width: 100%; border: 0; outline: none; resize: none; padding: 4px 0; font: 13px/1.45 var(--font-ui); background: transparent; white-space: pre-wrap; overflow-wrap: anywhere; overflow-x: hidden; overflow-y: auto; }
+.mention-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.mention-chips span { display: inline-flex; align-items: center; gap: 2px; font: 11.5px var(--font-mono); color: #1d5fd1; background: var(--accent-soft); border-radius: 5px; padding: 1px 6px; }
+.mention-menu { position: absolute; left: 6px; bottom: calc(100% + 6px); z-index: 5; width: min(360px, calc(100% - 12px)); max-height: 260px; overflow-y: auto; margin: 0; padding: 4px; list-style: none; background: #fff; border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 8px 24px rgba(0,0,0,.14); }
+.mention-menu li { display: flex; align-items: center; gap: 6px; padding: 5px 8px; border-radius: 6px; font-size: 12.5px; cursor: pointer; }
+.mention-menu li.on { background: var(--accent-soft); color: #1d5fd1; }
+.mention-menu .lbl { font-family: var(--font-mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mention-menu .det { margin-left: auto; color: var(--ink-3); font-size: 11.5px; white-space: nowrap; }
+.mention-menu li.foot { cursor: default; color: var(--ink-3); font-size: 11px; border-top: 1px solid var(--line-2); border-radius: 0; margin-top: 2px; }
 .code-assist-box .send { background: #1d5fd1; color: #fff; border-radius: 8px; }
 .code-assist-box .send:disabled { opacity: .35; }
 .code-assist-chips { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -160,3 +171,6 @@
 .code-assist-status { display: flex; align-items: flex-start; gap: 6px; font-size: 12.5px; color: var(--ok); }
 .code-assist-status.bad { color: var(--err); white-space: pre-wrap; }
 .dlg-code-read { height: 100%; display: flex; flex-direction: column; }
+.col-alias { display: block; margin-top: 4px; width: 100%; min-width: 100px; font: 400 12px var(--font-ui); color: var(--ink); border: 1px dashed var(--line); border-radius: 5px; padding: 2px 6px; background: #fff; }
+.col-alias:focus { outline: none; border-style: solid; border-color: #1d5fd1; }
+.col-alias:not(:placeholder-shown) { border-style: solid; background: var(--accent-soft); }

@@ -1,7 +1,7 @@
 // So kết quả của Python gốc (biến ket_qua) với JS (giá trị truyền vào expose()).
 import { kernel } from '../python/kernel'
 import type { DataFile, FigureNode, VerifyResult } from '../editor/types'
-import { dataKey, parseData, runFigure } from './runtime'
+import { dataKey, labelsOf, parseData, runFigure } from './runtime'
 
 type Leaf = [path: string, value: unknown]
 
@@ -23,7 +23,7 @@ const close = (a: unknown, b: unknown) => {
 export async function verifyFigure(fig: FigureNode, files: DataFile[]): Promise<VerifyResult> {
   const at = new Date().toISOString()
   if (!fig.python.trim()) return { ok: false, message: 'No original Python code to compare with.', at }
-  const js = await runFigure(fig.js, fig.params, parseData(files), 600)
+  const js = await runFigure(fig.js, fig.params, parseData(files), 600, undefined, labelsOf(files))
   if (js.error) return { ok: false, message: 'JS code error: ' + js.error, at }
   if (js.exposed === undefined) return { ok: false, message: 'The JS code does not call expose(value) to publish a result to compare.', at }
 

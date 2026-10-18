@@ -37,7 +37,11 @@ export type FigureNode = {
 
 export type EquationNode = { type: 'equation'; id: string; texExpression: string; children: [{ text: '' }] }
 
-export type DataFile = { name: string; kind: 'csv' | 'json'; content: string }
+export type DataFile = {
+  name: string; kind: 'csv' | 'json'; content: string
+  /** Display names for columns (column → label). Empty = use the column name from the file. */
+  labels?: Record<string, string>
+}
 
 export type DocMeta = { title: string; authors: string; date: string }
 

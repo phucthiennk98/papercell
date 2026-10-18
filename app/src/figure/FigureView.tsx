@@ -1,11 +1,12 @@
-import { useContext, useEffect, useRef, useState } from 'react'
+import { useContext, useEffect, useMemo, useRef, useState } from 'react'
 import type { FigureParam } from '../editor/types'
-import { DataContext, runFigure } from './runtime'
+import { DataContext, labelsOf, runFigure } from './runtime'
 import { snap, type GridAxis, type ScenarioCache } from './scenarios'
 
 /** Vẽ một hình từ code JS; tự vẽ lại khi code, tham số, dữ liệu hoặc độ rộng thay đổi. */
 export function FigureView({ js, params, scenarios, className, onError }: { js: string; params: FigureParam[]; scenarios?: ScenarioCache; className?: string; onError?: (e: string | null) => void }) {
-  const { data } = useContext(DataContext)
+  const { data, files } = useContext(DataContext)
+  const labels = useMemo(() => labelsOf(files), [files])
   const box = useRef<HTMLDivElement>(null)
   const out = useRef<HTMLDivElement>(null)
   const [width, setWidth] = useState(0)
@@ -22,7 +23,7 @@ export function FigureView({ js, params, scenarios, className, onError }: { js: 
   useEffect(() => {
     if (!width) return
     let alive = true
-    runFigure(js, params, data, width, scenarios).then((r) => {
+    runFigure(js, params, data, width, scenarios, labels).then((r) => {
       // Lần vẽ đã bị thay bằng lần mới: giải phóng ngay bản đồ vừa tạo, nếu không mỗi lần
       // vẽ lại sẽ giữ một ngữ cảnh WebGL; trình duyệt chỉ cho ~16 cái rồi bắt đầu tắt bản đồ (ô đen).
       if (!alive || !out.current) { releaseNode(r.node); return }
@@ -34,7 +35,7 @@ export function FigureView({ js, params, scenarios, className, onError }: { js: 
       setError(r.error); onError?.(r.error)
     })
     return () => { alive = false }
-  }, [js, key, data, width, scenarios?.payload])
+  }, [js, key, data, width, scenarios?.payload, labels])
 
   useEffect(() => () => { out.current?.querySelectorAll('*').forEach((el) => (el as any).__pcCleanup?.()) }, []) // eslint-disable-line react-hooks/exhaustive-deps
 

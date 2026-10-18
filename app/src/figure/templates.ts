@@ -107,9 +107,9 @@ const ds = [
   { metric: "Median (km)", value: 0.42 },
 ]
 expose(ds)
-return \`<table class="fig-table">
-  <thead><tr><th>Metric</th><th>Value</th></tr></thead>
-  <tbody>\${ds.map((r) => \`<tr><td>\${r.metric}</td><td>\${r.value.toLocaleString("en-US")}</td></tr>\`).join("")}</tbody>
+return \`<table class="fig-table typed">
+  <thead><tr><th>Metric</th><th class="num">Value</th></tr></thead>
+  <tbody>\${ds.map((r) => \`<tr><td>\${r.metric}</td><td class="num">\${r.value.toLocaleString("en-US")}</td></tr>\`).join("")}</tbody>
 </table>\``,
   },
   {

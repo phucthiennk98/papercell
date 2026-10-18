@@ -7,6 +7,10 @@ import type { DataFile, FigureParam } from '../editor/types'
 import { decodeResults, indexOf, type ScenarioCache } from './scenarios'
 
 export type Dataset = Record<string, unknown>
+/** Column display names per dataset: labels[dataset][column]. */
+export type Labels = Record<string, Record<string, string>>
+
+export const labelsOf = (files: DataFile[]): Labels => Object.fromEntries(files.map((f) => [dataKey(f.name), f.labels ?? {}]))
 
 /** Dữ liệu của tài liệu đang mở, dùng chung cho mọi thẻ hình. */
 export const DataContext = createContext<{ files: DataFile[]; data: Dataset; setFiles: (f: DataFile[]) => void }>({ files: [], data: {}, setFiles: () => {} })
@@ -33,7 +37,7 @@ const AsyncFunction = Object.getPrototypeOf(async () => {}).constructor as new (
 export type RunOutput = { node: Node | null; html: string | null; exposed: unknown; error: string | null }
 
 /** Chạy code JS với tham số và dữ liệu; kết quả là một phần tử DOM hoặc chuỗi HTML. */
-export async function runFigure(js: string, params: FigureParam[], data: Dataset, width: number, scenarios?: ScenarioCache): Promise<RunOutput> {
+export async function runFigure(js: string, params: FigureParam[], data: Dataset, width: number, scenarios?: ScenarioCache, labels: Labels = {}): Promise<RunOutput> {
   let exposed: unknown = undefined
   const expose = (v: unknown) => { exposed = v; return v }
   const names = params.map((p) => p.name)
@@ -42,7 +46,9 @@ export async function runFigure(js: string, params: FigureParam[], data: Dataset
     const values = Object.fromEntries(params.map((p) => [p.name, p.value]))
     // Kết quả Python đã tính sẵn cho tổ hợp tham số gần nhất (nếu có)
     const ketQua = scenarios ? (await decodeResults(scenarios.payload))[indexOf(scenarios.grid, values)] : undefined
-    const pc = { map: (o: MapOptions) => makeMap({ width, ...o }), esc }
+    // pc.label(dataset, column): the column's display name set in the Data panel, or the column name itself
+    const label = (ds: string, col: string) => labels[ds]?.[col]?.trim() || col
+    const pc = { map: (o: MapOptions) => makeMap({ width, ...o }), esc, label }
     const r = await fn(Plot, d3, data, width, expose, values, pc, ketQua, ...params.map((p) => p.value))
     if (r instanceof Node) return { node: r, html: null, exposed, error: null }
     if (typeof r === 'string') return { node: null, html: r, exposed, error: null }

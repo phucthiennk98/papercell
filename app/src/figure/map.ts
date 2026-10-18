@@ -28,6 +28,8 @@ export type MapOptions = {
   height?: number
   width?: number
   title?: string
+  /** Display name for the color legend (defaults to the column name). */
+  colorLabel?: string
 }
 
 type Feature = GeoJSON.Feature<GeoJSON.Geometry, Record<string, unknown>>
@@ -60,12 +62,12 @@ function styleFeatures(fs: Feature[], o: MapOptions) {
       const sc = d3.scaleSequential(interpolator(o.scheme)).domain(ext[0] === ext[1] ? [ext[0] - 1, ext[1] + 1] : ext)
       fs.forEach((f, i) => { f.properties._c = isFinite(nums[i]) ? sc(nums[i]) : '#bbbbbb' })
       const stops = d3.range(0, 1.01, 0.25).map((t) => sc(ext[0] + t * (ext[1] - ext[0]))).join(',')
-      legend = `<div class="pcm-title">${esc(o.color)}</div><div class="pcm-ramp" style="background:linear-gradient(90deg,${stops})"></div><div class="pcm-ends"><span>${d3.format('~s')(ext[0])}</span><span>${d3.format('~s')(ext[1])}</span></div>`
+      legend = `<div class="pcm-title">${esc(o.colorLabel ?? o.color)}</div><div class="pcm-ramp" style="background:linear-gradient(90deg,${stops})"></div><div class="pcm-ends"><span>${d3.format('~s')(ext[0])}</span><span>${d3.format('~s')(ext[1])}</span></div>`
     } else {
       const cats = [...new Set(vals.map(String))].slice(0, 10)
       const sc = d3.scaleOrdinal<string, string>().domain(cats).range(d3.schemeTableau10)
       fs.forEach((f) => { f.properties._c = cats.includes(String(f.properties[o.color!])) ? sc(String(f.properties[o.color!])) : '#bbbbbb' })
-      legend = `<div class="pcm-title">${esc(o.color)}</div>` + cats.map((c) => `<div class="pcm-cat"><i style="background:${sc(c)}"></i>${esc(c)}</div>`).join('')
+      legend = `<div class="pcm-title">${esc(o.colorLabel ?? o.color)}</div>` + cats.map((c) => `<div class="pcm-cat"><i style="background:${sc(c)}"></i>${esc(c)}</div>`).join('')
     }
   } else fs.forEach((f) => { f.properties._c = '#2a78d6' })
   if (o.size) {
