@@ -89,7 +89,7 @@ export async function detectPython() {
   return info
 }
 
-type Job = { code: string; files: { key: string; kind: string; content: string }[]; combos: Record<string, number>[] }
+type Job = { code: string; files: { key: string; kind: string; content: string }[]; combos: Record<string, number | string | boolean>[] }
 
 /** Chạy lưới; trả về luồng JSONL: {"ready":…} rồi mỗi dòng một tổ hợp {"i","ok","value"|"error"}. */
 export async function runGrid(job: Job, signal: AbortSignal): Promise<Response> {

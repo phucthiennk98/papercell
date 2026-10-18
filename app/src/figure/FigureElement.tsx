@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState
 import { PlateElement, type PlateElementProps, useReadOnly } from 'platejs/react'
 import { CircleCheck, CircleX, Maximize2, Pencil, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
-import { CAPTION_LABEL, DEFAULT_FIG_PADDING, type FigureNode, type FigureParam } from '../editor/types'
+import { CAPTION_LABEL, DEFAULT_FIG_PADDING, type FigureNode, type FigureParam, type ParamValue } from '../editor/types'
 import { MetaContext } from '../editor/DocHeader'
 import { captionKind, NEXT_CAPTION } from '../editor/scan'
 import { FigureDialog, type DialogTab } from './FigureDialog'
@@ -60,8 +60,10 @@ export function FigureCard({ fig, readOnly, update, remove, applyPaddingAll }: {
   useEffect(() => { setParams(fig.params) }, [fig.params])
   useEffect(() => { if (fig.autoOpen && !readOnly) { setDialog('design'); update({ autoOpen: undefined }) } }, [fig.autoOpen]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const slide = (name: string, v: number) => setParams((ps) => ps.map((p) => (p.name === name ? { ...p, value: v } : p)))
-  const commit = () => { if (!readOnly) update({ params }) }
+  const slide = (name: string, v: ParamValue) => setParams((ps) => ps.map((p) => (p.name === name ? { ...p, value: v } : p)))
+  // Commit reads the latest values: a dropdown/switch commits right after its change, from an older render
+  const latestParams = useRef(params); latestParams.current = params
+  const commit = () => { if (!readOnly) update({ params: latestParams.current }) }
 
   const caption = (
     <span>{no ? <b className="fig-no">{no}.</b> : null} {fig.caption}</span>

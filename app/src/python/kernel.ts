@@ -35,7 +35,7 @@ class Kernel {
   }
 
   /** Chạy code Python cho cả lưới tổ hợp trong trình duyệt; onItem được gọi sau mỗi tổ hợp. */
-  runGrid(code: string, combos: Record<string, number>[], files: { key: string; kind: string; content: string }[], onItem: (it: GridItem) => void): Promise<void> {
+  runGrid(code: string, combos: Record<string, number | string | boolean>[], files: { key: string; kind: string; content: string }[], onItem: (it: GridItem) => void): Promise<void> {
     const id = ++this.seq
     const w = this.ensure()
     this.gridHandlers.set(id, onItem)

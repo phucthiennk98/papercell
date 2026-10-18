@@ -9,7 +9,7 @@
   - `Plot` (Observable Plot 0.6) and `d3` (v7).
   - `data.<name>`: the document's datasets. CSV/Excel → array of row objects, auto-typed (numbers are numbers, ISO dates are `Date`). GeoJSON → a FeatureCollection.
   - `width`: the figure's width in px. Always pass `width` to `Plot.plot`.
-  - Every slider parameter is a plain variable (e.g. `bins`), also available as `params.<name>`. Never redeclare them.
+  - Every parameter is a plain variable (e.g. `bins`), also available as `params.<name>`. Never redeclare them. A slider gives a number, a dropdown gives the chosen option (string or number), an on/off switch gives `true`/`false`.
   - `expose(value)`: publishes a value that the Verify tab compares with Python's `ket_qua`. Call it once with the key numbers behind the figure.
   - `ket_qua`: the precomputed Python result for the current slider values, or `undefined` if not precomputed. Guard it: `if (!ket_qua) return '<div class="fig-empty">…</div>'`.
   - `pc.label("<dataset>", "<column>")`: the column's display name chosen by the author (falls back to the column name). Use it for axis titles, legend titles and table headers instead of raw column names, e.g. `x: { label: pc.label("survey", "income") }`.

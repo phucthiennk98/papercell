@@ -3,7 +3,21 @@ export type FigureDisplay = 'output' | 'both' | 'code' | 'hidden'
 /** Người đọc được xem code nào trong popup. */
 export type CodeAccess = 'none' | 'js' | 'python' | 'both'
 
-export type FigureParam = { name: string; label: string; min: number; max: number; step: number; value: number; unit?: string }
+export type ParamValue = number | string | boolean
+/** How a parameter is shown to readers: a slider, a dropdown or an on/off switch. */
+export type ParamKind = 'range' | 'select' | 'toggle'
+export type FigureParam = {
+  name: string; label: string
+  /** Empty = 'range' (slider). */
+  kind?: ParamKind
+  /** Slider bounds (range only). */
+  min: number; max: number; step: number
+  value: ParamValue
+  unit?: string
+  /** Choices of a dropdown (select only). */
+  options?: (string | number)[]
+}
+export const paramKind = (p: FigureParam): ParamKind => p.kind ?? 'range'
 
 import type { ChartSpec } from '@/figure/builder'
 import type { ScenarioCache } from '@/figure/scenarios'

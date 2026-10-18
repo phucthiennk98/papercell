@@ -3,10 +3,11 @@ import { createPortal } from 'react-dom'
 import { ChartColumn, CircleCheck, CircleX, Code, EyeOff, Loader2, Plus, Rows2, Trash2, X, type LucideIcon } from 'lucide-react'
 import { kernel } from '../python/kernel'
 import { MetaContext } from '@/editor/DocHeader'
-import { ACCESS_LABEL, CAPTION_LABEL, DEFAULT_FIG_PADDING, DISPLAY_LABEL, type CaptionKind, type CodeAccess, type FigureDisplay, type FigureNode, type FigureParam } from '../editor/types'
+import { ACCESS_LABEL, CAPTION_LABEL, DEFAULT_FIG_PADDING, DISPLAY_LABEL, type CaptionKind, type CodeAccess, type FigureDisplay, type FigureNode, type FigureParam, type ParamKind, type ParamValue, paramKind } from '../editor/types'
 import { visibleCode } from './FigureElement'
 import { captionKind, NEXT_CAPTION } from '@/editor/scan'
 import { DesignTab } from './DesignTab'
+import { specParams, syncFromCode } from './builder'
 import { ScenarioTab } from './ScenarioTab'
 import { CodeAssist, CodeEditor, useCodeHints } from './CodeEditor'
 import { FigureView, ParamSliders } from './FigureView'
@@ -20,7 +21,7 @@ const IDENT = /^[A-Za-z_$][\w$]*$/
 
 type Props = {
   fig: FigureNode; params: FigureParam[]; number?: string; readOnly: boolean; initialTab: DialogTab
-  onParam: (name: string, v: number) => void; onCommitParams: () => void
+  onParam: (name: string, v: ParamValue) => void; onCommitParams: () => void
   onUpdate: (p: Partial<FigureNode>) => void; onClose: () => void
   applyPaddingAll?: (px: number) => void
 }
@@ -99,10 +100,23 @@ function CodeTab({ fig, params, lang, onUpdate }: { fig: FigureNode; params: Fig
   const [error, setError] = useState<string | null>(null)
   const hints = useCodeHints(params)
   const timer = useRef(0)
+  const latest = useRef(fig); latest.current = fig
   const change = (v: string) => {
     setDraft(v)
     window.clearTimeout(timer.current)
-    timer.current = window.setTimeout(() => onUpdate({ [lang]: v, ...(lang === 'js' && fig.spec ? { specDetached: true } : {}) } as Partial<FigureNode>), 400)
+    timer.current = window.setTimeout(() => {
+      const f = latest.current
+      if (lang !== 'js' || !f.spec || f.specDetached) { onUpdate({ [lang]: v } as Partial<FigureNode>); return }
+      // Built with the Design tab: editing only the `const chart = {...}` line keeps it in sync
+      const r = syncFromCode(f.spec, v)
+      if (r === 'detached') onUpdate({ js: v, specDetached: true })
+      else if (r === 'pending') onUpdate({ js: v })
+      else {
+        const params = specParams(r.spec).map((p) => ({ ...p, value: f.params.find((o) => o.name === p.name)?.value ?? p.value }))
+        onUpdate({ js: r.js, spec: r.spec, params })
+        if (r.js !== v) setDraft(r.js)
+      }
+    }, 400)
   }
   useEffect(() => () => window.clearTimeout(timer.current), [])
   return (
@@ -120,39 +134,87 @@ function CodeTab({ fig, params, lang, onUpdate }: { fig: FigureNode; params: Fig
   )
 }
 
+type ParamRow = { name: string; label: string; kind: ParamKind; min: string; max: string; step: string; value: string; unit: string; options: string }
+const toRow = (p: FigureParam): ParamRow => ({
+  name: p.name, label: p.label, kind: paramKind(p), min: String(p.min), max: String(p.max), step: String(p.step),
+  value: String(p.value), unit: p.unit ?? '', options: (p.options ?? []).join(', '),
+})
+/** "a, b, 3" → ['a', 'b', 3]: numeric options stay numbers so code can compute with them. */
+const parseOptions = (t: string) => t.split(',').map((x) => x.trim()).filter(Boolean).map((x) => (isFinite(+x) ? +x : x))
+
 function ParamsTab({ fig, onUpdate }: { fig: FigureNode; onUpdate: (p: Partial<FigureNode>) => void }) {
-  const [rows, setRows] = useState(() => fig.params.map((p) => ({ ...p, unit: p.unit ?? '' })))
+  const [rows, setRows] = useState<ParamRow[]>(() => fig.params.map(toRow))
   const [err, setErr] = useState('')
-  const set = (i: number, k: keyof FigureParam, v: string) => { setErr(''); setRows((r) => r.map((p, j) => (j === i ? { ...p, [k]: k === 'name' || k === 'label' || k === 'unit' ? v : (v as unknown as number) } : p))) }
+  const set = (i: number, patch: Partial<ParamRow>) => { setErr(''); setRows((r) => r.map((p, j) => (j === i ? { ...p, ...patch } : p))) }
   const save = () => {
     const out: FigureParam[] = []
     for (const r of rows) {
-      const min = +r.min, max = +r.max, step = +r.step, value = +r.value
       if (!IDENT.test(r.name)) return setErr(`Name "${r.name}" is invalid: use letters, digits and _, not starting with a digit.`)
       if (out.some((p) => p.name === r.name)) return setErr(`Name "${r.name}" is used twice.`)
-      if (!(max > min) || !(step > 0)) return setErr(`Parameter "${r.name}": max must be greater than min and step greater than 0.`)
-      out.push({ name: r.name, label: r.label || r.name, min, max, step, value: Math.min(max, Math.max(min, value)), unit: r.unit })
+      const base = { name: r.name, label: r.label || r.name, unit: r.unit || undefined }
+      if (r.kind === 'select') {
+        const options = parseOptions(r.options)
+        if (options.length < 2) return setErr(`Parameter "${r.name}": a dropdown needs at least two options, separated by commas.`)
+        const value = options.find((o) => String(o) === r.value.trim()) ?? options[0]
+        out.push({ ...base, kind: 'select', options, value, min: 0, max: 0, step: 1 })
+      } else if (r.kind === 'toggle') {
+        out.push({ ...base, kind: 'toggle', value: r.value === 'true', min: 0, max: 1, step: 1 })
+      } else {
+        const min = +r.min, max = +r.max, step = +r.step, value = +r.value
+        if (!(max > min) || !(step > 0)) return setErr(`Parameter "${r.name}": max must be greater than min and step greater than 0.`)
+        out.push({ ...base, min, max, step, value: Math.min(max, Math.max(min, isFinite(value) ? value : min)) })
+      }
     }
     onUpdate({ params: out }); setErr('Saved.')
   }
+  const changeKind = (i: number, kind: ParamKind) => {
+    const r = rows[i]
+    set(i, kind === 'toggle' ? { kind, value: 'false' }
+      : kind === 'select' ? { kind, options: r.options || 'A, B, C', value: r.options ? r.value : 'A' }
+      : { kind, value: isFinite(+r.value) ? r.value : r.min })
+  }
+  const num = (i: number, k: 'min' | 'max' | 'step') => (
+    <label className="param-num">{k}<input type="number" step="any" value={rows[i][k]} aria-label={k} onChange={(e) => set(i, { [k]: e.target.value })} /></label>
+  )
   return (
     <div className="dlg-params">
-      <p className="hint">Each parameter is a variable in both the JS and Python code, and shows as a slider on the figure.</p>
+      <p className="hint">Each parameter is a variable in both the JS and Python code, and shows on the figure as a slider, a dropdown or an on/off switch. In code a dropdown gives its chosen option (text or number) and a switch gives <code>true</code>/<code>false</code>.</p>
       <table>
-        <thead><tr><th>Variable</th><th>Label</th><th>Min</th><th>Max</th><th>Step</th><th>Default</th><th>Unit</th><th /></tr></thead>
+        <thead><tr><th>Variable</th><th>Label</th><th>Control</th><th>Settings</th><th>Default</th><th>Unit</th><th /></tr></thead>
         <tbody>
           {rows.map((r, i) => (
             <tr key={i}>
-              {(['name', 'label', 'min', 'max', 'step', 'value', 'unit'] as (keyof FigureParam)[]).map((k) => (
-                <td key={k}><input value={String(r[k] ?? '')} aria-label={k} type={['min', 'max', 'step', 'value'].includes(k) ? 'number' : 'text'} step="any" onChange={(e) => set(i, k, e.target.value)} /></td>
-              ))}
+              <td><input value={r.name} aria-label="Variable" onChange={(e) => set(i, { name: e.target.value })} /></td>
+              <td><input value={r.label} aria-label="Label" onChange={(e) => set(i, { label: e.target.value })} /></td>
+              <td>
+                <select value={r.kind} aria-label="Control" onChange={(e) => changeKind(i, e.target.value as ParamKind)}>
+                  <option value="range">Slider</option><option value="select">Dropdown</option><option value="toggle">On/off</option>
+                </select>
+              </td>
+              <td className="param-settings">
+                {r.kind === 'range' && <>{num(i, 'min')}{num(i, 'max')}{num(i, 'step')}</>}
+                {r.kind === 'select' && <input value={r.options} placeholder="option A, option B, 3" aria-label="Options (comma-separated)" onChange={(e) => set(i, { options: e.target.value })} />}
+                {r.kind === 'toggle' && <span className="hint">true / false</span>}
+              </td>
+              <td>
+                {r.kind === 'select' ? (
+                  <select value={r.value} aria-label="Default" onChange={(e) => set(i, { value: e.target.value })}>
+                    {parseOptions(r.options).map((o) => <option key={String(o)} value={String(o)}>{String(o)}</option>)}
+                  </select>
+                ) : r.kind === 'toggle' ? (
+                  <select value={r.value} aria-label="Default" onChange={(e) => set(i, { value: e.target.value })}><option value="false">off</option><option value="true">on</option></select>
+                ) : (
+                  <input type="number" step="any" value={r.value} aria-label="Default" onChange={(e) => set(i, { value: e.target.value })} />
+                )}
+              </td>
+              <td><input value={r.unit} aria-label="Unit" onChange={(e) => set(i, { unit: e.target.value })} /></td>
               <td><button className="pc-icon-btn" aria-label="Delete parameter" onClick={() => setRows(rows.filter((_, j) => j !== i))}><Trash2 size={14} /></button></td>
             </tr>
           ))}
         </tbody>
       </table>
       <div className="row">
-        <button className="btn" onClick={() => setRows([...rows, { name: `param_${rows.length + 1}`, label: 'New parameter', min: 0, max: 10, step: 1, value: 5, unit: '' }])}><Plus size={14} /> Add parameter</button>
+        <button className="btn" onClick={() => setRows([...rows, toRow({ name: `param_${rows.length + 1}`, label: 'New parameter', min: 0, max: 10, step: 1, value: 5 })])}><Plus size={14} /> Add parameter</button>
         <button className="btn primary" onClick={save}>Save parameters</button>
         {err && <span className={err === 'Saved.' ? 'ok' : 'pc-err'}>{err}</span>}
       </div>

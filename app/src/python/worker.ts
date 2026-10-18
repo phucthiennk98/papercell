@@ -71,7 +71,7 @@ def __pc_verify(code, params_json, files_json):
 type Files = { key: string; kind: string; content: string }[]
 type Req =
   | { id: number; type: 'verify'; code: string; params: Record<string, unknown>; files: Files }
-  | { id: number; type: 'grid'; code: string; combos: Record<string, number>[]; files: Files }
+  | { id: number; type: 'grid'; code: string; combos: Record<string, number | string | boolean>[]; files: Files }
 
 let py: any
 const post = (m: unknown) => (self as DedicatedWorkerGlobalScope).postMessage(m)

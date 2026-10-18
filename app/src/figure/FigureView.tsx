@@ -1,5 +1,5 @@
 import { useContext, useEffect, useMemo, useRef, useState } from 'react'
-import type { FigureParam } from '../editor/types'
+import { paramKind, type FigureParam, type ParamValue } from '../editor/types'
 import { DataContext, labelsOf, runFigure } from './runtime'
 import { snap, type GridAxis, type ScenarioCache } from './scenarios'
 
@@ -56,26 +56,42 @@ function releaseNode(n: Node | null) {
 
 const decimals = (step: number) => (String(step).split('.')[1] ?? '').length
 export const fmtParam = (p: FigureParam) =>
-  p.value.toLocaleString('vi-VN', { minimumFractionDigits: decimals(p.step), maximumFractionDigits: decimals(p.step) }) + (p.unit ? ' ' + p.unit : '')
+  (typeof p.value === 'number' ? p.value.toLocaleString('en-US', { minimumFractionDigits: decimals(p.step), maximumFractionDigits: decimals(p.step) }) : String(p.value)) + (p.unit ? ' ' + p.unit : '')
 
 /** Các thanh trượt của một hình. */
 export function ParamSliders({ params, onChange, onCommit, idPrefix, large, grid }: {
-  params: FigureParam[]; onChange: (name: string, v: number) => void; onCommit?: () => void; idPrefix: string; large?: boolean
+  params: FigureParam[]; onChange: (name: string, v: ParamValue) => void; onCommit?: () => void; idPrefix: string; large?: boolean
   /** Có kết quả tính sẵn: thanh trượt bắt vào đúng các điểm đã tính. */
   grid?: GridAxis[]
 }) {
   if (!params.length) return null
   return (
     <div className={'fig-params' + (large ? ' is-large' : '')}>
-      {params.map((p) => (
-        <div key={p.name} className="fig-param">
-          <label htmlFor={`${idPrefix}-${p.name}`}>{p.label}</label>
-          <input id={`${idPrefix}-${p.name}`} type="range" min={p.min} max={p.max} step={p.step} value={p.value}
-            onChange={(e) => onChange(p.name, grid ? snap(grid, p.name, +e.target.value) : +e.target.value)} onPointerUp={onCommit} onKeyUp={(e) => { e.stopPropagation(); onCommit?.() }}
-            onKeyDown={(e) => e.stopPropagation()} />
-          <output>{fmtParam(p)}</output>
-        </div>
-      ))}
+      {params.map((p) => {
+        const id = `${idPrefix}-${p.name}`
+        const kind = paramKind(p)
+        // Choosing a dropdown option or flipping a switch is a complete change: commit right away
+        const pick = (v: ParamValue) => { onChange(p.name, v); setTimeout(() => onCommit?.(), 0) }
+        return (
+          <div key={p.name} className={'fig-param is-' + kind}>
+            <label htmlFor={id}>{p.label}</label>
+            {kind === 'select' ? (
+              <select id={id} value={String(p.value)} onKeyDown={(e) => e.stopPropagation()}
+                onChange={(e) => { const o = (p.options ?? []).find((x) => String(x) === e.target.value); pick(o ?? e.target.value) }}>
+                {(p.options ?? []).map((o) => <option key={String(o)} value={String(o)}>{String(o)}{p.unit ? ' ' + p.unit : ''}</option>)}
+              </select>
+            ) : kind === 'toggle' ? (
+              <button id={id} type="button" role="switch" aria-checked={!!p.value} className={'pc-switch' + (p.value ? ' on' : '')}
+                onClick={() => pick(!p.value)} onKeyDown={(e) => e.stopPropagation()}><i /></button>
+            ) : (
+              <input id={id} type="range" min={p.min} max={p.max} step={p.step} value={Number(p.value)}
+                onChange={(e) => onChange(p.name, grid ? snap(grid, p.name, +e.target.value) : +e.target.value)} onPointerUp={onCommit} onKeyUp={(e) => { e.stopPropagation(); onCommit?.() }}
+                onKeyDown={(e) => e.stopPropagation()} />
+            )}
+            {kind === 'range' ? <output>{fmtParam(p)}</output> : kind === 'toggle' ? <output>{p.value ? 'on' : 'off'}</output> : <span />}
+          </div>
+        )
+      })}
     </div>
   )
 }

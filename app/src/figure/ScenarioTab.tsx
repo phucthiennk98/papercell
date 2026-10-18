@@ -1,7 +1,7 @@
 import { useContext, useEffect, useRef, useState } from 'react'
 import { CircleCheck, Cpu, Globe, Loader2, Play, Square, Trash2, TriangleAlert } from 'lucide-react'
 import { kernel } from '@/python/kernel'
-import type { FigureNode } from '@/editor/types'
+import { paramKind, type FigureNode, type ParamValue } from '@/editor/types'
 import { DataContext, dataKey } from './runtime'
 import { axisValues, comboAt, comboCount, encodeResults, fingerprint, formatBytes, type GridAxis, type ScenarioCache } from './scenarios'
 
@@ -109,10 +109,13 @@ export function ScenarioTab({ fig, onUpdate }: { fig: FigureNode; onUpdate: (p: 
             <tbody>
               {fig.params.map((p, k) => (
                 <tr key={p.name}>
-                  <td>{p.label} <code>{p.name}</code></td><td>{p.min}</td><td>{p.max}</td>
-                  <td><input type="number" step="any" min={p.step} value={steps[p.name]} disabled={!!prog} aria-label={'Precompute step for ' + p.label}
-                    onChange={(e) => setSteps({ ...steps, [p.name]: +e.target.value })} /></td>
-                  <td className="num">{grid[k].values.length.toLocaleString('vi-VN')}</td>
+                  <td>{p.label} <code>{p.name}</code></td>
+                  {paramKind(p) === 'range' ? <>
+                    <td>{p.min}</td><td>{p.max}</td>
+                    <td><input type="number" step="any" min={p.step} value={steps[p.name]} disabled={!!prog} aria-label={'Precompute step for ' + p.label}
+                      onChange={(e) => setSteps({ ...steps, [p.name]: +e.target.value })} /></td>
+                  </> : <td colSpan={3} className="hint">{paramKind(p) === 'toggle' ? 'off and on' : 'every option: ' + grid[k].values.map(String).join(', ')}</td>}
+                  <td className="num">{grid[k].values.length.toLocaleString('en-US')}</td>
                 </tr>
               ))}
             </tbody>
@@ -174,6 +177,6 @@ export function ScenarioTab({ fig, onUpdate }: { fig: FigureNode; onUpdate: (p: 
 }
 
 /** Bước của một dãy giá trị đều nhau. */
-function stepOf(values: number[], fallback: number) {
-  return values.length > 1 ? +(values[1] - values[0]).toFixed(10) : fallback
+function stepOf(values: ParamValue[], fallback: number) {
+  return values.length > 1 && typeof values[0] === 'number' && typeof values[1] === 'number' ? +(values[1] - values[0]).toFixed(10) : fallback
 }

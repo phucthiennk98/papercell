@@ -16,7 +16,7 @@ import { askAI } from '@/ai/ask'
 import { asRows, describeColumns, type Column } from '@/data/import'
 import skillJs from '@/ai/skills/figure-js.md?raw'
 import skillPy from '@/ai/skills/figure-python.md?raw'
-import type { FigureParam } from '@/editor/types'
+import { paramKind, type FigureParam } from '@/editor/types'
 import { DataContext, labelsOf, type Labels } from './runtime'
 
 export type Lang = 'js' | 'python'
@@ -30,6 +30,14 @@ export function useCodeHints(params: FigureParam[]): CodeHints {
     params,
     labels: labelsOf(files),
   }), [data, files, params])
+}
+
+/** Short description of a parameter for suggestions and for the AI. */
+const describeParam = (p: FigureParam) => {
+  const k = paramKind(p)
+  return k === 'select' ? `dropdown: ${(p.options ?? []).map((o) => JSON.stringify(o)).join(' | ')}`
+    : k === 'toggle' ? 'on/off switch: true | false'
+    : `slider ${p.min}–${p.max}, step ${p.step}`
 }
 
 // ---- Autocomplete ----
@@ -47,7 +55,7 @@ const columnOptions = (h: CodeHints, quote = false): Completion[] => {
   return [...seen].map(([c, ks]) => ({ label: quote ? c : c, type: 'property', detail: `column · ${ks.join(', ')}` }))
 }
 const paramOptions = (h: CodeHints): Completion[] =>
-  h.params.map((p) => ({ label: p.name, type: 'variable', detail: `parameter ${p.min}–${p.max}`, info: p.label }))
+  h.params.map((p) => ({ label: p.name, type: 'variable', detail: describeParam(p), info: p.label }))
 
 function jsSource(get: () => CodeHints) {
   return (c: CompletionContext): CompletionResult | null => {
@@ -141,7 +149,15 @@ export function CodeEditor({ value, onChange, lang, hints, label, readOnly }: { 
 
   useEffect(() => {
     const v = view.current
-    if (v && value !== v.state.doc.toString()) v.dispatch({ changes: { from: 0, to: v.state.doc.length, insert: value } })
+    if (!v) return
+    const cur = v.state.doc.toString()
+    if (value === cur) return
+    // Replace only the part that differs, so the caret and scroll position stay put
+    let a = 0
+    while (a < cur.length && a < value.length && cur[a] === value[a]) a++
+    let b = 0
+    while (b < cur.length - a && b < value.length - a && cur[cur.length - 1 - b] === value[value.length - 1 - b]) b++
+    v.dispatch({ changes: { from: a, to: cur.length - b, insert: value.slice(a, value.length - b) } })
   }, [value])
 
   // Keys typed in the editor must not reach the dialog / Plate editor shortcuts
@@ -192,7 +208,7 @@ function parseMentions(text: string, datasets: Record<string, string[]>): Mentio
 
 function contextBlock(lang: Lang, code: string, other: string, h: CodeHints, refs: string) {
   const ds = Object.entries(h.datasets).map(([k, cols]) => `- ${k}: ${cols.map((c) => (h.labels[k]?.[c] ? `${c} (shown as "${h.labels[k][c]}")` : c)).join(', ')}`).join('\n') || '(none)'
-  const ps = h.params.map((p) => `- ${p.name} (${p.label}): ${p.min}–${p.max}, step ${p.step}, now ${p.value}`).join('\n') || '(none)'
+  const ps = h.params.map((p) => `- ${p.name} (${p.label}): ${describeParam(p)}, now ${JSON.stringify(p.value)}`).join('\n') || '(none)'
   const fence = lang === 'js' ? 'js' : 'python'
   const otherLang = lang === 'js' ? 'python' : 'js'
   return `You are editing one figure of a Papercell document. Follow this skill:\n\n${SKILL[lang]}\n\n---\n\nDatasets and columns:\n${ds}\n\nParameters (sliders):\n${ps}\n${refs ? `\nData the user referred to with @ (use these exact names; the profile shows types, ranges and categories):\n${refs}\n` : ''}\nCurrent code:\n\`\`\`${fence}\n${code}\n\`\`\`\n${other.trim() ? `\nThe figure's ${otherLang === 'js' ? 'JavaScript' : 'Python'} code, for reference:\n\`\`\`${otherLang}\n${other}\n\`\`\`\n` : ''}`

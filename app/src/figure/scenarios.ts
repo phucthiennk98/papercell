@@ -1,9 +1,9 @@
 // "Kịch bản tính sẵn": chạy Python gốc cho mọi tổ hợp tham số một lần (trên máy tác giả),
 // nén kết quả vào tài liệu; khi đọc bài chỉ tra kết quả theo vị trí thanh trượt, không cần Python.
-import type { DataFile, FigureNode, FigureParam } from '@/editor/types'
+import { paramKind, type DataFile, type FigureNode, type FigureParam, type ParamValue } from '@/editor/types'
 import { packText, unpackText } from '@/lib/pack'
 
-export type GridAxis = { name: string; values: number[] }
+export type GridAxis = { name: string; values: ParamValue[] }
 
 export type ScenarioCache = {
   /** Lưới đã tính: mỗi tham số một dãy giá trị. Tổ hợp xếp theo thứ tự: tham số cuối thay đổi nhanh nhất. */
@@ -20,8 +20,11 @@ export type ScenarioCache = {
   failed: number
 }
 
-/** Lưới tính sẵn mặc định: đi từ min tới max theo bước của thanh trượt. */
-export function axisValues(p: FigureParam, step = p.step): number[] {
+/** Values to precompute: a slider goes from min to max by `step`; a dropdown uses its options; a switch is off/on. */
+export function axisValues(p: FigureParam, step = p.step): ParamValue[] {
+  const kind = paramKind(p)
+  if (kind === 'select') return [...(p.options ?? [])]
+  if (kind === 'toggle') return [false, true]
   const n = Math.floor((p.max - p.min) / step + 1e-9) + 1
   const dec = (String(step).split('.')[1] ?? '').length
   return Array.from({ length: n }, (_, i) => +(p.min + i * step).toFixed(dec))
@@ -30,8 +33,8 @@ export function axisValues(p: FigureParam, step = p.step): number[] {
 export const comboCount = (grid: GridAxis[]) => grid.reduce((n, a) => n * a.values.length, 1)
 
 /** Tổ hợp thứ i của lưới (tham số cuối thay đổi nhanh nhất). */
-export function comboAt(grid: GridAxis[], i: number): Record<string, number> {
-  const out: Record<string, number> = {}
+export function comboAt(grid: GridAxis[], i: number): Record<string, ParamValue> {
+  const out: Record<string, ParamValue> = {}
   for (let k = grid.length - 1; k >= 0; k--) {
     const len = grid[k].values.length
     out[grid[k].name] = grid[k].values[i % len]
@@ -40,22 +43,29 @@ export function comboAt(grid: GridAxis[], i: number): Record<string, number> {
   return out
 }
 
-/** Vị trí của bộ giá trị tham số trong lưới; mỗi tham số lấy giá trị lưới gần nhất. */
-export function indexOf(grid: GridAxis[], values: Record<string, number>): number {
-  let idx = 0
-  for (const a of grid) {
-    const v = values[a.name] ?? a.values[0]
+/** Position of one axis value: nearest grid number for sliders, exact match for dropdowns and switches. */
+function nearest(a: GridAxis, v: ParamValue | undefined): number {
+  if (typeof v === 'number' && a.values.every((x) => typeof x === 'number')) {
     let best = 0
-    a.values.forEach((x, j) => { if (Math.abs(x - v) < Math.abs(a.values[best] - v)) best = j })
-    idx = idx * a.values.length + best
+    a.values.forEach((x, j) => { if (Math.abs((x as number) - v) < Math.abs((a.values[best] as number) - v)) best = j })
+    return best
   }
+  const j = a.values.findIndex((x) => String(x) === String(v))
+  return j < 0 ? 0 : j
+}
+
+/** Vị trí của bộ giá trị tham số trong lưới. */
+export function indexOf(grid: GridAxis[], values: Record<string, ParamValue>): number {
+  let idx = 0
+  for (const a of grid) idx = idx * a.values.length + nearest(a, values[a.name] ?? a.values[0])
   return idx
 }
 
 /** Giá trị lưới gần nhất (để thanh trượt "bắt" vào đúng điểm đã tính). */
-export function snap(grid: GridAxis[], name: string, v: number) {
+export function snap(grid: GridAxis[], name: string, v: number): number {
   const a = grid.find((g) => g.name === name); if (!a) return v
-  return a.values.reduce((b, x) => (Math.abs(x - v) < Math.abs(b - v) ? x : b), a.values[0])
+  const x = a.values[nearest(a, v)]
+  return typeof x === 'number' ? x : v
 }
 
 // ---- Nén: JSON → gzip → base64 (trình duyệt tự làm bằng CompressionStream) ----
