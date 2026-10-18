@@ -5,11 +5,12 @@ import { kernel } from '../python/kernel'
 import { ACCESS_LABEL, DISPLAY_LABEL, type CodeAccess, type FigureDisplay, type FigureNode, type FigureParam } from '../editor/types'
 import { visibleCode } from './FigureElement'
 import { DesignTab } from './DesignTab'
+import { ScenarioTab } from './ScenarioTab'
 import { FigureView, ParamSliders } from './FigureView'
 import { DataContext, dataKey } from './runtime'
 import { verifyFigure } from './verify'
 
-export type DialogTab = 'design' | 'figure' | 'js' | 'python' | 'params' | 'verify' | 'settings'
+export type DialogTab = 'design' | 'figure' | 'js' | 'python' | 'params' | 'verify' | 'scenarios' | 'settings'
 
 const DISPLAY_ICON: Record<FigureDisplay, LucideIcon> = { output: ChartColumn, both: Rows2, code: Code, hidden: EyeOff }
 const IDENT = /^[A-Za-z_$][\w$]*$/
@@ -22,7 +23,7 @@ type Props = {
 
 export function FigureDialog({ fig, params, number, readOnly, initialTab, onParam, onCommitParams, onUpdate, onClose }: Props) {
   const readTabs: [DialogTab, string][] = [['figure', 'Hình'], ...visibleCode(fig).map((c) => [c.lang === 'JS' ? 'js' : 'python', c.lang === 'JS' ? 'Code JS' : 'Python gốc'] as [DialogTab, string])]
-  const editTabs: [DialogTab, string][] = [['design', 'Thiết kế'], ['figure', 'Hình'], ['js', 'Code JS'], ['python', 'Python gốc'], ['params', 'Tham số'], ['verify', 'Kiểm chứng'], ['settings', 'Cài đặt']]
+  const editTabs: [DialogTab, string][] = [['design', 'Thiết kế'], ['figure', 'Hình'], ['js', 'Code JS'], ['python', 'Python gốc'], ['params', 'Tham số'], ['verify', 'Kiểm chứng'], ['scenarios', 'Tính sẵn'], ['settings', 'Cài đặt']]
   const tabs = readOnly ? readTabs : editTabs
   const [tab, setTab] = useState<DialogTab>(tabs.some(([t]) => t === initialTab) ? initialTab : 'figure')
   const dlg = useRef<HTMLDivElement>(null)
@@ -52,8 +53,8 @@ export function FigureDialog({ fig, params, number, readOnly, initialTab, onPara
         <div className="dlg-body">
           {tab === 'figure' && (
             <div className="dlg-figure">
-              <FigureView js={fig.js} params={params} className="is-large" />
-              {params.length > 0 && <aside><ParamSliders params={params} onChange={onParam} onCommit={onCommitParams} idPrefix={'dlg-' + fig.id} large /></aside>}
+              <FigureView js={fig.js} params={params} scenarios={fig.scenarios} className="is-large" />
+              {params.length > 0 && <aside><ParamSliders params={params} onChange={onParam} onCommit={onCommitParams} idPrefix={'dlg-' + fig.id} large grid={fig.scenarios?.grid} /></aside>}
             </div>
           )}
           {readOnly && (tab === 'js' || tab === 'python') && <pre className="dlg-code">{tab === 'js' ? fig.js : fig.python}</pre>}
@@ -62,6 +63,7 @@ export function FigureDialog({ fig, params, number, readOnly, initialTab, onPara
           {!readOnly && tab === 'python' && <CodeTab fig={fig} params={params} lang="python" onUpdate={onUpdate} />}
           {!readOnly && tab === 'params' && <ParamsTab fig={fig} onUpdate={onUpdate} />}
           {!readOnly && tab === 'verify' && <VerifyTab fig={fig} onUpdate={onUpdate} />}
+          {!readOnly && tab === 'scenarios' && <ScenarioTab fig={fig} onUpdate={onUpdate} />}
           {!readOnly && tab === 'settings' && <SettingsTab fig={fig} onUpdate={onUpdate} />}
         </div>
       </div>
@@ -71,7 +73,7 @@ export function FigureDialog({ fig, params, number, readOnly, initialTab, onPara
 }
 
 const HINT = {
-  js: 'Có sẵn: Plot, d3, data.<tên_file>, width, expose(giá_trị) và mỗi tham số là một biến. Trả về Plot.plot(...) hoặc chuỗi HTML.',
+  js: 'Có sẵn: Plot, d3, data.<tên_file>, width, expose(giá_trị), ket_qua (kết quả Python đã tính sẵn) và mỗi tham số là một biến. Trả về Plot.plot(...) hoặc chuỗi HTML.',
   python: 'Code gốc của bạn, chỉ dùng để đối chiếu và kiểm chứng. Có sẵn data["<tên_file>"] (DataFrame) và các tham số. Gán kết quả cần so vào biến ket_qua.',
 }
 
@@ -101,7 +103,7 @@ function CodeTab({ fig, params, lang, onUpdate }: { fig: FigureNode; params: Fig
       </div>
       <div className="dlg-preview">
         <p className="hint">{lang === 'js' ? 'Xem trước (cập nhật khi gõ)' : 'Hình đang vẽ bằng JS'}</p>
-        <FigureView js={lang === 'js' ? draft : fig.js} params={params} />
+        <FigureView js={lang === 'js' ? draft : fig.js} params={params} scenarios={fig.scenarios} />
       </div>
     </div>
   )

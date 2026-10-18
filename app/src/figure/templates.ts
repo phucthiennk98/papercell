@@ -1,10 +1,10 @@
 // Mẫu biểu đồ để chèn nhanh. Mỗi mẫu có dữ liệu minh họa nên vẽ được ngay;
 // đổi `ds` thành data.<tên_file> để dùng dữ liệu của bài.
-import { Database, ChartColumn, ChartLine, ChartScatter, ChartNoAxesColumn, Hexagon, Table2, SquareCode, type LucideIcon } from 'lucide-react'
+import { Database, ChartColumn, ChartLine, ChartScatter, ChartNoAxesColumn, Hexagon, Table2, SquareCode, FlaskConical, type LucideIcon } from 'lucide-react'
 import { newId, type FigureNode, type FigureParam } from '@/editor/types'
 import { codegen, defaultSpec } from './builder'
 
-export type FigureTemplate = { id: string; label: string; hint: string; icon: LucideIcon; keywords: string[]; js: string; params?: FigureParam[]; caption?: string }
+export type FigureTemplate = { id: string; label: string; hint: string; icon: LucideIcon; keywords: string[]; js: string; python?: string; params?: FigureParam[]; caption?: string }
 
 const HEAD = (what: string) => `// ${what}
 // Có sẵn: Plot, d3, data.<tên_file>, width, expose(giá_trị); mỗi tham số là một biến.
@@ -113,6 +113,48 @@ return \`<table class="fig-table">
 </table>\``,
   },
   {
+    id: 'model', label: 'Mô hình Python (tính sẵn)', hint: 'Python nặng chạy trước mọi tổ hợp, người đọc chỉ kéo thanh trượt', icon: FlaskConical,
+    keywords: ['python', 'mo hinh', 'model', 'tinh san', 'kich ban', 'mo phong'],
+    caption: 'Mô hình lan truyền hành vi theo không gian',
+    params: [
+      { name: 'anh_huong', label: 'Mức ảnh hưởng của hàng xóm', min: 0.05, max: 0.5, step: 0.05, value: 0.15 },
+      { name: 'ban_kinh', label: 'Bán kính lân cận', min: 0.02, max: 0.2, step: 0.02, value: 0.06 },
+    ],
+    python: `# Mô phỏng lan truyền hành vi: mỗi bước, người chưa áp dụng bị hàng xóm trong bán kính tác động.
+# Code này chỉ chạy trên máy tác giả (tab "Tính sẵn"); người đọc nhận kết quả đã tính.
+import numpy as np
+
+rng = np.random.default_rng(7)
+n = 800
+xy = rng.random((n, 2))
+d = np.sqrt(((xy[:, None, :] - xy[None, :, :]) ** 2).sum(-1))
+gan = (d < ban_kinh) & (d > 0)
+da_ap_dung = rng.random(n) < 0.02
+
+ty_le = []
+for buoc in range(40):
+    so_hang_xom = gan[:, da_ap_dung].sum(1)
+    p = 1 - (1 - anh_huong) ** so_hang_xom
+    da_ap_dung = da_ap_dung | (rng.random(n) < p)
+    ty_le.append(round(float(da_ap_dung.mean()), 4))
+
+ket_qua = [{"buoc": i + 1, "ty_le": v} for i, v in enumerate(ty_le)]
+`,
+    js: `// Vẽ từ kết quả Python đã tính sẵn (biến ket_qua), không tính lại gì trong trình duyệt.
+if (!ket_qua) return '<div class="fig-empty">Chưa tính sẵn. Mở hình (✎) → tab <b>Tính sẵn</b> → bấm <b>Chạy</b>.</div>'
+expose(ket_qua)
+return Plot.plot({
+  width, height: 280,
+  x: { label: "Bước" },
+  y: { grid: true, label: "Tỉ lệ đã áp dụng", percent: true, domain: [0, 100] },
+  marks: [
+    Plot.areaY(ket_qua, { x: "buoc", y: "ty_le", fill: "#2a78d6", fillOpacity: 0.12 }),
+    Plot.line(ket_qua, { x: "buoc", y: "ty_le", stroke: "#2a78d6", strokeWidth: 2, tip: true }),
+    Plot.ruleY([0]),
+  ],
+})`,
+  },
+  {
     id: 'blank', label: 'Hình trống', hint: 'Tự viết code, hoặc nhờ AI', icon: SquareCode, keywords: ['trong', 'code', 'tu viet', 'js'],
     js: `${HEAD('Hình trống')}
 return Plot.plot({ width, height: 160, marks: [Plot.text(["Mở hình (✎) để viết code"], { frameAnchor: "middle", fontSize: 14 })] })`,
@@ -125,7 +167,7 @@ export const figureFromTemplate = (t: FigureTemplate): FigureNode => {
     return { type: 'figure', id: newId(), caption: '', js: codegen(spec), python: '', params: [], spec, autoOpen: true, display: 'output', codeAccess: 'both', children: [{ text: '' }] }
   }
   return {
-    type: 'figure', id: newId(), caption: t.id === 'blank' ? '' : t.label, js: t.js, python: '',
+    type: 'figure', id: newId(), caption: t.id === 'blank' ? '' : t.caption ?? t.label, js: t.js, python: t.python ?? '',
     params: (t.params ?? []).map((p) => ({ ...p })), display: 'output', codeAccess: 'both', children: [{ text: '' }],
   }
 }

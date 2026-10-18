@@ -1,9 +1,10 @@
 import { useContext, useEffect, useRef, useState } from 'react'
 import type { FigureParam } from '../editor/types'
 import { DataContext, runFigure } from './runtime'
+import { snap, type GridAxis, type ScenarioCache } from './scenarios'
 
 /** Vẽ một hình từ code JS; tự vẽ lại khi code, tham số, dữ liệu hoặc độ rộng thay đổi. */
-export function FigureView({ js, params, className, onError }: { js: string; params: FigureParam[]; className?: string; onError?: (e: string | null) => void }) {
+export function FigureView({ js, params, scenarios, className, onError }: { js: string; params: FigureParam[]; scenarios?: ScenarioCache; className?: string; onError?: (e: string | null) => void }) {
   const { data } = useContext(DataContext)
   const box = useRef<HTMLDivElement>(null)
   const out = useRef<HTMLDivElement>(null)
@@ -21,7 +22,7 @@ export function FigureView({ js, params, className, onError }: { js: string; par
   useEffect(() => {
     if (!width) return
     let alive = true
-    runFigure(js, params, data, width).then((r) => {
+    runFigure(js, params, data, width, scenarios).then((r) => {
       if (!alive || !out.current) return
       // Giải phóng bản đồ cũ (WebGL) trước khi vẽ lại
       out.current.querySelectorAll('*').forEach((el) => (el as any).__pcCleanup?.())
@@ -31,7 +32,7 @@ export function FigureView({ js, params, className, onError }: { js: string; par
       setError(r.error); onError?.(r.error)
     })
     return () => { alive = false }
-  }, [js, key, data, width])
+  }, [js, key, data, width, scenarios?.payload])
 
   useEffect(() => () => { out.current?.querySelectorAll('*').forEach((el) => (el as any).__pcCleanup?.()) }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -48,8 +49,10 @@ export const fmtParam = (p: FigureParam) =>
   p.value.toLocaleString('vi-VN', { minimumFractionDigits: decimals(p.step), maximumFractionDigits: decimals(p.step) }) + (p.unit ? ' ' + p.unit : '')
 
 /** Các thanh trượt của một hình. */
-export function ParamSliders({ params, onChange, onCommit, idPrefix, large }: {
+export function ParamSliders({ params, onChange, onCommit, idPrefix, large, grid }: {
   params: FigureParam[]; onChange: (name: string, v: number) => void; onCommit?: () => void; idPrefix: string; large?: boolean
+  /** Có kết quả tính sẵn: thanh trượt bắt vào đúng các điểm đã tính. */
+  grid?: GridAxis[]
 }) {
   if (!params.length) return null
   return (
@@ -58,7 +61,7 @@ export function ParamSliders({ params, onChange, onCommit, idPrefix, large }: {
         <div key={p.name} className="fig-param">
           <label htmlFor={`${idPrefix}-${p.name}`}>{p.label}</label>
           <input id={`${idPrefix}-${p.name}`} type="range" min={p.min} max={p.max} step={p.step} value={p.value}
-            onChange={(e) => onChange(p.name, +e.target.value)} onPointerUp={onCommit} onKeyUp={(e) => { e.stopPropagation(); onCommit?.() }}
+            onChange={(e) => onChange(p.name, grid ? snap(grid, p.name, +e.target.value) : +e.target.value)} onPointerUp={onCommit} onKeyUp={(e) => { e.stopPropagation(); onCommit?.() }}
             onKeyDown={(e) => e.stopPropagation()} />
           <output>{fmtParam(p)}</output>
         </div>

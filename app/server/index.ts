@@ -8,6 +8,7 @@ import { POST as aiCopilot } from './ai/copilot/route'
 import { getConnInfo } from '@hono/node-server/conninfo'
 import { assistantChat, ERROR_MARK, PROGRESS_MARK } from './ai/assistant'
 import { agentChat, detectAgents } from './agents/local'
+import { detectPython, runGrid } from './python/grid'
 import { listModels, readConfig, serverKeys } from './ai/provider'
 
 const app = new Hono()
@@ -34,6 +35,17 @@ app.post('/api/agents/chat', async (c) => {
   const messages = (Array.isArray(b.messages) ? b.messages : []).filter((m: any) => (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string')
   if (!messages.length) return c.json({ error: 'Chưa có câu hỏi.' }, 400)
   return agentChat(String(b.agent), messages, typeof b.doc === 'string' ? b.doc.slice(0, 500_000) : '', c.req.raw.signal, ERROR_MARK, PROGRESS_MARK)
+})
+// Python trên máy để tính sẵn kịch bản (cũng chỉ cho phép từ chính máy này)
+app.get('/api/python', async (c) => {
+  if (!isLocal(c)) return c.json({ available: false, error: 'Python trên máy chỉ dùng được khi mở Papercell trên chính máy chạy server.' })
+  return c.json(await detectPython())
+})
+app.post('/api/python/grid', async (c) => {
+  if (!isLocal(c)) return c.json({ error: 'Python trên máy chỉ dùng được từ chính máy chạy server.' }, 403)
+  const b = await c.req.json()
+  if (typeof b.code !== 'string' || !Array.isArray(b.combos) || !Array.isArray(b.files)) return c.json({ error: 'Thiếu code, dữ liệu hoặc danh sách tổ hợp.' }, 400)
+  return runGrid(b, c.req.raw.signal)
 })
 app.get('/api/ai/status', (c) => c.json({ serverKeys: serverKeys() }))
 app.post('/api/ai/models', async (c) => {

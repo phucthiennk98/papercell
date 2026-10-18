@@ -1,6 +1,6 @@
 // Chạy các agent đã cài trên máy (Claude Code, Codex, Antigravity…) ở chế độ không giao diện.
 // Agent làm việc trong một thư mục tạm chứa bai-viet.md, ở chế độ chỉ đọc / lập kế hoạch.
-import { spawn } from 'node:child_process'
+import { type ChildProcess, spawn } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { homedir, tmpdir } from 'node:os'
@@ -94,7 +94,7 @@ function knownDirs(name: string): string[] {
   return (dirs[name] ?? []).filter(Boolean)
 }
 
-function resolveBin(name: string): { file: string; shell: boolean } | null {
+export function resolveBin(name: string): { file: string; shell: boolean } | null {
   const exts = process.platform === 'win32' ? (process.env.PATHEXT ?? '.EXE;.CMD;.BAT').split(';').map((e) => e.toLowerCase()) : ['']
   for (const dir of [...(process.env.PATH ?? '').split(path.delimiter), ...knownDirs(name)]) {
     if (!dir) continue
@@ -106,17 +106,20 @@ function resolveBin(name: string): { file: string; shell: boolean } | null {
   return null
 }
 
+/** Tắt cả cây tiến trình: trên Windows, chương trình chạy qua cmd nên kill() chỉ tắt lớp vỏ ngoài. */
+export function stopTree(child: ChildProcess) {
+  if (child.exitCode !== null || !child.pid) return
+  if (process.platform === 'win32') spawn('taskkill', ['/pid', String(child.pid), '/T', '/F'], { windowsHide: true })
+  else child.kill('SIGTERM')
+}
+
 function run(file: string, args: string[], shell: boolean, opts: { cwd?: string; input?: string; timeoutMs: number; signal?: AbortSignal; onLine?: (l: string) => void }) {
   return new Promise<{ code: number | null; stdout: string; stderr: string }>((resolve, reject) => {
     // Qua shell chỉ khi bắt buộc (.cmd); khi đó tham số là hằng số, không chứa nội dung người dùng.
     const child = spawn(shell ? `"${file}"` : file, args, { cwd: opts.cwd, shell, windowsHide: true, env: process.env })
     let stdout = '', stderr = '', buf = ''
     // Tắt cả cây tiến trình: trên Windows, agent chạy qua cmd nên kill() chỉ tắt lớp vỏ ngoài.
-    const stop = () => {
-      if (child.exitCode !== null || !child.pid) return
-      if (process.platform === 'win32') spawn('taskkill', ['/pid', String(child.pid), '/T', '/F'], { windowsHide: true })
-      else child.kill('SIGTERM')
-    }
+    const stop = () => stopTree(child)
     const timer = setTimeout(stop, opts.timeoutMs)
     if (opts.signal?.aborted) stop()
     opts.signal?.addEventListener('abort', stop)

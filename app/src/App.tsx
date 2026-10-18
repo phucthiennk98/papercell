@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Plate, usePlateEditor, type PlateEditor } from 'platejs/react'
-import { Toaster } from 'sonner'
+import { Toaster, toast } from 'sonner'
 import {
-  BookOpen, Database, Sparkles, FileText, FolderOpen, ListTree, PanelLeftClose, PanelLeftOpen, PenLine, Plus, Save, Search, Trash2,
+  BookOpen, Database, FileDown, Sparkles, FileText, FolderOpen, ListTree, PanelLeftClose, PanelLeftOpen, PenLine, Plus, Save, Search, Trash2,
 } from 'lucide-react'
 import { CopilotPlugin } from '@platejs/ai/react'
 import { aiChatPlugin } from '@/components/editor/plugins/ai-kit'
@@ -18,21 +18,20 @@ import { DataPanel } from '@/figure/DataPanel'
 import { FigureNumbers } from '@/figure/FigureElement'
 import { DataContext, parseData } from '@/figure/runtime'
 import { makeSample } from '@/sample'
+import { scan, type Heading } from '@/editor/scan'
 import { cn } from '@/lib/utils'
+import { packText } from '@/lib/pack'
+import { formatBytes } from '@/figure/scenarios'
 
-type Heading = { id: string; level: number; text: string }
-
-/** Đánh số hình (có chú thích, không ẩn) và lấy dàn ý từ các tiêu đề. */
-function scan(content: any[]) {
-  const figs = new Map<string, number>(); const headings: Heading[] = []
-  const text = (n: any): string => (typeof n.text === 'string' ? n.text : (n.children ?? []).map(text).join(''))
-  const walk = (nodes: any[]) => nodes.forEach((n) => {
-    if (n.type === 'figure') { const f = n as FigureNode; if (f.caption?.trim() && f.display !== 'hidden') figs.set(f.id, figs.size + 1) }
-    else if (/^h[1-3]$/.test(n.type) && n.id) headings.push({ id: n.id, level: +n.type[1], text: text(n) })
-    if (n.children && n.type !== 'figure') walk(n.children)
+/** Bản cho người đọc: bỏ hình ẩn, bỏ Python gốc nếu tác giả không cho xem, bỏ dữ liệu nội bộ của trình soạn. */
+function forPublish(nodes: any[]): any[] {
+  return nodes.flatMap((n) => {
+    if (n.type !== 'figure') return [n.children ? { ...n, children: forPublish(n.children) } : n]
+    const f = n as FigureNode
+    if (f.display === 'hidden') return []
+    const { verify, spec, specDetached, autoOpen, ...rest } = f // eslint-disable-line @typescript-eslint/no-unused-vars
+    return [{ ...rest, python: f.codeAccess === 'python' || f.codeAccess === 'both' ? f.python : '' }]
   })
-  walk(content)
-  return { figs, headings }
 }
 
 export default function App() {
@@ -165,8 +164,29 @@ function DocView({ docId, sidebar, onShowSidebar, onSaved, onHeadings, onEditor,
   const download = () => {
     const blob = new Blob([JSON.stringify({ version: 3, meta, data: files, content: editor.children }, null, 2)], { type: 'application/json' })
     const a = document.createElement('a')
-    a.href = URL.createObjectURL(blob); a.download = (meta.title || 'bai-viet').replace(/[^\p{L}\p{N}]+/gu, '-').toLowerCase() + '.papercell.json'
+    a.href = URL.createObjectURL(blob); a.download = slug() + '.papercell.json'
     a.click(); URL.revokeObjectURL(a.href)
+  }
+  const slug = () => (meta.title || 'bai-viet').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D')
+    .replace(/[^A-Za-z0-9]+/g, '-').replace(/^-|-$/g, '').toLowerCase() || 'bai-viet'
+  /** Xuất một file HTML mở được ở mọi nơi: trang đọc + tài liệu nén (gzip + base64) nhúng bên trong. */
+  const exportHtml = async () => {
+    const id = toast.loading('Đang đóng gói file HTML…')
+    try {
+      const res = await fetch('/viewer.html', { cache: 'no-store' })
+      let html = res.ok ? await res.text() : ''
+      if (!html.includes('>__PC_DOC__<') || html.includes('/src/viewer/')) throw new Error('Bản đang chạy chưa có trang đọc đóng gói (bản dev). Chạy bản build rồi xuất lại.')
+      const { b64 } = await packText(JSON.stringify({ version: 3, meta, data: files, content: forPublish(editor.children) }))
+      const esc = (t: string) => t.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!)
+      html = html.replace('>__PC_DOC__<', () => '>' + b64 + '<').replace('<title>Papercell</title>', () => `<title>${esc(meta.title || 'Papercell')}</title>`)
+      const blob = new Blob([html], { type: 'text/html' })
+      const a = document.createElement('a')
+      a.href = URL.createObjectURL(blob); a.download = slug() + '.html'
+      a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000)
+      toast.success(`Đã xuất ${a.download} (${formatBytes(blob.size)}). Mở bằng trình duyệt bất kỳ, không cần cài gì.`, { id })
+    } catch (e) {
+      toast.error((e as Error).message, { id })
+    }
   }
   const open = async (f?: File) => {
     if (!f) return
@@ -191,6 +211,7 @@ function DocView({ docId, sidebar, onShowSidebar, onSaved, onHeadings, onEditor,
               <button className={cn('flex items-center gap-1.5 rounded-md border px-2.5 py-1 hover:bg-accent', assistant && 'bg-accent')} aria-pressed={assistant} aria-label="Trợ lý AI" title="Trợ lý AI" onClick={onToggleAssistant}><Sparkles className="size-3.5" /><span className="hidden lg:inline">Trợ lý AI</span></button>
               <button className="rounded-md p-1.5 hover:bg-accent" aria-label="Mở file" title="Mở file .papercell.json" onClick={() => fileRef.current?.click()}><FolderOpen className="size-4" /></button>
               <button className="rounded-md p-1.5 hover:bg-accent" aria-label="Lưu file" title="Tải về file .papercell.json" onClick={download}><Save className="size-4" /></button>
+              <button className="flex items-center gap-1.5 rounded-md border px-2.5 py-1 hover:bg-accent" aria-label="Xuất HTML" title="Xuất một file HTML để chia sẻ: ai cũng mở được, không cần Python hay server" onClick={exportHtml}><FileDown className="size-3.5" /><span className="hidden lg:inline">Xuất HTML</span></button>
               <input ref={fileRef} type="file" accept=".json" hidden onChange={(e) => { open(e.target.files?.[0]); e.target.value = '' }} />
             </header>
             <EditorContainer className="min-h-0 flex-1">

@@ -6,6 +6,7 @@ export type CodeAccess = 'none' | 'js' | 'python' | 'both'
 export type FigureParam = { name: string; label: string; min: number; max: number; step: number; value: number; unit?: string }
 
 import type { ChartSpec } from '@/figure/builder'
+import type { ScenarioCache } from '@/figure/scenarios'
 
 export type VerifyResult = { ok: boolean; message: string; at: string }
 
@@ -25,6 +26,8 @@ export type FigureNode = {
   spec?: ChartSpec
   /** Người dùng đã sửa code tay nên Thiết kế không ghi đè code nữa. */
   specDetached?: boolean
+  /** Kết quả Python đã tính sẵn cho mọi tổ hợp tham số (để xuất bản không cần Python). */
+  scenarios?: ScenarioCache
   /** Mở popup ở tab Thiết kế ngay khi vừa chèn. */
   autoOpen?: boolean
   children: [{ text: '' }]

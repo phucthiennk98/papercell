@@ -20,6 +20,20 @@ export function FigureElement(props: PlateElementProps) {
   const { editor } = props
   const fig = props.element as unknown as FigureNode
   const readOnly = useReadOnly()
+  const update = (patch: Partial<FigureNode>) => { const at = editor.api.findPath(props.element); if (at) editor.tf.setNodes(patch, { at }) }
+  return (
+    <PlateElement {...props} className={figClass(fig, readOnly)}>
+      {readOnly && fig.display === 'hidden' ? null : <FigureCard fig={fig} readOnly={readOnly} update={update} />}
+      {props.children}
+    </PlateElement>
+  )
+}
+
+export const figClass = (fig: FigureNode, readOnly: boolean) =>
+  readOnly && fig.display === 'hidden' ? 'fig-hidden' : 'fig' + (readOnly ? ' is-read' : ' is-edit') + (fig.display === 'hidden' ? ' is-hidden' : '')
+
+/** Thân thẻ hình (dùng chung cho editor và trang đọc tĩnh khi xuất HTML). */
+export function FigureCard({ fig, readOnly, update }: { fig: FigureNode; readOnly: boolean; update: (p: Partial<FigureNode>) => void }) {
   const no = useContext(FigureNumbers).get(fig.id)
   // Giá trị tham số đang kéo; người đọc kéo thì không ghi vào tài liệu.
   const [params, setParams] = useState<FigureParam[]>(fig.params)
@@ -27,11 +41,8 @@ export function FigureElement(props: PlateElementProps) {
   useEffect(() => { setParams(fig.params) }, [fig.params])
   useEffect(() => { if (fig.autoOpen && !readOnly) { setDialog('design'); update({ autoOpen: undefined }) } }, [fig.autoOpen]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const update = (patch: Partial<FigureNode>) => { const at = editor.api.findPath(props.element); if (at) editor.tf.setNodes(patch, { at }) }
   const slide = (name: string, v: number) => setParams((ps) => ps.map((p) => (p.name === name ? { ...p, value: v } : p)))
   const commit = () => { if (!readOnly) update({ params }) }
-
-  if (readOnly && fig.display === 'hidden') return <PlateElement {...props} className="fig-hidden">{props.children}</PlateElement>
 
   const caption = (
     <span>{no ? <b className="fig-no">Hình {no}.</b> : null} {fig.caption}</span>
@@ -40,7 +51,7 @@ export function FigureElement(props: PlateElementProps) {
   const showInlineCode = (fig.display === 'both' || fig.display === 'code') && codes.length > 0
 
   return (
-    <PlateElement {...props} className={'fig' + (readOnly ? ' is-read' : ' is-edit') + (fig.display === 'hidden' ? ' is-hidden' : '')}>
+    <>
       <div contentEditable={false} className="fig-card">
         <div className="fig-head">
           <span className="fig-badges">
@@ -50,6 +61,7 @@ export function FigureElement(props: PlateElementProps) {
                 {fig.verify.ok ? <CircleCheck size={13} /> : <CircleX size={13} />}{fig.verify.ok ? 'Đã kiểm chứng' : 'Chưa khớp'}
               </span>
             )}
+            {!readOnly && fig.scenarios && <span className="fig-badge" data-tip={`${fig.scenarios.count} tổ hợp đã tính sẵn bằng Python`}>Tính sẵn {fig.scenarios.count.toLocaleString('vi-VN')}</span>}
             {!readOnly && fig.display === 'hidden' && <span className="fig-badge muted">Ẩn khi xuất bản</span>}
           </span>
           <span className="fig-actions">
@@ -60,10 +72,10 @@ export function FigureElement(props: PlateElementProps) {
         {fig.display !== 'code' && (
           <div className="fig-click" onClick={() => setDialog('figure')} role="button" tabIndex={0} aria-label="Mở hình lớn"
             onKeyDown={(e) => { e.stopPropagation(); if (e.key === 'Enter') setDialog('figure') }}>
-            <FigureView js={fig.js} params={params} />
+            <FigureView js={fig.js} params={params} scenarios={fig.scenarios} />
           </div>
         )}
-        <ParamSliders params={params} onChange={slide} onCommit={commit} idPrefix={fig.id} />
+        <ParamSliders params={params} onChange={slide} onCommit={commit} idPrefix={fig.id} grid={fig.scenarios?.grid} />
         {showInlineCode && codes.map((c) => (
           <details key={c.lang} className="fig-inline-code" open={fig.display === 'code'}>
             <summary>Code {c.lang}</summary><pre>{c.code}</pre>
@@ -83,7 +95,6 @@ export function FigureElement(props: PlateElementProps) {
         <FigureDialog fig={fig} params={params} onParam={slide} onCommitParams={commit} readOnly={readOnly}
           number={no} initialTab={dialog} onClose={() => setDialog(null)} onUpdate={update} />
       )}
-      {props.children}
-    </PlateElement>
+    </>
   )
 }

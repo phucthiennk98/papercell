@@ -7,9 +7,10 @@
   "scripts": {
     "dev": "vite",
     "dev:server": "node scripts/server.mjs --watch",
-    "build": "tsc -b && vite build && node scripts/server.mjs",
+    "build": "tsc -b && vite build && npm run build:viewer && node scripts/server.mjs",
     "start": "node server-dist/index.mjs",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "build:viewer": "vite build -c vite.viewer.config.ts && node scripts/inline-viewer.mjs"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^4.0.82",

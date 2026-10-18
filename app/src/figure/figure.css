@@ -65,24 +65,24 @@
 .dlg-editor textarea { flex: 1; border: 0; resize: none; padding: 12px 14px; font: 12.5px/1.6 var(--font-mono); background: var(--code-bg); tab-size: 2; white-space: pre; outline: none; }
 .dlg-preview { display: flex; flex-direction: column; min-height: 0; overflow: auto; }
 .dlg-preview .fig-view { padding: 14px; }
-.dlg-params, .dlg-verify, .dlg-settings, .data-panel { padding: 18px 22px; display: flex; flex-direction: column; gap: 12px; }
-.dlg-params table, .data-panel table { border-collapse: collapse; width: 100%; font-size: 13px; }
-.dlg-params th, .data-panel th { text-align: left; font-weight: 500; color: var(--ink-2); font-size: 12px; padding: 4px 6px; border-bottom: 1px solid var(--line); }
-.dlg-params td, .data-panel td { padding: 4px 6px; border-bottom: 1px solid var(--line-2); }
-.dlg-params td input { width: 100%; min-width: 60px; height: 28px; border: 1px solid var(--line); border-radius: 5px; padding: 0 6px; font-size: 13px; }
+.dlg-params, .dlg-verify, .dlg-settings, .dlg-scen, .data-panel { padding: 18px 22px; display: flex; flex-direction: column; gap: 12px; }
+.dlg-params table, .dlg-scen table, .data-panel table { border-collapse: collapse; width: 100%; font-size: 13px; }
+.dlg-params th, .dlg-scen th, .data-panel th { text-align: left; font-weight: 500; color: var(--ink-2); font-size: 12px; padding: 4px 6px; border-bottom: 1px solid var(--line); }
+.dlg-params td, .dlg-scen td, .data-panel td { padding: 4px 6px; border-bottom: 1px solid var(--line-2); }
+.dlg-params td input, .dlg-scen td input { width: 100%; min-width: 60px; height: 28px; border: 1px solid var(--line); border-radius: 5px; padding: 0 6px; font-size: 13px; }
 .row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .btn { display: inline-flex; align-items: center; gap: 6px; }
 .ok { color: var(--ok); font-size: 12.5px; }
-.dlg-verify p { margin: 0; max-width: 70ch; }
+.dlg-verify p, .dlg-scen > p { margin: 0; max-width: 70ch; }
 .dlg-verify ol { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 4px; }
-.dlg-verify code, .data-panel code { font: 12px var(--font-mono); background: var(--code-bg); padding: 1px 5px; border-radius: 4px; }
+.dlg-verify code, .dlg-scen code, .data-panel code { font: 12px var(--font-mono); background: var(--code-bg); padding: 1px 5px; border-radius: 4px; }
 .verify-box { display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px; border-radius: 8px; border: 1px solid; }
 .verify-box.ok { border-color: #b7dfc3; background: #f1faf4; color: var(--ok); }
 .verify-box.bad { border-color: #f3c3bf; background: #fdf4f3; color: var(--err); }
 .verify-box p { margin: 2px 0; color: var(--ink); }
 .verify-box small { color: var(--ink-3); }
-.dlg-settings section { display: flex; flex-direction: column; gap: 8px; }
-.dlg-settings h3 { margin: 0; font-size: 14px; }
+.dlg-settings section, .dlg-scen section { display: flex; flex-direction: column; gap: 8px; }
+.dlg-settings h3, .dlg-scen h3 { margin: 0; font-size: 14px; }
 .choice-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 8px; }
 .choice { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: #fff; cursor: pointer; text-align: left; font-size: 13px; color: var(--ink-2); }
 .choice:hover { border-color: var(--ink-3); }
@@ -130,3 +130,15 @@
 .pcm-cat i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
 .pcm-pop { font-size: 12px; border-collapse: collapse; }
 .pcm-pop th { text-align: left; padding-right: 8px; color: #666; font-weight: 500; }
+
+/* ---- Tab Tính sẵn ---- */
+.dlg-scen td.num { font-variant-numeric: tabular-nums; text-align: right; }
+.dlg-scen td input { max-width: 110px; }
+.choice:disabled { opacity: .5; cursor: not-allowed; }
+.choice small { font-weight: 400; color: var(--ink-3); }
+.scen-total { font-size: 13px; color: var(--ink-2); }
+.scen-total.warn { color: #7a5200; background: #fff8e6; border: 1px solid #f0c36d; border-radius: 8px; padding: 8px 10px; }
+.scen-progress { display: flex; flex-direction: column; gap: 8px; font-size: 13px; }
+.scen-progress .bar { height: 6px; border-radius: 3px; background: var(--line-2); overflow: hidden; }
+.scen-progress .bar i { display: block; height: 100%; background: #2a78d6; transition: width .3s; }
+.fig-empty { padding: 36px 16px; text-align: center; color: var(--ink-3); font-size: 13.5px; border: 1px dashed var(--line); border-radius: 8px; }
