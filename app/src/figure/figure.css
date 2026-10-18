@@ -38,6 +38,7 @@
 .fig-caption input:focus { outline: none; }
 .fig-no { font-weight: 600; color: var(--ink); white-space: nowrap; }
 .fig-table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
+.fig-table td { white-space: nowrap; }
 .fig-table th, .fig-table td { padding: 6px 8px; border-bottom: 1px solid var(--line-2); text-align: right; }
 .fig-table th:first-child, .fig-table td:first-child { text-align: left; }
 .fig-table thead th { border-bottom: 1px solid var(--ink-3); font-weight: 600; }

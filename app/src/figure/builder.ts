@@ -87,7 +87,7 @@ return \`<table class="fig-table"><thead><tr><th>\${pc.esc(${q(s.x)})}</th><th>\
 <tbody>\${bang.map(([k, v]) => \`<tr><td>\${pc.esc(k)}</td><td>\${typeof v === "number" ? v.toLocaleString("vi-VN", { maximumFractionDigits: 2 }) : v}</td></tr>\`).join("")}</tbody></table>\``
   }
 
-  const facet = s.facet ? `fx: ${q(s.facet)}` : ''
+  const facet = s.facet ? `fy: ${q(s.facet)}` : ''
   const color = (key: 'fill' | 'stroke') => (s.color ? `${key}: ${q(s.color)}` : `${key}: "#2a78d6"`)
   const join = (...xs: string[]) => xs.filter(Boolean).join(', ')
   const agg = s.agg === 'none' ? 'sum' : s.agg
@@ -104,7 +104,7 @@ return \`<table class="fig-table"><thead><tr><th>\${pc.esc(${q(s.x)})}</th><th>\
       const reducer = !s.x || s.agg === 'count' ? `{ x: "count" }` : `{ x: ${q(agg)} }`
       const sortOpt = s.sort === 'none' ? '' : `sort: { y: ${q(s.sort === 'desc' ? '-x' : 'x')} }`
       marks = `Plot.barX(ds, Plot.groupY(${reducer}, { ${join(`y: ${q(s.y)}`, s.x && s.agg !== 'count' ? `x: ${q(s.x)}` : '', color('fill'), sortOpt, 'tip: true')} })),\n    Plot.ruleX([0])`
-      extra = ['marginLeft: 100']
+      extra = ['marginLeft: lechTrai']
       break
     }
     case 'line':
@@ -128,25 +128,44 @@ return \`<table class="fig-table"><thead><tr><th>\${pc.esc(${q(s.x)})}</th><th>\
     case 'heatmap': {
       const reducer = !s.color || s.agg === 'count' ? `{ fill: "count" }` : `{ fill: ${q(agg)} }`
       marks = `Plot.cell(ds, Plot.group(${reducer}, { ${join(`x: ${q(s.x)}`, `y: ${q(s.y)}`, s.color && s.agg !== 'count' ? `fill: ${q(s.color)}` : '', 'tip: true')} }))`
-      extra = [`color: { scheme: ${q(s.scheme)}, legend: true }`, 'marginLeft: 80']
+      extra = [`color: { scheme: ${q(s.scheme)}, legend: true }`, 'marginLeft: lechTrai']
       break
     }
   }
-  const colorLegend = s.color && s.type !== 'heatmap' ? [`color: { legend: true, scheme: ${q(s.scheme)} }`] : []
+  // Màu: cột số thì dùng thang màu đã chọn, cột chữ (nhóm) thì dùng bảng màu phân biệt rõ
+  const colorLegend = s.color && s.type !== 'heatmap'
+    ? [`color: { legend: true, scheme: typeof ds.find((d) => d[${q(s.color)}] != null)?.[${q(s.color)}] === "number" ? ${q(s.scheme)} : "tableau10" }`] : []
   // Trục số hiển thị kiểu Việt Nam: 10.000 và 0,5
   const vn = 'tickFormat: (d) => typeof d === "number" ? d.toLocaleString("vi-VN") : d instanceof Date ? d.toLocaleDateString("vi-VN") : d'
   const xNumeric = s.type === 'barh' || s.type === 'scatter' || s.type === 'histogram' || s.type === 'line' || s.type === 'area'
   const yNumeric = s.type !== 'barh' && s.type !== 'heatmap'
+  // Trục X là nhóm chữ: nhãn dài thì xoay nghiêng cho khỏi chồng lên nhau
+  const xCat = (s.type === 'bar' || s.type === 'box' || s.type === 'heatmap') && !!s.x
+  const yCat = s.type === 'barh' || s.type === 'heatmap'
+  const pre = [
+    yCat ? `const lechTrai = Math.min(220, 16 + 6.5 * (d3.max(ds, (d) => String(d[${q(s.y)}] ?? "").length) ?? 0))` : '',
+    // Nhãn trục X quá dài so với chỗ trống thì xoay nghiêng
+    xCat ? `const nhanX = d3.max(ds, (d) => String(d[${q(s.x)}] ?? "").length) ?? 0
+const xoay = nhanX * 7.5 * new Set(ds.map((d) => d[${q(s.x)}])).size > width - ${yCat ? 'lechTrai - 20' : '80'}` : '',
+    s.facet ? `const soO = new Set(ds.map((d) => d[${q(s.facet)}])).size` : '',
+  ].filter(Boolean)
+  const xOpts = [s.xLabel ? `label: ${q(s.xLabel)}` : '', xNumeric ? vn : '', xCat ? 'tickRotate: xoay ? -35 : 0' : ''].filter(Boolean)
   const axes = [
-    s.xLabel || xNumeric ? `x: { ${[s.xLabel ? `label: ${q(s.xLabel)}` : '', xNumeric ? vn : ''].filter(Boolean).join(', ')} }` : '',
+    xOpts.length ? `x: { ${xOpts.join(', ')} }` : '',
     `y: { grid: true${s.yLabel ? `, label: ${q(s.yLabel)}` : ''}${yNumeric ? `, ${vn}` : ''} }`,
+    s.facet ? 'fy: { label: null }' : '',
+  ].filter(Boolean)
+  const layout = [
+    s.facet ? 'height: Math.max(320, 120 * soO)' : 'height: 320',
+    xCat ? 'marginBottom: xoay ? Math.min(130, 24 + 4.2 * nhanX) : 30' : '',
+    xCat && !yCat ? 'marginLeft: xoay ? Math.max(50, Math.min(120, 5.2 * nhanX)) : 50' : '',
+    s.facet ? `marginRight: Math.min(200, 16 + 6.5 * d3.max(ds, (d) => String(d[${q(s.facet)}] ?? "").length))` : '',
   ].filter(Boolean)
   return `${head}
-expose(ds.length)
+${pre.length ? pre.join('\n') + '\n' : ''}expose(ds.length)
 return Plot.plot({
   width,
-  height: 320,
-  ${[...extra, ...colorLegend, ...axes].join(',\n  ')},
+  ${[...layout, ...extra, ...colorLegend, ...axes].join(',\n  ')},
   marks: [
     ${marks},
   ],

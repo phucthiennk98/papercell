@@ -89,7 +89,11 @@ export function makeMap(o: MapOptions): HTMLElement {
   }
   const legend = styleFeatures(fs, o)
   const fc: GeoJSON.FeatureCollection = { type: 'FeatureCollection', features: fs }
-  const bounds = d3.geoBounds(fc as any)
+  // Khung bao theo tọa độ thô: d3.geoBounds hiểu vòng ngược chiều kim đồng hồ (chuẩn GeoJSON) là "cả địa cầu trừ vùng này".
+  let [x0, y0, x1, y1] = [Infinity, Infinity, -Infinity, -Infinity]
+  const walk = (c: any): void => { if (typeof c[0] === 'number') { x0 = Math.min(x0, c[0]); x1 = Math.max(x1, c[0]); y0 = Math.min(y0, c[1]); y1 = Math.max(y1, c[1]) } else c.forEach(walk) }
+  fs.forEach((f) => { if (f.geometry && 'coordinates' in f.geometry) walk(f.geometry.coordinates) })
+  const bounds = [[x0, y0], [x1, y1]]
 
   const map = new maplibregl.Map({
     container: box,

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Plate, usePlateEditor, type PlateEditor } from 'platejs/react'
 import { Toaster, toast } from 'sonner'
 import {
-  BookOpen, Database, FileDown, Sparkles, FileText, FolderOpen, ListTree, PanelLeftClose, PanelLeftOpen, PenLine, Plus, Save, Search, Trash2,
+  BookOpen, ChartColumn, Database, FileDown, Sparkles, FileText, FolderOpen, ListTree, PanelLeftClose, PanelLeftOpen, PenLine, Plus, Save, Search, Trash2,
 } from 'lucide-react'
 import { CopilotPlugin } from '@platejs/ai/react'
 import { aiChatPlugin } from '@/components/editor/plugins/ai-kit'
@@ -18,6 +18,7 @@ import { DataPanel } from '@/figure/DataPanel'
 import { FigureNumbers } from '@/figure/FigureElement'
 import { DataContext, parseData } from '@/figure/runtime'
 import { makeSample } from '@/sample'
+import { makeGallery } from '@/gallery'
 import { scan, type Heading } from '@/editor/scan'
 import { cn } from '@/lib/utils'
 import { packText } from '@/lib/pack'
@@ -105,6 +106,9 @@ export default function App() {
             <div className="border-t p-2">
               <button className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left hover:bg-accent" onClick={() => create(makeSample())}>
                 <BookOpen className="size-4 text-muted-foreground" />Tạo bài mẫu
+              </button>
+              <button className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left hover:bg-accent" onClick={() => create(makeGallery())}>
+                <ChartColumn className="size-4 text-muted-foreground" />Tạo bộ thử biểu đồ
               </button>
             </div>
           </aside>
