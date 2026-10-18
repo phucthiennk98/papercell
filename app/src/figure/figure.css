@@ -126,7 +126,7 @@
 .pc-map { position: relative; width: 100%; border-radius: 8px; overflow: hidden; background: #e8eef2; }
 .pcm-empty { position: absolute; inset: 0; display: grid; place-items: center; padding: 16px; text-align: center; font-size: 13px; color: var(--muted-foreground); }
 .pcm-note { position: absolute; left: 8px; right: 8px; top: 8px; z-index: 3; background: rgba(255,255,255,.95); border-radius: 6px; padding: 8px 10px; font: 12.5px/1.45 var(--font-ui, system-ui); color: #7a5200; box-shadow: 0 1px 4px rgba(0,0,0,.2); }
-.pcm-legend { position: absolute; left: 8px; bottom: 26px; z-index: 2; background: rgba(255,255,255,.92); border-radius: 6px; padding: 6px 8px; font: 11.5px/1.4 var(--font-ui, system-ui); color: #333; box-shadow: 0 1px 4px rgba(0,0,0,.15); max-width: 60%; }
+.pcm-legend { position: absolute; left: 8px; top: 8px; z-index: 2; background: rgba(255,255,255,.92); border-radius: 6px; padding: 6px 8px; font: 11.5px/1.4 var(--font-ui, system-ui); color: #333; box-shadow: 0 1px 4px rgba(0,0,0,.15); max-width: 60%; }
 .pcm-title { font-weight: 600; margin-bottom: 3px; }
 .pcm-ramp { width: 140px; height: 8px; border-radius: 3px; }
 .pcm-ends { display: flex; justify-content: space-between; }
@@ -174,3 +174,7 @@
 .col-alias { display: block; margin-top: 4px; width: 100%; min-width: 100px; font: 400 12px var(--font-ui); color: var(--ink); border: 1px dashed var(--line); border-radius: 5px; padding: 2px 6px; background: #fff; }
 .col-alias:focus { outline: none; border-style: solid; border-color: #1d5fd1; }
 .col-alias:not(:placeholder-shown) { border-style: solid; background: var(--accent-soft); }
+
+.fig-no-btn { border: 0; background: none; padding: 1px 4px; margin-left: -4px; border-radius: 4px; cursor: pointer; font: inherit; font-weight: 600; color: var(--ink); white-space: nowrap; }
+.fig-no-btn:hover { background: var(--accent-soft); color: #1d5fd1; }
+.fig-no-btn.none { font-weight: 500; color: var(--ink-3); }

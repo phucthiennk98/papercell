@@ -2,8 +2,9 @@ import { useContext, useEffect, useRef, useState, useSyncExternalStore } from 'r
 import { createPortal } from 'react-dom'
 import { ChartColumn, CircleCheck, CircleX, Code, EyeOff, Loader2, Plus, Rows2, Trash2, X, type LucideIcon } from 'lucide-react'
 import { kernel } from '../python/kernel'
-import { ACCESS_LABEL, DISPLAY_LABEL, type CodeAccess, type FigureDisplay, type FigureNode, type FigureParam } from '../editor/types'
+import { ACCESS_LABEL, CAPTION_LABEL, DISPLAY_LABEL, type CaptionKind, type CodeAccess, type FigureDisplay, type FigureNode, type FigureParam } from '../editor/types'
 import { visibleCode } from './FigureElement'
+import { captionKind } from '@/editor/scan'
 import { DesignTab } from './DesignTab'
 import { ScenarioTab } from './ScenarioTab'
 import { CodeAssist, CodeEditor, useCodeHints } from './CodeEditor'
@@ -17,7 +18,7 @@ const DISPLAY_ICON: Record<FigureDisplay, LucideIcon> = { output: ChartColumn, b
 const IDENT = /^[A-Za-z_$][\w$]*$/
 
 type Props = {
-  fig: FigureNode; params: FigureParam[]; number?: number; readOnly: boolean; initialTab: DialogTab
+  fig: FigureNode; params: FigureParam[]; number?: string; readOnly: boolean; initialTab: DialogTab
   onParam: (name: string, v: number) => void; onCommitParams: () => void
   onUpdate: (p: Partial<FigureNode>) => void; onClose: () => void
 }
@@ -40,7 +41,7 @@ export function FigureDialog({ fig, params, number, readOnly, initialTab, onPara
     return () => { removeEventListener('keydown', onKey); document.body.classList.remove('modal-open'); prev?.focus?.() }
   }, [])
 
-  const title = `${number ? `Figure ${number}. ` : ''}${fig.caption || 'Untitled figure'}`
+  const title = `${number ? `${number}. ` : ''}${fig.caption || 'Untitled figure'}`
 
   return createPortal(
     <div className="dlg-backdrop" onMouseDown={onClose}>
@@ -184,6 +185,16 @@ function SettingsTab({ fig, onUpdate }: { fig: FigureNode; onUpdate: (p: Partial
             const Icon = DISPLAY_ICON[k]
             return <button key={k} className={'choice' + (fig.display === k ? ' on' : '')} aria-pressed={fig.display === k} onClick={() => onUpdate({ display: k })}><Icon size={18} /><span>{DISPLAY_LABEL[k]}</span></button>
           })}
+        </div>
+      </section>
+      <section>
+        <h3>Caption label</h3>
+        <p className="hint">Figures and tables are numbered separately (Figure 1, 2… and Table 1, 2…). Automatic: tables are Tables, everything else is a Figure.</p>
+        <div className="choice-grid">
+          <button className={'choice' + (!fig.label ? ' on' : '')} aria-pressed={!fig.label} onClick={() => onUpdate({ label: undefined })}><span>Automatic ({CAPTION_LABEL[captionKind({ ...fig, label: undefined })]})</span></button>
+          {(Object.keys(CAPTION_LABEL) as CaptionKind[]).map((k) => (
+            <button key={k} className={'choice' + (fig.label === k ? ' on' : '')} aria-pressed={fig.label === k} onClick={() => onUpdate({ label: k })}><span>{CAPTION_LABEL[k]}</span></button>
+          ))}
         </div>
       </section>
       <section>

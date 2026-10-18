@@ -1,12 +1,17 @@
 import { createContext, useContext, useEffect, useState } from 'react'
 import { PlateElement, type PlateElementProps, useReadOnly } from 'platejs/react'
 import { CircleCheck, CircleX, Maximize2, Pencil } from 'lucide-react'
-import type { FigureNode, FigureParam } from '../editor/types'
+import { CAPTION_LABEL, type CaptionKind, type FigureNode, type FigureParam } from '../editor/types'
+import { captionKind } from '../editor/scan'
+
+/** Clicking the caption label always changes what is shown: Figure → Table → no number → Figure (Automatic is in Settings). */
+const NEXT_LABEL: Record<CaptionKind, CaptionKind> = { figure: 'table', table: 'none', none: 'figure' }
 import { FigureDialog, type DialogTab } from './FigureDialog'
 import { FigureView, ParamSliders } from './FigureView'
 
 /** Số thứ tự hình theo id thẻ. */
-export const FigureNumbers = createContext<Map<string, number>>(new Map())
+/** Caption number per figure id, e.g. "Figure 3" or "Table 1". */
+export const FigureNumbers = createContext<Map<string, string>>(new Map())
 
 /** Code người đọc được thấy, theo quyền tác giả đặt. */
 export function visibleCode(fig: FigureNode): { lang: 'JS' | 'Python'; code: string }[] {
@@ -45,7 +50,7 @@ export function FigureCard({ fig, readOnly, update }: { fig: FigureNode; readOnl
   const commit = () => { if (!readOnly) update({ params }) }
 
   const caption = (
-    <span>{no ? <b className="fig-no">Figure {no}.</b> : null} {fig.caption}</span>
+    <span>{no ? <b className="fig-no">{no}.</b> : null} {fig.caption}</span>
   )
   const codes = readOnly ? visibleCode(fig) : [{ lang: 'JS' as const, code: fig.js }]
   const showInlineCode = (fig.display === 'both' || fig.display === 'code') && codes.length > 0
@@ -84,8 +89,11 @@ export function FigureCard({ fig, readOnly, update }: { fig: FigureNode; readOnl
         <div className="fig-caption">
           {readOnly ? caption : (
             <>
-              {no ? <b className="fig-no">Figure {no}.</b> : null}
-              <input defaultValue={fig.caption} placeholder="Figure caption (leave empty for no number)" aria-label="Figure caption"
+              <button type="button" className={'fig-no fig-no-btn' + (no ? '' : ' none')} data-tip="Click to switch: Figure → Table → no number"
+                aria-label="Caption label" onClick={() => update({ label: NEXT_LABEL[captionKind(fig)] })}>
+                {no ? `${no}.` : captionKind(fig) === 'none' ? 'No number' : CAPTION_LABEL[captionKind(fig)]}
+              </button>
+              <input defaultValue={fig.caption} placeholder="Caption (needed for numbering)" aria-label="Caption"
                 onBlur={(e) => { if (e.target.value !== fig.caption) update({ caption: e.target.value }) }} onKeyDown={(e) => e.stopPropagation()} />
             </>
           )}

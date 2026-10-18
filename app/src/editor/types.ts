@@ -26,6 +26,8 @@ export type FigureNode = {
   spec?: ChartSpec
   /** Người dùng đã sửa code tay nên Thiết kế không ghi đè code nữa. */
   specDetached?: boolean
+  /** Caption label: numbered as a Figure or a Table (separate counters), or not numbered. Empty = automatic. */
+  label?: CaptionKind
   /** Code trước khi bị thiết kế thay thế, để nút "Quay lại code cũ" dùng. */
   codeBackup?: { js: string; params: FigureParam[]; spec?: ChartSpec; specDetached?: boolean }
   /** Kết quả Python đã tính sẵn cho mọi tổ hợp tham số (để xuất bản không cần Python). */
@@ -36,6 +38,10 @@ export type FigureNode = {
 }
 
 export type EquationNode = { type: 'equation'; id: string; texExpression: string; children: [{ text: '' }] }
+
+export type CaptionKind = 'figure' | 'table' | 'none'
+
+export const CAPTION_LABEL: Record<CaptionKind, string> = { figure: 'Figure', table: 'Table', none: 'No number' }
 
 export type DataFile = {
   name: string; kind: 'csv' | 'json'; content: string
