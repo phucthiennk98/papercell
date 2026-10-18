@@ -63,8 +63,52 @@ export const ColumnElement = withHOC(
         ),
     });
 
+    const editor = useEditorRef();
+    const wrapRef = React.useRef<HTMLDivElement>(null);
+    const path = editor.api.findPath(props.element);
+    const group = path ? editor.api.node(PathApi.parent(path))?.[0] as { children: unknown[] } | undefined : undefined;
+    const isLast = !path || !group || path[path.length - 1] === group.children.length - 1;
+
+    /** Drag the boundary with the next column; widths are committed once on release (one undo step). */
+    const startResize = (e: React.PointerEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const me = wrapRef.current, next = me?.nextElementSibling as HTMLElement | null, row = me?.parentElement;
+      if (!me || !next || !row || !path) return;
+      const total = row.getBoundingClientRect().width;
+      const a0 = me.getBoundingClientRect().width / total * 100, b0 = next.getBoundingClientRect().width / total * 100;
+      const x0 = e.clientX;
+      let a = a0, b = b0;
+      const move = (ev: PointerEvent) => {
+        const d = (ev.clientX - x0) / total * 100;
+        a = Math.max(10, Math.min(a0 + b0 - 10, a0 + d)); b = a0 + b0 - a;
+        me.style.width = `${a}%`; next.style.width = `${b}%`;
+      };
+      const up = () => {
+        removeEventListener('pointermove', move); removeEventListener('pointerup', up);
+        document.body.classList.remove('col-resizing');
+        editor.tf.withoutNormalizing(() => {
+          editor.tf.setNodes({ width: `${a.toFixed(1)}%` } as any, { at: path });
+          editor.tf.setNodes({ width: `${b.toFixed(1)}%` } as any, { at: PathApi.next(path) });
+        });
+      };
+      document.body.classList.add('col-resizing');
+      addEventListener('pointermove', move); addEventListener('pointerup', up);
+    };
+
     return (
-      <div className="group/column relative" style={{ width: width ?? '100%' }}>
+      <div ref={wrapRef} className="group/column relative" style={{ width: width ?? '100%' }}>
+        {!readOnly && !isLast && (
+          <div
+            className="col-resize-handle"
+            contentEditable={false}
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="Drag to resize columns"
+            title="Drag to resize columns"
+            onPointerDown={startResize}
+          />
+        )}
         {!readOnly && !isSelectionAreaVisible && (
           <div
             ref={handleRef}

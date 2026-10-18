@@ -184,3 +184,9 @@
 .dlg-title-edit input:hover { border-bottom-color: var(--line); }
 .dlg-title-edit input:focus { border-bottom-color: #1d5fd1; }
 .design-row .col-name { font: 12px var(--font-mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Column resize handle between Plate columns */
+.col-resize-handle { position: absolute; top: 8px; bottom: 0; right: -6px; width: 12px; z-index: 40; cursor: col-resize; }
+.col-resize-handle::after { content: ''; position: absolute; left: 5px; top: 0; bottom: 0; width: 2px; border-radius: 2px; background: transparent; transition: background .15s; }
+.group\/column:hover > .col-resize-handle::after, .col-resize-handle:hover::after { background: color-mix(in srgb, #1d5fd1 45%, transparent); }
+body.col-resizing, body.col-resizing * { cursor: col-resize !important; user-select: none !important; }

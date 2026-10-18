@@ -3,6 +3,7 @@
 import * as React from 'react';
 
 import { DndPlugin, useDraggable, useDropLine } from '@platejs/dnd';
+import { canDropSide, dropToSide, sideOf, sideTarget, useSideTarget } from '@/editor/side-drop';
 import { expandListItemsWithChildren } from '@platejs/list';
 import { BlockSelectionPlugin } from '@platejs/selection/react';
 import { GripVertical, Plus } from 'lucide-react';
@@ -79,6 +80,16 @@ function Draggable(props: PlateElementProps) {
       element,
       onDropHandler: (_, { dragItem }) => {
         const id = (dragItem as { id: string[] | string }).id;
+        // Dropped on the left/right edge: put the blocks side by side in columns
+        const side = sideTarget.get();
+        sideTarget.set(null);
+        if (side && side.id === element.id) {
+          const ids = Array.isArray(id) ? id : [id];
+          if (dropToSide(editor, ids, side.id, side.side)) {
+            resetPreview();
+            return true;
+          }
+        }
 
         if (blockSelectionApi) {
           blockSelectionApi.add(id);
@@ -115,6 +126,7 @@ function Draggable(props: PlateElementProps) {
   }, [isAboutToDrag]);
 
   const [dragButtonTop, setDragButtonTop] = React.useState(0);
+  const side = useSideTarget(element.id as string | undefined);
 
   return (
     <div
@@ -190,7 +202,15 @@ function Draggable(props: PlateElementProps) {
 
       <div
         ref={nodeRef}
-        className="slate-blockWrapper flow-root"
+        className="slate-blockWrapper relative flow-root"
+        onDragOver={(e) => {
+          // The innermost block handles the event; outer blocks skip it
+          const ev = e.nativeEvent as DragEvent & { __pcSide?: boolean };
+          if (ev.__pcSide || !editor.getOption(DndPlugin, 'isDragging')) return;
+          ev.__pcSide = true;
+          const side = sideOf(e.clientX, (nodeRef.current as HTMLElement).getBoundingClientRect());
+          sideTarget.set(side && element.id && canDropSide(editor, element.id as string) ? { id: element.id as string, side } : null);
+        }}
         onContextMenu={(event) =>
           editor
             .getApi(BlockSelectionPlugin)
@@ -198,7 +218,7 @@ function Draggable(props: PlateElementProps) {
         }
       >
         <MemoizedChildren>{children}</MemoizedChildren>
-        <DropLine />
+        {side ? <div className={cn('pointer-events-none absolute inset-y-0 z-50 w-1 rounded-full bg-brand', side === 'left' ? '-left-1' : '-right-1')} /> : <DropLine />}
       </div>
     </div>
   );
