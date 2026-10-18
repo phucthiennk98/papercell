@@ -1,0 +1,9 @@
+name: papercell
+
+services:
+  web:
+    build: .
+    image: papercell:latest
+    ports:
+      - "${PORT:-8765}:80"
+    restart: unless-stopped

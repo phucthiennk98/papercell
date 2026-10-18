@@ -1,0 +1,114 @@
+/* Papercell: trang giấy đặt trên nền bàn, thanh ứng dụng mảnh, chữ nội dung đổi sang serif khi đọc */
+:root {
+  --canvas: #eceeef; --paper: #ffffff; --chrome: #f8f9f9;
+  --ink: #16191d; --ink-2: #4b535c; --ink-3: #7b848c;
+  --line: #dde1e4; --line-2: #eceff1;
+  --accent: #1d5fd1; --accent-soft: #e7effc;
+  --code-bg: #f5f6f7; --ok: #1f8a4c; --err: #b42318;
+  --font-ui: 'Be Vietnam Pro', system-ui, 'Segoe UI', sans-serif;
+  --font-read: 'Source Serif 4', Georgia, 'Times New Roman', serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, Consolas, monospace;
+  --page-w: 860px;
+  color-scheme: light;
+}
+* { box-sizing: border-box; }
+html, body, #root { height: 100%; }
+body { margin: 0; background: var(--canvas); color: var(--ink); font: 14px/1.5 var(--font-ui); }
+button, input, select, textarea { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.mono { font-family: var(--font-mono); font-size: 12px; }
+
+/* Thanh ứng dụng */
+.chrome { position: sticky; top: 0; z-index: 20; }
+.appbar { display: flex; align-items: center; gap: 16px; padding: 8px 16px; background: var(--chrome); border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+.brand { font-weight: 600; display: flex; align-items: center; gap: 8px; }
+.logo { display: grid; place-items: center; width: 24px; height: 24px; border-radius: 6px; background: var(--ink); color: #fff; font-size: 13px; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: #fff; }
+.seg button { border: 0; background: none; padding: 4px 12px; cursor: pointer; font-size: 13px; color: var(--ink-2); }
+.seg button[aria-pressed="true"] { background: var(--ink); color: #fff; }
+.appbar-actions { margin-left: auto; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.btn { border: 1px solid var(--line); background: #fff; border-radius: 7px; padding: 4px 11px; cursor: pointer; font-size: 13px; }
+.btn:hover { border-color: var(--ink-3); }
+.btn.ghost { background: transparent; }
+.kstatus { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink-3); margin-right: 4px; }
+.kstatus .dot { width: 7px; height: 7px; border-radius: 50%; background: #d29a1c; }
+.kstatus.ok .dot { background: var(--ok); }
+
+/* Thanh công cụ định dạng */
+.toolbar { display: flex; align-items: center; gap: 2px; padding: 5px 16px; background: var(--paper); border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+.tb { min-width: 30px; height: 28px; padding: 0 6px; display: inline-grid; place-items: center; border: 0; border-radius: 6px; background: none; cursor: pointer; color: var(--ink-2); font-size: 13.5px; }
+.tb:hover { background: var(--line-2); }
+.tb.on { background: var(--accent-soft); color: var(--accent); }
+.tb-text { font-size: 12.5px; font-weight: 500; }
+.tb-select { height: 28px; border: 1px solid var(--line); border-radius: 6px; background: #fff; padding: 0 6px; font-size: 13px; }
+.sep { width: 1px; height: 18px; background: var(--line); margin: 0 6px; }
+
+/* Trang giấy */
+.canvas { padding: 28px 16px 80px; }
+.page { max-width: var(--page-w); margin: 0 auto; background: var(--paper); border: 1px solid var(--line); border-radius: 4px; padding: 56px 72px 72px; min-height: 80vh; }
+.doc-head { margin-bottom: 20px; }
+.doc-title { display: block; width: 100%; border: 0; padding: 0; margin: 0 0 6px; font-size: 30px; font-weight: 600; line-height: 1.25; letter-spacing: -0.01em; background: none; text-wrap: balance; }
+.doc-title:focus { outline: none; }
+.doc-byline { display: flex; gap: 12px; color: var(--ink-3); margin: 0; font-size: 13.5px; }
+.doc-byline input { border: 0; background: none; color: var(--ink-3); padding: 0; min-width: 0; }
+.doc-byline input:first-child { flex: 1; }
+.doc-body { outline: none; font-size: 15.5px; line-height: 1.7; }
+.doc-body p { margin: 0 0 10px; }
+.doc-body h1 { font-size: 24px; margin: 26px 0 10px; }
+.doc-body h2 { font-size: 19px; margin: 24px 0 8px; }
+.doc-body h3 { font-size: 16px; margin: 18px 0 6px; }
+.doc-body blockquote { margin: 10px 0; padding: 2px 14px; border-left: 3px solid var(--line); color: var(--ink-2); }
+.doc-body code { font-family: var(--font-mono); font-size: 0.86em; background: var(--code-bg); padding: 1px 4px; border-radius: 4px; }
+.pc-hr { border: 0; border-top: 1px solid var(--line); margin: 18px 0; }
+
+/* Chế độ đọc: chữ serif, không còn dấu vết soạn thảo */
+.canvas.read .doc-body, .canvas.read .doc-title { font-family: var(--font-read); }
+.canvas.read .doc-body { font-size: 17px; }
+.canvas.read .doc-title { font-weight: 600; font-size: 32px; }
+
+/* Chia cột */
+.pc-columns { display: flex; gap: 24px; margin: 6px 0 12px; align-items: flex-start; }
+.pc-column { min-width: 0; flex-grow: 0; flex-shrink: 1; }
+.pc-column.is-edit { outline: 1px dashed transparent; outline-offset: 6px; border-radius: 2px; transition: outline-color .15s; }
+.pc-columns:hover > .pc-column.is-edit { outline-color: #b9c7dc; }
+@media (max-width: 600px) {
+  .page { padding: 32px 20px 48px; }
+  .pc-columns { flex-direction: column; }
+  .pc-column { width: 100% !important; }
+}
+
+/* Ô Python khi soạn */
+.pc-cell { margin: 6px 0 14px; }
+.pc-cell-inner { border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: #fff; font-family: var(--font-ui); }
+.pc-cell.is-hidden .pc-cell-inner { border-style: dashed; opacity: 0.75; }
+.pc-cell-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 4px 6px 4px 10px; border-bottom: 1px solid var(--line-2); background: var(--chrome); }
+.pc-cell-tag { font-family: var(--font-mono); font-size: 11.5px; color: var(--ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pc-cell-tools { display: flex; align-items: center; gap: 4px; }
+.pc-cell-tools select { height: 24px; font-size: 12px; border: 1px solid var(--line); border-radius: 5px; background: #fff; padding: 0 4px; }
+.pc-run { width: 26px; height: 24px; border: 0; border-radius: 5px; background: var(--ok); color: #fff; cursor: pointer; font-size: 11px; }
+.pc-run:disabled { background: var(--ink-3); cursor: progress; }
+.pc-btn-ghost, .pc-link { border: 0; background: none; color: var(--accent); cursor: pointer; font-size: 12px; padding: 2px 4px; }
+.pc-code { display: block; width: 100%; border: 0; resize: none; overflow: hidden; padding: 10px 12px; background: var(--code-bg); font: 12.5px/1.55 var(--font-mono); tab-size: 4; white-space: pre; overflow-x: auto; }
+.pc-code:focus { outline: none; background: #f0f3f7; }
+.pc-caption-row { display: flex; align-items: baseline; gap: 6px; padding: 6px 10px 8px; border-top: 1px solid var(--line-2); font-size: 13px; }
+.pc-caption { flex: 1; border: 0; padding: 0; background: none; font-size: 13px; color: var(--ink-2); min-width: 0; }
+.pc-caption:focus { outline: none; }
+.pc-fig-no { font-weight: 600; white-space: nowrap; }
+
+/* Kết quả */
+.pc-outputs:empty { display: none; }
+.pc-outputs { padding: 8px 10px; display: flex; flex-direction: column; gap: 6px; }
+.pc-out-svg svg { display: block; max-width: 100%; height: auto; margin: 0 auto; }
+.pc-out-text, .pc-out-error { margin: 0; font: 12px/1.5 var(--font-mono); white-space: pre-wrap; color: var(--ink-2); }
+.pc-out-error { color: var(--err); background: #fdf1f0; padding: 6px 8px; border-radius: 5px; }
+.pc-out-html { overflow-x: auto; font-size: 13px; }
+.pc-out-html table { border-collapse: collapse; font-variant-numeric: tabular-nums; margin: 0 auto; }
+.pc-out-html th, .pc-out-html td { padding: 4px 10px; border-bottom: 1px solid var(--line-2); text-align: right; }
+.pc-out-html thead th { border-bottom: 1px solid var(--ink-3); }
+
+/* Ô Python khi đọc */
+.pc-hidden-read { display: none; }
+.pc-figure { margin: 8px 0 18px; }
+.pc-figure .pc-outputs { padding: 0; }
+.pc-figure figcaption { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; margin-top: 6px; font: 13.5px/1.45 var(--font-ui); color: var(--ink-2); }
+.pc-code-read { margin: 8px 0 0; padding: 10px 12px; background: var(--code-bg); border-radius: 6px; font: 12px/1.55 var(--font-mono); overflow-x: auto; }
