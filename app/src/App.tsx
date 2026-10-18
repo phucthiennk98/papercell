@@ -2,9 +2,12 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Plate, usePlateEditor, type PlateEditor } from 'platejs/react'
 import { Toaster } from 'sonner'
 import {
-  BookOpen, Database, FileText, FolderOpen, ListTree, PanelLeftClose, PanelLeftOpen, PenLine, Plus, Save, Search, Trash2,
+  BookOpen, Database, Sparkles, FileText, FolderOpen, ListTree, PanelLeftClose, PanelLeftOpen, PenLine, Plus, Save, Search, Trash2,
 } from 'lucide-react'
-import { SettingsDialog } from '@/components/editor/settings-dialog'
+import { CopilotPlugin } from '@platejs/ai/react'
+import { aiChatPlugin } from '@/components/editor/plugins/ai-kit'
+import { AssistantPanel } from '@/ai/AssistantPanel'
+import { aiStore } from '@/ai/store'
 import { Editor, EditorContainer } from '@/components/ui/editor'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { deleteDoc, emptyDoc, ensureFirstDoc, listDocs, loadDoc, newDocId, saveDoc, type DocEntry } from '@/docs/store'
@@ -39,6 +42,9 @@ export default function App() {
   const [query, setQuery] = useState('')
   const [headings, setHeadings] = useState<Heading[]>([])
   const editorRef = useRef<PlateEditor | null>(null)
+  const [editor, setEditor] = useState<PlateEditor | null>(null)
+  const [assistant, setAssistant] = useState(() => { try { return localStorage.getItem('papercell.assistant') === '1' } catch { return false } })
+  useEffect(() => { try { localStorage.setItem('papercell.assistant', assistant ? '1' : '0') } catch { /* bỏ qua */ } }, [assistant])
 
   const refresh = () => setDocs(listDocs())
   const create = (doc: PapercellDoc) => { const id = newDocId(); saveDoc(id, doc); refresh(); setDocId(id) }
@@ -103,16 +109,19 @@ export default function App() {
           </aside>
         )}
         <DocView key={docId} docId={docId} sidebar={sidebar} onShowSidebar={() => setSidebar(true)}
-          onSaved={refresh} onHeadings={setHeadings} onEditor={(e) => { editorRef.current = e }} onOpenFile={create} />
+          onSaved={refresh} onHeadings={setHeadings} onEditor={(e) => { editorRef.current = e; setEditor(e) }} onOpenFile={create}
+          assistant={assistant} onToggleAssistant={() => setAssistant(!assistant)} />
+        {assistant && <AssistantPanel editor={editor} onClose={() => setAssistant(false)} />}
       </div>
       <Toaster />
     </TooltipProvider>
   )
 }
 
-function DocView({ docId, sidebar, onShowSidebar, onSaved, onHeadings, onEditor, onOpenFile }: {
+function DocView({ docId, sidebar, onShowSidebar, onSaved, onHeadings, onEditor, onOpenFile, assistant, onToggleAssistant }: {
   docId: string; sidebar: boolean; onShowSidebar: () => void; onSaved: () => void
   onHeadings: (h: Heading[]) => void; onEditor: (e: PlateEditor) => void; onOpenFile: (d: PapercellDoc) => void
+  assistant: boolean; onToggleAssistant: () => void
 }) {
   const initial = useMemo(() => loadDoc(docId) ?? emptyDoc(), [docId])
   const [meta, setMeta] = useState<DocMeta>(initial.meta)
@@ -137,6 +146,18 @@ function DocView({ docId, sidebar, onShowSidebar, onSaved, onHeadings, onEditor,
   }
   useEffect(() => { onEditor(editor); onHeadings(scan(editor.children).headings) }, [editor])
   useEffect(() => { persist() }, [meta, files])
+  // Menu AI trong bài của Plate dùng chung cài đặt với sidebar Trợ lý AI.
+  useEffect(() => {
+    const sync = () => {
+      const aiConfig = aiStore.get().config
+      const chat = editor.getOption(aiChatPlugin, 'chatOptions') ?? {}
+      editor.setOption(aiChatPlugin, 'chatOptions', { ...chat, body: { ...(chat as any).body, aiConfig } })
+      const comp = editor.getOption(CopilotPlugin, 'completeOptions') ?? {}
+      editor.setOption(CopilotPlugin, 'completeOptions', { ...comp, body: { ...(comp as any).body, aiConfig } })
+    }
+    sync()
+    return aiStore.subscribe(sync)
+  }, [editor])
   useEffect(() => { location.hash = readOnly ? 'read' : 'edit' }, [readOnly])
 
   const download = () => {
@@ -165,6 +186,7 @@ function DocView({ docId, sidebar, onShowSidebar, onSaved, onHeadings, onEditor,
                 <button aria-pressed={readOnly} onClick={() => setReadOnly(true)} className={cn('flex items-center gap-1.5 rounded px-2.5 py-1', readOnly && 'bg-foreground text-background')}><BookOpen className="size-3.5" />Xem trước</button>
               </div>
               {!readOnly && <button className="flex items-center gap-1.5 rounded-md border px-2.5 py-1 hover:bg-accent" onClick={() => setDataOpen(true)}><Database className="size-3.5" />Dữ liệu ({files.length})</button>}
+              <button className={cn('flex items-center gap-1.5 rounded-md border px-2.5 py-1 hover:bg-accent', assistant && 'bg-accent')} aria-pressed={assistant} onClick={onToggleAssistant}><Sparkles className="size-3.5" />Trợ lý AI</button>
               <button className="rounded-md p-1.5 hover:bg-accent" aria-label="Mở file" title="Mở file .papercell.json" onClick={() => fileRef.current?.click()}><FolderOpen className="size-4" /></button>
               <button className="rounded-md p-1.5 hover:bg-accent" aria-label="Lưu file" title="Tải về file .papercell.json" onClick={download}><Save className="size-4" /></button>
               <input ref={fileRef} type="file" accept=".json" hidden onChange={(e) => { open(e.target.files?.[0]); e.target.value = '' }} />
@@ -173,7 +195,6 @@ function DocView({ docId, sidebar, onShowSidebar, onSaved, onHeadings, onEditor,
               <Editor variant="demo" placeholder="Gõ / để chèn khối, hoặc nhấn Space ở dòng trống để nhờ AI…" />
             </EditorContainer>
           </main>
-          {!readOnly && <SettingsDialog />}
           {dataOpen && <DataPanel onChange={setFiles} onClose={() => setDataOpen(false)} />}
         </Plate>
       </FigureNumbers.Provider>

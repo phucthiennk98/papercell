@@ -1,3 +1,4 @@
+import { toast } from 'sonner';
 'use client';
 
 /* eslint-disable react-hooks/refs -- Fake stream abort control is imperative transport state. */
@@ -80,78 +81,10 @@ function createChatTransport({
       });
 
       if (!res.ok) {
-        let sample: 'comment' | 'markdown' | 'mdx' | 'table' | null = null;
-
-        try {
-          const body = JSON.parse(init?.body as string);
-          const content = body.messages
-            .at(-1)
-            .parts.find((p: any) => p.type === 'text')?.text;
-
-          if (content.includes('Generate a markdown sample')) {
-            sample = 'markdown';
-          } else if (content.includes('Generate a mdx sample')) {
-            sample = 'mdx';
-          } else if (content.includes('comment')) {
-            sample = 'comment';
-          }
-
-          // Detect table editing by checking if multiple table cells are selected
-          // Single cell selection should use normal edit flow, only multi-cell uses table tool
-          if (!sample) {
-            // First check: selectedCells from TablePlugin (cell selection mode)
-            const selectedCells =
-              editor.getOption({ key: KEYS.table }, 'selectedCells') || [];
-
-            if (selectedCells.length > 1) {
-              sample = 'table';
-            }
-            // Second check: selection range spans multiple cells
-            else if (body.ctx?.children && body.ctx?.selection) {
-              const { selection, children } = body.ctx;
-              const anchorPath = selection.anchor?.path;
-              const focusPath = selection.focus?.path;
-
-              if (anchorPath && anchorPath.length >= 3) {
-                const rootIndex = anchorPath[0];
-                const rootNode = children[rootIndex];
-
-                if (rootNode?.type === 'table') {
-                  // Cell path is at index 2 (table -> row -> cell)
-                  const anchorCellPath = anchorPath.slice(0, 3).join(',');
-                  const focusCellPath = focusPath?.slice(0, 3).join(',');
-
-                  // Only use table mock if anchor and focus are in different cells
-                  if (focusCellPath && anchorCellPath !== focusCellPath) {
-                    sample = 'table';
-                  }
-                }
-              }
-            }
-          }
-        } catch {
-          sample = null;
-        }
-
-        const abortController = new AbortController();
-        abortControllerRef.current = abortController;
-
-        await new Promise((resolve) => setTimeout(resolve, 400));
-
-        const stream = fakeStreamText({
-          editor,
-          sample,
-          signal: abortController.signal,
-        });
-
-        const response = new Response(stream, {
-          headers: {
-            Connection: 'keep-alive',
-            'Content-Type': 'text/plain',
-          },
-        });
-
-        return response;
+        const j = await res.json().catch(() => ({}));
+        const message = j.error || `Lỗi AI (${res.status})`;
+        toast.error(message);
+        throw new Error(message);
       }
 
       return res;

@@ -12,6 +12,10 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@ai-sdk/anthropic": "^4.0.82",
+    "@ai-sdk/google": "^4.0.99",
+    "@ai-sdk/openai": "^4.0.96",
+    "@ai-sdk/openai-compatible": "^3.0.71",
     "@ai-sdk/react": "^4.0.147",
     "@ariakit/react": "^0.4.42",
     "@emoji-mart/data": "^1.2.1",

@@ -1,36 +1,27 @@
 
 
-import { createGateway, generateText } from 'ai';
+import { generateText } from 'ai';
+import { readConfig, resolveModel } from '../provider';
 
 
 export async function POST(req: Request) {
-  const {
-    apiKey: key,
-    instructions,
-    model = 'gpt-4o-mini',
-    prompt,
-    system,
-  } = await req.json();
+  const body = await req.json();
+  const { instructions, prompt, system } = body;
 
-  const apiKey = typeof key === 'string' ? key.trim() : '';
-
-  if (!apiKey) {
-    return Response.json(
-      { error: 'Missing ai gateway API key.' },
-      { status: 401 }
-    );
+  let model;
+  try {
+    model = resolveModel(readConfig(body));
+  } catch (e) {
+    return Response.json({ error: (e as Error).message }, { status: 401 });
   }
-
-  const gateway = createGateway({ apiKey });
 
   try {
     const result = await generateText({
       abortSignal: req.signal,
       instructions: instructions ?? system,
       maxOutputTokens: 50,
-      model: gateway(`openai/${model}`),
+      model,
       prompt,
-      temperature: 0.7,
     });
 
     return Response.json(result);

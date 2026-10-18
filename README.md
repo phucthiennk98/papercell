@@ -1,39 +1,52 @@
 # Papercell
 
-Trình soạn bài báo khoa học kiểu Lark Docs. Mỗi hình trong bài là một ô Python chạy ngay trong trình duyệt (Pyodide). Bài viết xuất bản thành trang web tương tác và PDF.
+Trình soạn bài báo khoa học kiểu Lark Docs. Hình trong bài vẽ bằng JS, có thanh trượt tham số, kèm code Python gốc để đối chiếu và kiểm chứng. Có trợ lý AI dùng API key hoặc dùng agent đã cài trên máy.
 
 Thiết kế chi tiết: [docs/DESIGN.md](docs/DESIGN.md).
 
-## Chạy bằng Docker
+## Cách chạy
+
+### 1. Docker: dễ nhất, dùng AI bằng API key
 
 ```bash
 docker compose up -d --build
 ```
 
-Mở http://localhost:8765. Muốn đổi cổng: copy `.env.example` thành `.env` rồi sửa `PORT`.
+Mở http://localhost:8765. Đổi cổng: copy `.env.example` thành `.env` rồi sửa `PORT`.
+
+Muốn server có sẵn key để không phải nhập trong app, thêm biến môi trường vào `docker-compose.yml`, ví dụ `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GOOGLE_GENERATIVE_AI_API_KEY`, `AI_GATEWAY_API_KEY`.
+
+### 2. Chạy thẳng trên máy: dùng được agent đã cài (Claude Code, Codex, Antigravity)
+
+```bash
+cd app
+npm install
+npm run build
+npm start
+```
+
+Mở http://localhost:8787. Trong **Trợ lý AI → Agent trên máy**, app tự dò các agent có trên máy và dùng tài khoản đã đăng nhập sẵn của agent đó. Agent chạy ở chế độ chỉ đọc trong một thư mục tạm chứa nội dung bài.
+
+Chế độ này không chạy trong Docker, vì container không thấy các chương trình cài trên máy. Vì lý do an toàn, server chỉ cho gọi agent từ chính máy đó (127.0.0.1).
 
 ## Phát triển
 
 ```bash
 cd app
 npm install
-npm run dev
+npm run dev:server   # server API ở cổng 8787 (tự build lại khi sửa)
+npm run dev          # giao diện ở cổng 5173
 ```
 
-## Trạng thái
+## Cấu trúc
 
-Giai đoạn 1 (đã xong):
-- Trình soạn: tiêu đề, định dạng chữ, căn lề, thụt lề, chia 2–3 cột
-- Ô Python với 4 chế độ hiển thị: code + kết quả, chỉ kết quả, chỉ code, ẩn khi xuất bản
-- Đánh số hình tự động; xem trước kiểu bài báo; lưu và mở file `.papercell.json`
-
-Giai đoạn 2 (đã xong một phần):
-- Chọn chế độ hiển thị ô bằng nhóm icon có tooltip
-- Khối tham số (thanh trượt): kéo là các ô phụ thuộc tự chạy lại
-- Công thức toán (KaTeX), tự đánh số
-- Menu `/` và nút `+` để chèn khối; tay cầm kéo thả khối; kéo mép để đổi độ rộng cột
-
-Còn lại: trích dẫn, khối bản đồ, trình xuất bản, AI/MCP, PDF. Xem mục 8 trong tài liệu thiết kế.
+| Thư mục | Nội dung |
+|---|---|
+| `app/src/components/` | Bộ giao diện editor của Plate (kéo về qua shadcn, đã tùy biến) |
+| `app/src/figure/` | Thẻ hình JS: vẽ, popup, quyền xem code, kiểm chứng Python ↔ JS, dữ liệu |
+| `app/src/ai/` | Sidebar Trợ lý AI và cài đặt nhà cung cấp |
+| `app/src/docs/` | Lưu nhiều bài trong trình duyệt |
+| `app/server/` | Server Hono: route AI, agent trên máy, phát giao diện |
 
 ## Giấy phép
 
