@@ -1,56 +1,144 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Plate, PlateContent, usePlateEditor } from 'platejs/react'
-import { DndProvider } from 'react-dnd'
-import { HTML5Backend } from 'react-dnd-html5-backend'
-import { Database } from 'lucide-react'
-import { EquationNumbers } from './editor/EquationBlock'
-import { plugins } from './editor/plugins'
-import { checkSlashTrigger, handleSlashKey, SlashMenu } from './editor/SlashMenu'
-import { Toolbar } from './editor/Toolbar'
-import type { DataFile, DocMeta, FigureNode, PapercellDoc } from './editor/types'
-import { DataPanel } from './figure/DataPanel'
-import { FigureNumbers } from './figure/FigureElement'
-import { DataContext, parseData } from './figure/runtime'
-import { makeSample } from './sample'
+import { Plate, usePlateEditor, type PlateEditor } from 'platejs/react'
+import { Toaster } from 'sonner'
+import {
+  BookOpen, Database, FileText, FolderOpen, ListTree, PanelLeftClose, PanelLeftOpen, PenLine, Plus, Save, Search, Trash2,
+} from 'lucide-react'
+import { SettingsDialog } from '@/components/editor/settings-dialog'
+import { Editor, EditorContainer } from '@/components/ui/editor'
+import { TooltipProvider } from '@/components/ui/tooltip'
+import { deleteDoc, emptyDoc, ensureFirstDoc, listDocs, loadDoc, newDocId, saveDoc, type DocEntry } from '@/docs/store'
+import { MetaContext } from '@/editor/DocHeader'
+import { PapercellKit } from '@/editor/papercell-kit'
+import type { DataFile, DocMeta, FigureNode, PapercellDoc } from '@/editor/types'
+import { DataPanel } from '@/figure/DataPanel'
+import { FigureNumbers } from '@/figure/FigureElement'
+import { DataContext, parseData } from '@/figure/runtime'
+import { makeSample } from '@/sample'
+import { cn } from '@/lib/utils'
 
-const STORE = 'papercell.doc.v3'
+type Heading = { id: string; level: number; text: string }
 
-function loadStored(): PapercellDoc | null {
-  try { const s = localStorage.getItem(STORE); const d = s && JSON.parse(s); return d?.version === 3 && Array.isArray(d.content) ? d : null } catch { return null }
-}
-
-/** Đánh số theo thứ tự xuất hiện: hình (có chú thích, không ẩn) và công thức. */
-function numbering(content: any[]) {
-  const figs = new Map<string, number>(), eqs = new Map<string, number>()
+/** Đánh số hình (có chú thích, không ẩn) và lấy dàn ý từ các tiêu đề. */
+function scan(content: any[]) {
+  const figs = new Map<string, number>(); const headings: Heading[] = []
+  const text = (n: any): string => (typeof n.text === 'string' ? n.text : (n.children ?? []).map(text).join(''))
   const walk = (nodes: any[]) => nodes.forEach((n) => {
     if (n.type === 'figure') { const f = n as FigureNode; if (f.caption?.trim() && f.display !== 'hidden') figs.set(f.id, figs.size + 1) }
-    else if (n.type === 'equation') eqs.set(n.id, eqs.size + 1)
-    else if (n.children) walk(n.children)
+    else if (/^h[1-3]$/.test(n.type) && n.id) headings.push({ id: n.id, level: +n.type[1], text: text(n) })
+    if (n.children && n.type !== 'figure') walk(n.children)
   })
   walk(content)
-  return { figs, eqs }
+  return { figs, headings }
 }
 
 export default function App() {
-  const initial = useMemo(() => loadStored() ?? makeSample(), [])
+  const [docId, setDocId] = useState(() => ensureFirstDoc())
+  const [docs, setDocs] = useState<DocEntry[]>(() => listDocs())
+  const [sidebar, setSidebar] = useState(true)
+  const [query, setQuery] = useState('')
+  const [headings, setHeadings] = useState<Heading[]>([])
+  const editorRef = useRef<PlateEditor | null>(null)
+
+  const refresh = () => setDocs(listDocs())
+  const create = (doc: PapercellDoc) => { const id = newDocId(); saveDoc(id, doc); refresh(); setDocId(id) }
+  const remove = (id: string) => {
+    deleteDoc(id)
+    const rest = listDocs()
+    if (id === docId) setDocId(rest[0]?.id ?? ensureFirstDoc())
+    refresh()
+  }
+  const goTo = (id: string) => {
+    const ed = editorRef.current; if (!ed) return
+    const entry = ed.api.node({ at: [], match: (n: any) => n.id === id })
+    const el = entry && (ed.api.toDOMNode(entry[0]) as HTMLElement | undefined)
+    el?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
+  const shown = docs.filter((d) => d.title.toLowerCase().includes(query.trim().toLowerCase()))
+
+  return (
+    <TooltipProvider>
+      <div className="flex h-screen w-full overflow-hidden bg-background text-foreground">
+        {sidebar && (
+          <aside className="flex w-64 shrink-0 flex-col border-r bg-muted/30 text-sm" aria-label="Thanh bên">
+            <div className="flex items-center justify-between px-3 pt-3 pb-2">
+              <span className="flex items-center gap-2 font-semibold"><span className="grid size-6 place-items-center rounded-md bg-foreground text-background text-xs">▤</span>Papercell</span>
+              <button className="rounded-md p-1 text-muted-foreground hover:bg-accent" aria-label="Thu gọn thanh bên" onClick={() => setSidebar(false)}><PanelLeftClose className="size-4" /></button>
+            </div>
+            <label className="mx-3 mb-2 flex items-center gap-2 rounded-md border bg-background px-2 py-1.5">
+              <Search className="size-4 text-muted-foreground" />
+              <input className="w-full bg-transparent outline-none placeholder:text-muted-foreground" placeholder="Tìm bài viết" value={query} onChange={(e) => setQuery(e.target.value)} />
+            </label>
+
+            <div className="flex items-center justify-between px-3 pt-2 pb-1 text-xs font-medium text-muted-foreground">
+              <span>Bài viết</span>
+              <button className="rounded-md p-1 hover:bg-accent" aria-label="Tạo bài mới" title="Tạo bài mới" onClick={() => create(emptyDoc())}><Plus className="size-4" /></button>
+            </div>
+            <nav className="max-h-[38%] overflow-y-auto px-2">
+              {shown.map((d) => (
+                <div key={d.id} className={cn('group flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-accent', d.id === docId && 'bg-accent font-medium')}>
+                  <FileText className="size-4 shrink-0 text-muted-foreground" />
+                  <button className="min-w-0 flex-1 truncate text-left" onClick={() => setDocId(d.id)} title={d.title}>{d.title}</button>
+                  <button className="hidden rounded p-0.5 text-muted-foreground hover:text-destructive group-hover:block" aria-label={'Xóa ' + d.title}
+                    onClick={() => { if (confirm(`Xóa bài "${d.title}"?`)) remove(d.id) }}><Trash2 className="size-3.5" /></button>
+                </div>
+              ))}
+              {!shown.length && <p className="px-2 py-1 text-muted-foreground">Không có bài nào khớp.</p>}
+            </nav>
+
+            <div className="flex items-center gap-1 px-3 pt-4 pb-1 text-xs font-medium text-muted-foreground"><ListTree className="size-3.5" />Mục lục</div>
+            <nav className="min-h-0 flex-1 overflow-y-auto px-2 pb-2">
+              {headings.map((h) => (
+                <button key={h.id} onClick={() => goTo(h.id)} className="block w-full truncate rounded-md py-1 pr-2 text-left text-muted-foreground hover:bg-accent hover:text-foreground"
+                  style={{ paddingLeft: 8 + (h.level - 1) * 12 }}>{h.text || '(trống)'}</button>
+              ))}
+              {!headings.length && <p className="px-2 text-muted-foreground">Thêm tiêu đề để có mục lục.</p>}
+            </nav>
+
+            <div className="border-t p-2">
+              <button className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left hover:bg-accent" onClick={() => create(makeSample())}>
+                <BookOpen className="size-4 text-muted-foreground" />Tạo bài mẫu
+              </button>
+            </div>
+          </aside>
+        )}
+        <DocView key={docId} docId={docId} sidebar={sidebar} onShowSidebar={() => setSidebar(true)}
+          onSaved={refresh} onHeadings={setHeadings} onEditor={(e) => { editorRef.current = e }} onOpenFile={create} />
+      </div>
+      <Toaster />
+    </TooltipProvider>
+  )
+}
+
+function DocView({ docId, sidebar, onShowSidebar, onSaved, onHeadings, onEditor, onOpenFile }: {
+  docId: string; sidebar: boolean; onShowSidebar: () => void; onSaved: () => void
+  onHeadings: (h: Heading[]) => void; onEditor: (e: PlateEditor) => void; onOpenFile: (d: PapercellDoc) => void
+}) {
+  const initial = useMemo(() => loadDoc(docId) ?? emptyDoc(), [docId])
   const [meta, setMeta] = useState<DocMeta>(initial.meta)
-  const [files, setFiles] = useState<DataFile[]>(initial.data)
-  const [mode, setMode] = useState<'edit' | 'read'>(() => (location.hash === '#read' ? 'read' : 'edit'))
-  const [nums, setNums] = useState(() => numbering(initial.content))
+  const [files, setFiles] = useState<DataFile[]>(initial.data ?? [])
+  const [readOnly, setReadOnly] = useState(() => location.hash === '#read')
+  const [figs, setFigs] = useState(() => scan(initial.content).figs)
   const [dataOpen, setDataOpen] = useState(false)
-  const editor = usePlateEditor({ plugins, value: initial.content })
-  if (import.meta.env.DEV) (window as any).__editor = editor
   const fileRef = useRef<HTMLInputElement>(null)
+  const editor = usePlateEditor({ plugins: PapercellKit, value: initial.content })
+  if (import.meta.env.DEV) (window as any).__editor = editor
   const latest = useRef({ meta, files }); latest.current = { meta, files }
   const dataCtx = useMemo(() => ({ files, data: parseData(files) }), [files])
+  const metaCtx = useMemo(() => ({ meta, setMeta }), [meta])
+  const timer = useRef(0)
 
-  const save = (content = editor.children) => {
-    try { localStorage.setItem(STORE, JSON.stringify({ version: 3, meta: latest.current.meta, data: latest.current.files, content })) } catch { /* bộ nhớ trình duyệt bị chặn hoặc đầy */ }
+  const persist = () => {
+    window.clearTimeout(timer.current)
+    timer.current = window.setTimeout(() => {
+      saveDoc(docId, { version: 3, meta: latest.current.meta, data: latest.current.files, content: editor.children })
+      onSaved()
+    }, 400)
   }
-  useEffect(() => { save() }, [meta, files])
-  useEffect(() => { location.hash = mode === 'read' ? 'read' : 'edit' }, [mode])
+  useEffect(() => { onEditor(editor); onHeadings(scan(editor.children).headings) }, [editor])
+  useEffect(() => { persist() }, [meta, files])
+  useEffect(() => { location.hash = readOnly ? 'read' : 'edit' }, [readOnly])
 
-  const loadDoc = (d: PapercellDoc) => { setMeta(d.meta); setFiles(d.data ?? []); editor.tf.setValue(d.content); setNums(numbering(d.content)) }
   const download = () => {
     const blob = new Blob([JSON.stringify({ version: 3, meta, data: files, content: editor.children }, null, 2)], { type: 'application/json' })
     const a = document.createElement('a')
@@ -59,55 +147,37 @@ export default function App() {
   }
   const open = async (f?: File) => {
     if (!f) return
-    try { const d = JSON.parse(await f.text()); if (d?.version !== 3 || !Array.isArray(d.content)) throw new Error(); loadDoc(d) }
+    try { const d = JSON.parse(await f.text()); if (d?.version !== 3 || !Array.isArray(d.content)) throw new Error(); onOpenFile(d) }
     catch { alert('File này không phải tài liệu Papercell (phiên bản 3).') }
   }
 
-  const readOnly = mode === 'read'
   return (
-    <DndProvider backend={HTML5Backend}>
+    <MetaContext.Provider value={metaCtx}>
     <DataContext.Provider value={dataCtx}>
-    <FigureNumbers.Provider value={nums.figs}>
-    <EquationNumbers.Provider value={nums.eqs}>
-      <Plate editor={editor} readOnly={readOnly} onChange={({ value }) => { setNums(numbering(value)); save(value); if (!readOnly) checkSlashTrigger(editor) }}>
-        <div className="chrome">
-          <header className="appbar">
-            <div className="brand"><span className="logo" aria-hidden="true">▤</span>Papercell</div>
-            <div className="seg" role="group" aria-label="Chế độ">
-              <button aria-pressed={!readOnly} onClick={() => setMode('edit')}>Soạn</button>
-              <button aria-pressed={readOnly} onClick={() => setMode('read')}>Xem trước</button>
-            </div>
-            <div className="appbar-actions">
-              {!readOnly && <button className="btn" onClick={() => setDataOpen(true)}><Database size={14} /> Dữ liệu ({files.length})</button>}
-              <button className="btn" onClick={() => fileRef.current?.click()}>Mở</button>
-              <button className="btn" onClick={download}>Lưu file</button>
-              {!readOnly && <button className="btn ghost" onClick={() => loadDoc(makeSample())}>Bài mẫu</button>}
+      <FigureNumbers.Provider value={figs}>
+        <Plate editor={editor} readOnly={readOnly} onChange={({ value }) => { const s = scan(value); setFigs(s.figs); onHeadings(s.headings); persist() }}>
+          <main className="flex min-w-0 flex-1 flex-col">
+            <header className="flex h-12 shrink-0 items-center gap-3 border-b px-3 text-sm">
+              {!sidebar && <button className="rounded-md p-1 text-muted-foreground hover:bg-accent" aria-label="Mở thanh bên" onClick={onShowSidebar}><PanelLeftOpen className="size-4" /></button>}
+              <span className="min-w-0 flex-1 truncate text-muted-foreground">{meta.title || 'Bài chưa đặt tên'}</span>
+              <div className="flex rounded-md border p-0.5" role="group" aria-label="Chế độ">
+                <button aria-pressed={!readOnly} onClick={() => setReadOnly(false)} className={cn('flex items-center gap-1.5 rounded px-2.5 py-1', !readOnly && 'bg-foreground text-background')}><PenLine className="size-3.5" />Soạn</button>
+                <button aria-pressed={readOnly} onClick={() => setReadOnly(true)} className={cn('flex items-center gap-1.5 rounded px-2.5 py-1', readOnly && 'bg-foreground text-background')}><BookOpen className="size-3.5" />Xem trước</button>
+              </div>
+              {!readOnly && <button className="flex items-center gap-1.5 rounded-md border px-2.5 py-1 hover:bg-accent" onClick={() => setDataOpen(true)}><Database className="size-3.5" />Dữ liệu ({files.length})</button>}
+              <button className="rounded-md p-1.5 hover:bg-accent" aria-label="Mở file" title="Mở file .papercell.json" onClick={() => fileRef.current?.click()}><FolderOpen className="size-4" /></button>
+              <button className="rounded-md p-1.5 hover:bg-accent" aria-label="Lưu file" title="Tải về file .papercell.json" onClick={download}><Save className="size-4" /></button>
               <input ref={fileRef} type="file" accept=".json" hidden onChange={(e) => { open(e.target.files?.[0]); e.target.value = '' }} />
-            </div>
-          </header>
-          {!readOnly && <Toolbar />}
-        </div>
-        <main className={'canvas ' + mode}>
-          <article className="page">
-            <header className="doc-head">
-              {readOnly ? <h1 className="doc-title">{meta.title}</h1>
-                : <input className="doc-title" value={meta.title} placeholder="Tiêu đề bài viết" onChange={(e) => setMeta({ ...meta, title: e.target.value })} />}
-              {readOnly ? <p className="doc-byline">{meta.authors} · {meta.date}</p>
-                : <div className="doc-byline">
-                    <input value={meta.authors} placeholder="Tác giả, đơn vị" onChange={(e) => setMeta({ ...meta, authors: e.target.value })} />
-                    <input type="date" value={meta.date} onChange={(e) => setMeta({ ...meta, date: e.target.value })} />
-                  </div>}
             </header>
-            <PlateContent className="doc-body" placeholder="Bắt đầu viết, hoặc gõ / để chèn khối…" spellCheck={false}
-              onKeyDown={(e) => { handleSlashKey(editor, e) }} />
-          </article>
-        </main>
-        {!readOnly && <SlashMenu />}
-        {dataOpen && <DataPanel onChange={setFiles} onClose={() => setDataOpen(false)} />}
-      </Plate>
-    </EquationNumbers.Provider>
-    </FigureNumbers.Provider>
+            <EditorContainer className="min-h-0 flex-1">
+              <Editor variant="demo" placeholder="Gõ / để chèn khối, hoặc nhấn Space ở dòng trống để nhờ AI…" />
+            </EditorContainer>
+          </main>
+          {!readOnly && <SettingsDialog />}
+          {dataOpen && <DataPanel onChange={setFiles} onClose={() => setDataOpen(false)} />}
+        </Plate>
+      </FigureNumbers.Provider>
     </DataContext.Provider>
-    </DndProvider>
+    </MetaContext.Provider>
   )
 }

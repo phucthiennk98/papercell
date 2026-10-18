@@ -9,14 +9,14 @@
 .fig.is-read .fig-head { position: absolute; right: 6px; top: 4px; padding: 0; min-height: 0; opacity: 0; transition: opacity .12s; z-index: 2; }
 .fig.is-read .fig-card:hover .fig-head, .fig.is-read .fig-head:focus-within { opacity: 1; }
 .fig-badges { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
-.fig-badge { font-size: 11px; padding: 1px 7px; border-radius: 5px; background: var(--accent-soft); color: var(--accent); font-weight: 500; }
+.fig-badge { font-size: 11px; padding: 1px 7px; border-radius: 5px; background: var(--accent-soft); color: #1d5fd1; font-weight: 500; }
 .fig-badge.muted { background: var(--line-2); color: var(--ink-2); }
 .fig-verify { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; padding: 1px 7px; border-radius: 5px; font-weight: 500; }
 .fig-verify.ok { background: #e6f4ea; color: var(--ok); }
 .fig-verify.bad { background: #fdeceb; color: var(--err); }
 .fig-actions { display: flex; gap: 2px; }
 .fig-click { cursor: zoom-in; padding: 6px 12px 4px; }
-.fig-click:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.fig-click:focus-visible { outline: 2px solid #1d5fd1; outline-offset: -2px; }
 .fig-view { width: 100%; min-width: 0; }
 .fig-out { overflow-x: auto; }
 .fig-out svg { max-width: 100%; height: auto; font-family: var(--font-ui); }
@@ -24,13 +24,13 @@
 .fig-error { margin: 6px 0; padding: 6px 8px; border-radius: 5px; background: #fdf1f0; color: var(--err); font: 12px/1.5 var(--font-mono); white-space: pre-wrap; }
 .fig-params { display: flex; flex-direction: column; gap: 2px; padding: 4px 12px 6px; border-top: 1px solid var(--line-2); }
 .fig-param { display: grid; grid-template-columns: minmax(70px, auto) minmax(80px, 1fr) auto; align-items: center; gap: 10px; font-size: 12.5px; color: var(--ink-2); }
-.fig-param input { width: 100%; accent-color: var(--accent); }
+.fig-param input { width: 100%; accent-color: #1d5fd1; }
 .fig-param output { font: 500 12px var(--font-mono); color: var(--ink); min-width: 56px; text-align: right; white-space: nowrap; }
 .fig-params.is-large { border-top: 0; padding: 0; }
 .fig-params.is-large .fig-param { grid-template-columns: 1fr auto; font-size: 13.5px; gap: 4px 10px; padding: 8px 0; }
 .fig-params.is-large .fig-param input { grid-column: 1 / -1; grid-row: 2; }
 .fig-inline-code { border-top: 1px solid var(--line-2); }
-.fig-inline-code summary { cursor: pointer; padding: 5px 12px; font-size: 12px; color: var(--accent); }
+.fig-inline-code summary { cursor: pointer; padding: 5px 12px; font-size: 12px; color: #1d5fd1; }
 .fig-inline-code pre { margin: 0; padding: 8px 12px 10px; background: var(--code-bg); font: 11.5px/1.55 var(--font-mono); overflow-x: auto; }
 .fig-caption { display: flex; align-items: baseline; gap: 6px; padding: 6px 12px 9px; border-top: 1px solid var(--line-2); font-size: 13px; color: var(--ink-2); }
 .fig.is-read .fig-caption { border-top: 0; padding-top: 2px; font-size: 13.5px; }
@@ -52,7 +52,7 @@
 .dlg-tabs { display: flex; gap: 2px; flex-wrap: wrap; }
 .dlg-tabs button { border: 0; background: none; padding: 5px 11px; border-radius: 6px; cursor: pointer; font-size: 13px; color: var(--ink-2); }
 .dlg-tabs button:hover { background: var(--line-2); }
-.dlg-tabs button.on { background: var(--accent-soft); color: var(--accent); font-weight: 500; }
+.dlg-tabs button.on { background: var(--accent-soft); color: #1d5fd1; font-weight: 500; }
 .dlg-body { flex: 1; min-height: 0; overflow: auto; }
 .dlg-figure { display: grid; grid-template-columns: minmax(0, 1fr) 270px; min-height: 100%; }
 .dlg-figure > .fig-view { padding: 20px 24px; }
@@ -86,7 +86,7 @@
 .choice-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 8px; }
 .choice { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: #fff; cursor: pointer; text-align: left; font-size: 13px; color: var(--ink-2); }
 .choice:hover { border-color: var(--ink-3); }
-.choice.on { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); font-weight: 500; }
+.choice.on { border-color: #1d5fd1; background: var(--accent-soft); color: #1d5fd1; font-weight: 500; }
 @media (max-width: 800px) {
   .dlg-backdrop { padding: 0; }
   .dlg { border-radius: 0; height: 100%; }

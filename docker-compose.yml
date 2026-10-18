@@ -5,5 +5,5 @@ services:
     build: .
     image: papercell:latest
     ports:
-      - "${PORT:-8765}:80"
+      - "${PORT:-8765}:8787"
     restart: unless-stopped

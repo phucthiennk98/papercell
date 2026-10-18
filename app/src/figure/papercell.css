@@ -1,0 +1,20 @@
+/* Biến màu cho thẻ hình, lấy từ theme shadcn để đồng bộ với editor */
+:root {
+  --line: var(--border); --line-2: color-mix(in oklab, var(--border) 60%, transparent);
+  --ink: var(--foreground); --ink-2: color-mix(in oklab, var(--foreground) 72%, transparent); --ink-3: var(--muted-foreground);
+  --chrome: var(--muted); --code-bg: color-mix(in oklab, var(--muted) 70%, transparent);
+  --accent-soft: color-mix(in oklab, #1d5fd1 12%, transparent); --ok: #1f8a4c; --err: #b42318;
+  --font-ui: inherit; --font-mono: ui-monospace, 'JetBrains Mono', Consolas, monospace;
+}
+.figure-accent { color: #1d5fd1; }
+.btn { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--border); background: var(--background); border-radius: 7px; padding: 4px 11px; cursor: pointer; font-size: 13px; }
+.btn:hover { background: var(--accent); }
+.btn.primary { background: var(--foreground); color: var(--background); border-color: var(--foreground); }
+.pc-icon-btn { width: 28px; height: 26px; display: inline-grid; place-items: center; border: 0; border-radius: 6px; background: none; color: var(--muted-foreground); cursor: pointer; }
+.pc-icon-btn:hover { background: var(--accent); color: var(--foreground); }
+.hint { font-size: 12px; color: var(--muted-foreground); }
+.pc-err { color: var(--err); font-size: 12px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.spin { animation: spin 0.9s linear infinite; }
+[data-tip] { position: relative; }
+[data-tip]:hover::after { content: attr(data-tip); position: absolute; right: 0; top: calc(100% + 6px); background: var(--foreground); color: var(--background); font-size: 11.5px; padding: 4px 7px; border-radius: 5px; white-space: nowrap; pointer-events: none; z-index: 50; }
