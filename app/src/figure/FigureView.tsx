@@ -23,13 +23,17 @@ export function FigureView({ js, params, className, onError }: { js: string; par
     let alive = true
     runFigure(js, params, data, width).then((r) => {
       if (!alive || !out.current) return
+      // Giải phóng bản đồ cũ (WebGL) trước khi vẽ lại
+      out.current.querySelectorAll('*').forEach((el) => (el as any).__pcCleanup?.())
       out.current.replaceChildren()
       if (r.node) out.current.append(r.node)
       else if (r.html) out.current.innerHTML = r.html
       setError(r.error); onError?.(r.error)
     })
     return () => { alive = false }
-  }, [js, key, data, width]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [js, key, data, width])
+
+  useEffect(() => () => { out.current?.querySelectorAll('*').forEach((el) => (el as any).__pcCleanup?.()) }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div ref={box} className={'fig-view ' + (className ?? '')}>

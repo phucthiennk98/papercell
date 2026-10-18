@@ -1,7 +1,8 @@
 // Mẫu biểu đồ để chèn nhanh. Mỗi mẫu có dữ liệu minh họa nên vẽ được ngay;
 // đổi `ds` thành data.<tên_file> để dùng dữ liệu của bài.
-import { ChartColumn, ChartLine, ChartScatter, ChartNoAxesColumn, Hexagon, Table2, SquareCode, type LucideIcon } from 'lucide-react'
+import { Database, ChartColumn, ChartLine, ChartScatter, ChartNoAxesColumn, Hexagon, Table2, SquareCode, type LucideIcon } from 'lucide-react'
 import { newId, type FigureNode, type FigureParam } from '@/editor/types'
+import { codegen, defaultSpec } from './builder'
 
 export type FigureTemplate = { id: string; label: string; hint: string; icon: LucideIcon; keywords: string[]; js: string; params?: FigureParam[]; caption?: string }
 
@@ -10,6 +11,10 @@ const HEAD = (what: string) => `// ${what}
 // Đang dùng dữ liệu minh họa: thay \`ds\` bằng data.<tên_file> để dùng dữ liệu của bài.`
 
 export const FIGURE_TEMPLATES: FigureTemplate[] = [
+  {
+    id: 'data', label: 'Từ dữ liệu (chọn cột)', hint: 'Nạp CSV, Excel… rồi chọn cột, không cần code', icon: Database,
+    keywords: ['du lieu', 'csv', 'excel', 'chon cot', 'data'], js: '',
+  },
   {
     id: 'bar', label: 'Biểu đồ cột', hint: 'So sánh giá trị giữa các nhóm', icon: ChartColumn, keywords: ['cot', 'bar', 'column'],
     js: `${HEAD('Biểu đồ cột')}
@@ -114,10 +119,16 @@ return Plot.plot({ width, height: 160, marks: [Plot.text(["Mở hình (✎) đ�
   },
 ]
 
-export const figureFromTemplate = (t: FigureTemplate): FigureNode => ({
-  type: 'figure', id: newId(), caption: t.id === 'blank' ? '' : t.label, js: t.js, python: '',
-  params: (t.params ?? []).map((p) => ({ ...p })), display: 'output', codeAccess: 'both', children: [{ text: '' }],
-})
+export const figureFromTemplate = (t: FigureTemplate): FigureNode => {
+  if (t.id === 'data') {
+    const spec = defaultSpec('')
+    return { type: 'figure', id: newId(), caption: '', js: codegen(spec), python: '', params: [], spec, autoOpen: true, display: 'output', codeAccess: 'both', children: [{ text: '' }] }
+  }
+  return {
+    type: 'figure', id: newId(), caption: t.id === 'blank' ? '' : t.label, js: t.js, python: '',
+    params: (t.params ?? []).map((p) => ({ ...p })), display: 'output', codeAccess: 'both', children: [{ text: '' }],
+  }
+}
 
 /** Chèn một hình theo mẫu ngay sau khối đang chọn (hoặc thay đoạn văn trống). */
 export function insertFigure(editor: any, templateId: string) {

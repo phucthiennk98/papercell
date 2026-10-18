@@ -5,6 +5,8 @@ export type CodeAccess = 'none' | 'js' | 'python' | 'both'
 
 export type FigureParam = { name: string; label: string; min: number; max: number; step: number; value: number; unit?: string }
 
+import type { ChartSpec } from '@/figure/builder'
+
 export type VerifyResult = { ok: boolean; message: string; at: string }
 
 export type FigureNode = {
@@ -19,6 +21,12 @@ export type FigureNode = {
   display: FigureDisplay
   codeAccess: CodeAccess
   verify?: VerifyResult
+  /** Có nếu hình tạo bằng trình tạo biểu đồ; code JS được sinh từ đây. */
+  spec?: ChartSpec
+  /** Người dùng đã sửa code tay nên Thiết kế không ghi đè code nữa. */
+  specDetached?: boolean
+  /** Mở popup ở tab Thiết kế ngay khi vừa chèn. */
+  autoOpen?: boolean
   children: [{ text: '' }]
 }
 

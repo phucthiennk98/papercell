@@ -4,11 +4,12 @@ import { ChartColumn, CircleCheck, CircleX, Code, EyeOff, Loader2, Plus, Rows2, 
 import { kernel } from '../python/kernel'
 import { ACCESS_LABEL, DISPLAY_LABEL, type CodeAccess, type FigureDisplay, type FigureNode, type FigureParam } from '../editor/types'
 import { visibleCode } from './FigureElement'
+import { DesignTab } from './DesignTab'
 import { FigureView, ParamSliders } from './FigureView'
 import { DataContext, dataKey } from './runtime'
 import { verifyFigure } from './verify'
 
-export type DialogTab = 'figure' | 'js' | 'python' | 'params' | 'verify' | 'settings'
+export type DialogTab = 'design' | 'figure' | 'js' | 'python' | 'params' | 'verify' | 'settings'
 
 const DISPLAY_ICON: Record<FigureDisplay, LucideIcon> = { output: ChartColumn, both: Rows2, code: Code, hidden: EyeOff }
 const IDENT = /^[A-Za-z_$][\w$]*$/
@@ -21,7 +22,7 @@ type Props = {
 
 export function FigureDialog({ fig, params, number, readOnly, initialTab, onParam, onCommitParams, onUpdate, onClose }: Props) {
   const readTabs: [DialogTab, string][] = [['figure', 'Hình'], ...visibleCode(fig).map((c) => [c.lang === 'JS' ? 'js' : 'python', c.lang === 'JS' ? 'Code JS' : 'Python gốc'] as [DialogTab, string])]
-  const editTabs: [DialogTab, string][] = [['figure', 'Hình'], ['js', 'Code JS'], ['python', 'Python gốc'], ['params', 'Tham số'], ['verify', 'Kiểm chứng'], ['settings', 'Cài đặt']]
+  const editTabs: [DialogTab, string][] = [['design', 'Thiết kế'], ['figure', 'Hình'], ['js', 'Code JS'], ['python', 'Python gốc'], ['params', 'Tham số'], ['verify', 'Kiểm chứng'], ['settings', 'Cài đặt']]
   const tabs = readOnly ? readTabs : editTabs
   const [tab, setTab] = useState<DialogTab>(tabs.some(([t]) => t === initialTab) ? initialTab : 'figure')
   const dlg = useRef<HTMLDivElement>(null)
@@ -56,6 +57,7 @@ export function FigureDialog({ fig, params, number, readOnly, initialTab, onPara
             </div>
           )}
           {readOnly && (tab === 'js' || tab === 'python') && <pre className="dlg-code">{tab === 'js' ? fig.js : fig.python}</pre>}
+          {!readOnly && tab === 'design' && <DesignTab fig={fig} onUpdate={onUpdate} />}
           {!readOnly && tab === 'js' && <CodeTab fig={fig} params={params} lang="js" onUpdate={onUpdate} />}
           {!readOnly && tab === 'python' && <CodeTab fig={fig} params={params} lang="python" onUpdate={onUpdate} />}
           {!readOnly && tab === 'params' && <ParamsTab fig={fig} onUpdate={onUpdate} />}
@@ -79,7 +81,7 @@ function CodeTab({ fig, params, lang, onUpdate }: { fig: FigureNode; params: Fig
   const change = (v: string) => {
     setDraft(v)
     window.clearTimeout(timer.current)
-    timer.current = window.setTimeout(() => onUpdate({ [lang]: v } as Partial<FigureNode>), 400)
+    timer.current = window.setTimeout(() => onUpdate({ [lang]: v, ...(lang === 'js' && fig.spec ? { specDetached: true } : {}) } as Partial<FigureNode>), 400)
   }
   useEffect(() => () => window.clearTimeout(timer.current), [])
   return (

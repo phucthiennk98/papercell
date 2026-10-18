@@ -93,3 +93,40 @@
   .dlg-figure, .dlg-code-edit { grid-template-columns: 1fr; height: auto; }
   .dlg-figure aside { border-left: 0; border-top: 1px solid var(--line); }
 }
+
+/* ---- Tab Thiết kế (trình tạo biểu đồ) ---- */
+.dlg-design { display: grid; grid-template-columns: 340px minmax(0, 1fr); height: 100%; }
+.dlg-design-form { border-right: 1px solid var(--line); overflow-y: auto; padding: 14px 16px; display: flex; flex-direction: column; gap: 16px; }
+.dlg-design-form section { display: flex; flex-direction: column; gap: 8px; }
+.dlg-design-form h3 { margin: 0; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--muted-foreground); }
+.dlg-design-form .hint { margin: 0; }
+.type-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.type-btn { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 4px; border: 1px solid var(--line); border-radius: 8px; background: var(--background); cursor: pointer; font-size: 11.5px; color: var(--ink-2); }
+.type-btn:hover:not(:disabled) { border-color: var(--ink-3); color: var(--ink); }
+.type-btn.on { border-color: #1d5fd1; background: var(--accent-soft); color: #1d5fd1; font-weight: 500; }
+.type-btn:disabled { opacity: .4; cursor: not-allowed; }
+.design-row { display: grid; grid-template-columns: 112px minmax(0, 1fr); align-items: center; gap: 8px; font-size: 13px; color: var(--ink-2); }
+.design-row .req { color: #b42318; margin-left: 2px; }
+.detached { display: flex; gap: 8px; padding: 10px; border: 1px solid #f0c36d; background: #fff8e6; border-radius: 8px; font-size: 12.5px; color: #7a5200; }
+.detached .btn { margin-top: 6px; }
+@media (max-width: 800px) { .dlg-design { grid-template-columns: 1fr; height: auto; } .dlg-design-form { border-right: 0; border-bottom: 1px solid var(--line); } }
+
+/* ---- Xem trước dữ liệu ---- */
+.data-panel tr.is-active td { background: var(--accent-soft); }
+.data-preview { display: flex; flex-direction: column; gap: 6px; }
+.data-preview-scroll { overflow: auto; max-height: 260px; border: 1px solid var(--line); border-radius: 6px; }
+.data-preview table { font-size: 12px; white-space: nowrap; }
+.data-preview th { position: sticky; top: 0; background: var(--muted); }
+.col-type { margin-left: 6px; font-size: 10.5px; font-weight: 500; padding: 0 5px; border-radius: 4px; background: var(--accent-soft); color: #1d5fd1; }
+
+/* ---- Bản đồ ---- */
+.pc-map { position: relative; width: 100%; border-radius: 8px; overflow: hidden; background: #e8eef2; }
+.pcm-empty { position: absolute; inset: 0; display: grid; place-items: center; padding: 16px; text-align: center; font-size: 13px; color: var(--muted-foreground); }
+.pcm-legend { position: absolute; left: 8px; bottom: 26px; z-index: 2; background: rgba(255,255,255,.92); border-radius: 6px; padding: 6px 8px; font: 11.5px/1.4 var(--font-ui, system-ui); color: #333; box-shadow: 0 1px 4px rgba(0,0,0,.15); max-width: 60%; }
+.pcm-title { font-weight: 600; margin-bottom: 3px; }
+.pcm-ramp { width: 140px; height: 8px; border-radius: 3px; }
+.pcm-ends { display: flex; justify-content: space-between; }
+.pcm-cat { display: flex; align-items: center; gap: 5px; }
+.pcm-cat i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+.pcm-pop { font-size: 12px; border-collapse: collapse; }
+.pcm-pop th { text-align: left; padding-right: 8px; color: #666; font-weight: 500; }

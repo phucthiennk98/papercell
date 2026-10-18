@@ -25,6 +25,7 @@ export function FigureElement(props: PlateElementProps) {
   const [params, setParams] = useState<FigureParam[]>(fig.params)
   const [dialog, setDialog] = useState<DialogTab | null>(null)
   useEffect(() => { setParams(fig.params) }, [fig.params])
+  useEffect(() => { if (fig.autoOpen && !readOnly) { setDialog('design'); update({ autoOpen: undefined }) } }, [fig.autoOpen]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const update = (patch: Partial<FigureNode>) => { const at = editor.api.findPath(props.element); if (at) editor.tf.setNodes(patch, { at }) }
   const slide = (name: string, v: number) => setParams((ps) => ps.map((p) => (p.name === name ? { ...p, value: v } : p)))
@@ -52,7 +53,7 @@ export function FigureElement(props: PlateElementProps) {
             {!readOnly && fig.display === 'hidden' && <span className="fig-badge muted">Ẩn khi xuất bản</span>}
           </span>
           <span className="fig-actions">
-            {!readOnly && <button type="button" className="pc-icon-btn" aria-label="Sửa hình và code" data-tip="Sửa hình và code" onClick={() => setDialog('js')}><Pencil size={15} /></button>}
+            {!readOnly && <button type="button" className="pc-icon-btn" aria-label="Sửa hình và code" data-tip="Sửa hình và code" onClick={() => setDialog(fig.spec && !fig.specDetached ? 'design' : 'js')}><Pencil size={15} /></button>}
             <button type="button" className="pc-icon-btn" aria-label="Phóng to" data-tip="Phóng to" onClick={() => setDialog('figure')}><Maximize2 size={15} /></button>
           </span>
         </div>

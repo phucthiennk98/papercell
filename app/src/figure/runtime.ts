@@ -2,12 +2,13 @@
 import * as Plot from '@observablehq/plot'
 import * as d3 from 'd3'
 import { createContext } from 'react'
+import { esc, makeMap, type MapOptions } from './map'
 import type { DataFile, FigureParam } from '../editor/types'
 
 export type Dataset = Record<string, unknown>
 
 /** Dữ liệu của tài liệu đang mở, dùng chung cho mọi thẻ hình. */
-export const DataContext = createContext<{ files: DataFile[]; data: Dataset }>({ files: [], data: {} })
+export const DataContext = createContext<{ files: DataFile[]; data: Dataset; setFiles: (f: DataFile[]) => void }>({ files: [], data: {}, setFiles: () => {} })
 
 /** Tên file → tên biến hợp lệ: "trips.csv" → "trips". */
 export const dataKey = (name: string) => name.replace(/\.[^.]+$/, '').replace(/[^A-Za-z0-9_]/g, '_').replace(/^(\d)/, '_$1')
@@ -36,9 +37,10 @@ export async function runFigure(js: string, params: FigureParam[], data: Dataset
   const expose = (v: unknown) => { exposed = v; return v }
   const names = params.map((p) => p.name)
   try {
-    const fn = new AsyncFunction('Plot', 'd3', 'data', 'width', 'expose', 'params', ...names, js)
+    const fn = new AsyncFunction('Plot', 'd3', 'data', 'width', 'expose', 'params', 'pc', ...names, js)
     const values = Object.fromEntries(params.map((p) => [p.name, p.value]))
-    const r = await fn(Plot, d3, data, width, expose, values, ...params.map((p) => p.value))
+    const pc = { map: (o: MapOptions) => makeMap({ width, ...o }), esc }
+    const r = await fn(Plot, d3, data, width, expose, values, pc, ...params.map((p) => p.value))
     if (r instanceof Node) return { node: r, html: null, exposed, error: null }
     if (typeof r === 'string') return { node: null, html: r, exposed, error: null }
     return { node: null, html: null, exposed, error: 'Code cần return một hình (Plot.plot(...)) hoặc một chuỗi HTML.' }

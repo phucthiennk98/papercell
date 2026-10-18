@@ -135,7 +135,7 @@ function DocView({ docId, sidebar, onShowSidebar, onSaved, onHeadings, onEditor,
   const editor = usePlateEditor({ plugins: PapercellKit, value: initial.content })
   if (import.meta.env.DEV) (window as any).__editor = editor
   const latest = useRef({ meta, files }); latest.current = { meta, files }
-  const dataCtx = useMemo(() => ({ files, data: parseData(files) }), [files])
+  const dataCtx = useMemo(() => ({ files, data: parseData(files), setFiles }), [files])
   const metaCtx = useMemo(() => ({ meta, setMeta }), [meta])
   const timer = useRef(0)
 
