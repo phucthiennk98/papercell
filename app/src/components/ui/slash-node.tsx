@@ -29,7 +29,8 @@ import {
 import { type TComboboxInputElement, KEYS } from 'platejs';
 import { PlateElement } from 'platejs/react';
 
-import { FIGURE_TEMPLATES, insertFigure } from '@/figure/templates';
+import { CHART_TYPES } from '@/figure/builder';
+import { FIGURE_TEMPLATES, insertChart, insertFigure } from '@/figure/templates';
 
 import {
   insertBlock,
@@ -59,9 +60,22 @@ type Group = {
   }[];
 };
 
+const VN = (t: string) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').toLowerCase();
+
+const chartGroup: Group = {
+  group: 'Biểu đồ từ dữ liệu',
+  items: CHART_TYPES.map((c) => ({
+    icon: <c.icon />,
+    keywords: ['hinh', 'bieu do', 'chart', 'du lieu', c.type, VN(c.label)],
+    label: c.label,
+    value: 'chart:' + c.type,
+    onSelect: (editor: PlateEditor) => insertChart(editor, c.type),
+  })),
+};
+
 const figureGroup: Group = {
-  group: 'Hình (JS)',
-  items: FIGURE_TEMPLATES.map((t) => ({
+  group: 'Mẫu hình có code',
+  items: FIGURE_TEMPLATES.filter((t) => t.id !== 'data').map((t) => ({
     icon: <t.icon />,
     keywords: ['hinh', 'bieu do', 'chart', 'figure', ...t.keywords],
     label: t.label,
@@ -84,6 +98,7 @@ const groups: Group[] = [
       },
     ],
   },
+  chartGroup,
   figureGroup,
   {
     group: 'Basic blocks',

@@ -1,4 +1,4 @@
-import { useContext, useMemo, useRef, useState } from 'react'
+import { useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { FileUp, Loader2, TriangleAlert } from 'lucide-react'
 import { ACCEPT, asRows, describeColumns, importFile, isGeoJSON, type Column, type ColType } from '@/data/import'
 import type { FigureNode, FigureParam } from '@/editor/types'
@@ -15,7 +15,9 @@ const mergeParams = (old: FigureParam[], fresh: FigureParam[]) => fresh.map((p) 
 export function DesignTab({ fig, onUpdate }: { fig: FigureNode; onUpdate: (p: Partial<FigureNode>) => void }) {
   const { files, data, setFiles } = useContext(DataContext)
   const keys = files.map((f) => dataKey(f.name))
-  const [spec, setSpec] = useState<ChartSpec>(() => fig.spec ?? defaultSpec(keys[0] ?? ''))
+  // Hình vừa chèn từ menu (chưa chọn dữ liệu): lấy bảng phù hợp đầu tiên; bản đồ vùng thì ưu tiên GeoJSON.
+  const pick = (type: ChartType) => (type === 'map-regions' ? keys.find((k) => isGeoJSON(data[k])) : keys.find((k) => !isGeoJSON(data[k]))) ?? keys[0] ?? ''
+  const [spec, setSpec] = useState<ChartSpec>(() => fig.spec ? { ...fig.spec, data: fig.spec.data || pick(fig.spec.type) } : defaultSpec(pick('bar')))
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState('')
   const input = useRef<HTMLInputElement>(null)
@@ -26,6 +28,17 @@ export function DesignTab({ fig, onUpdate }: { fig: FigureNode; onUpdate: (p: Pa
   const info = typeInfo(spec.type)
   const js = codegen(spec)
   const params = mergeParams(fig.params, specParams(spec))
+
+  // Tự điền cột vĩ độ/kinh độ cho bản đồ và lưu lựa chọn dữ liệu tự động ở trên
+  useEffect(() => {
+    if (!spec.data || (fig.spec?.data === spec.data && !(info.map && spec.type !== 'map-regions' && !spec.lat))) return
+    const next = { ...spec }
+    if (info.map) {
+      next.lat ??= columns.find((c) => c.type === 'lat')?.name
+      next.lon ??= columns.find((c) => c.type === 'lon')?.name
+    }
+    apply(next)
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const apply = (next: ChartSpec, force = false) => {
     setSpec(next)

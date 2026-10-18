@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Plate, usePlateEditor, type PlateEditor } from 'platejs/react'
-import { Toaster, toast } from 'sonner'
+import { Toaster } from 'sonner'
 import {
   BookOpen, ChartColumn, Database, FileDown, Sparkles, FileText, FolderOpen, ListTree, PanelLeftClose, PanelLeftOpen, PenLine, Plus, Save, Search, Trash2,
 } from 'lucide-react'
@@ -13,7 +13,7 @@ import { TooltipProvider } from '@/components/ui/tooltip'
 import { deleteDoc, emptyDoc, ensureFirstDoc, listDocs, loadDoc, newDocId, saveDoc, type DocEntry } from '@/docs/store'
 import { MetaContext } from '@/editor/DocHeader'
 import { PapercellKit } from '@/editor/papercell-kit'
-import type { DataFile, DocMeta, FigureNode, PapercellDoc } from '@/editor/types'
+import type { DataFile, DocMeta, PapercellDoc } from '@/editor/types'
 import { DataPanel } from '@/figure/DataPanel'
 import { FigureNumbers } from '@/figure/FigureElement'
 import { DataContext, parseData } from '@/figure/runtime'
@@ -21,19 +21,7 @@ import { makeSample } from '@/sample'
 import { makeGallery } from '@/gallery'
 import { scan, type Heading } from '@/editor/scan'
 import { cn } from '@/lib/utils'
-import { packText } from '@/lib/pack'
-import { formatBytes } from '@/figure/scenarios'
-
-/** Bản cho người đọc: bỏ hình ẩn, bỏ Python gốc nếu tác giả không cho xem, bỏ dữ liệu nội bộ của trình soạn. */
-function forPublish(nodes: any[]): any[] {
-  return nodes.flatMap((n) => {
-    if (n.type !== 'figure') return [n.children ? { ...n, children: forPublish(n.children) } : n]
-    const f = n as FigureNode
-    if (f.display === 'hidden') return []
-    const { verify, spec, specDetached, autoOpen, ...rest } = f // eslint-disable-line @typescript-eslint/no-unused-vars
-    return [{ ...rest, python: f.codeAccess === 'python' || f.codeAccess === 'both' ? f.python : '' }]
-  })
-}
+import { docSlug, exportDocHtml } from '@/publish/export-html'
 
 export default function App() {
   const [docId, setDocId] = useState(() => ensureFirstDoc())
@@ -168,30 +156,10 @@ function DocView({ docId, sidebar, onShowSidebar, onSaved, onHeadings, onEditor,
   const download = () => {
     const blob = new Blob([JSON.stringify({ version: 3, meta, data: files, content: editor.children }, null, 2)], { type: 'application/json' })
     const a = document.createElement('a')
-    a.href = URL.createObjectURL(blob); a.download = slug() + '.papercell.json'
+    a.href = URL.createObjectURL(blob); a.download = docSlug(meta.title) + '.papercell.json'
     a.click(); URL.revokeObjectURL(a.href)
   }
-  const slug = () => (meta.title || 'bai-viet').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D')
-    .replace(/[^A-Za-z0-9]+/g, '-').replace(/^-|-$/g, '').toLowerCase() || 'bai-viet'
-  /** Xuất một file HTML mở được ở mọi nơi: trang đọc + tài liệu nén (gzip + base64) nhúng bên trong. */
-  const exportHtml = async () => {
-    const id = toast.loading('Đang đóng gói file HTML…')
-    try {
-      const res = await fetch('/viewer.html', { cache: 'no-store' })
-      let html = res.ok ? await res.text() : ''
-      if (!html.includes('>__PC_DOC__<') || html.includes('/src/viewer/')) throw new Error('Bản đang chạy chưa có trang đọc đóng gói (bản dev). Chạy bản build rồi xuất lại.')
-      const { b64 } = await packText(JSON.stringify({ version: 3, meta, data: files, content: forPublish(editor.children) }))
-      const esc = (t: string) => t.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!)
-      html = html.replace('>__PC_DOC__<', () => '>' + b64 + '<').replace('<title>Papercell</title>', () => `<title>${esc(meta.title || 'Papercell')}</title>`)
-      const blob = new Blob([html], { type: 'text/html' })
-      const a = document.createElement('a')
-      a.href = URL.createObjectURL(blob); a.download = slug() + '.html'
-      a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000)
-      toast.success(`Đã xuất ${a.download} (${formatBytes(blob.size)}). Mở bằng trình duyệt bất kỳ, không cần cài gì.`, { id })
-    } catch (e) {
-      toast.error((e as Error).message, { id })
-    }
-  }
+  const exportHtml = () => exportDocHtml({ meta, files, content: editor.children })
   const open = async (f?: File) => {
     if (!f) return
     try { const d = JSON.parse(await f.text()); if (d?.version !== 3 || !Array.isArray(d.content)) throw new Error(); onOpenFile(d) }

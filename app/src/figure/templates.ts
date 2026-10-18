@@ -2,7 +2,7 @@
 // đổi `ds` thành data.<tên_file> để dùng dữ liệu của bài.
 import { Database, ChartColumn, ChartLine, ChartScatter, ChartNoAxesColumn, Hexagon, Table2, SquareCode, FlaskConical, type LucideIcon } from 'lucide-react'
 import { newId, type FigureNode, type FigureParam } from '@/editor/types'
-import { codegen, defaultSpec } from './builder'
+import { codegen, defaultSpec, specParams, type ChartType } from './builder'
 
 export type FigureTemplate = { id: string; label: string; hint: string; icon: LucideIcon; keywords: string[]; js: string; python?: string; params?: FigureParam[]; caption?: string }
 
@@ -176,6 +176,16 @@ export const figureFromTemplate = (t: FigureTemplate): FigureNode => {
 export function insertFigure(editor: any, templateId: string) {
   const t = FIGURE_TEMPLATES.find((x) => x.id === templateId) ?? FIGURE_TEMPLATES[FIGURE_TEMPLATES.length - 1]
   const node = figureFromTemplate(t)
+  const block = editor.api.block()
+  const emptyPara = block && block[0].type === 'p' && editor.api.isEmpty(block[0])
+  if (emptyPara) editor.tf.replaceNodes(node, { at: block[1] })
+  else editor.tf.insertNodes(node, { select: true })
+}
+
+/** Chèn một hình loại `type` của trình tạo biểu đồ; popup mở ngay ở tab Thiết kế để chọn cột. */
+export function insertChart(editor: any, type: ChartType) {
+  const spec = { ...defaultSpec(''), type }
+  const node: FigureNode = { type: 'figure', id: newId(), caption: '', js: codegen(spec), python: '', params: specParams(spec), spec, autoOpen: true, display: 'output', codeAccess: 'both', children: [{ text: '' }] }
   const block = editor.api.block()
   const emptyPara = block && block[0].type === 'p' && editor.api.isEmpty(block[0])
   if (emptyPara) editor.tf.replaceNodes(node, { at: block[1] })
