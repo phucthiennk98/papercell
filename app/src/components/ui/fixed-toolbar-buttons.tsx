@@ -30,6 +30,7 @@ import {
   IndentToolbarButton,
   OutdentToolbarButton,
 } from './indent-toolbar-button';
+import { FigureToolbarButton } from './figure-toolbar-button';
 import { InsertToolbarButton } from './insert-toolbar-button';
 import { LineHeightToolbarButton } from './line-height-toolbar-button';
 import { LinkToolbarButton } from './link-toolbar-button';
@@ -74,6 +75,7 @@ export function FixedToolbarButtons() {
           </ToolbarGroup>
 
           <ToolbarGroup>
+            <FigureToolbarButton />
             <InsertToolbarButton />
             <TurnIntoToolbarButton />
             <FontSizeToolbarButton />

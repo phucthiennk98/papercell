@@ -5,8 +5,8 @@ import * as React from 'react';
 import { DndPlugin, useDraggable, useDropLine } from '@platejs/dnd';
 import { expandListItemsWithChildren } from '@platejs/list';
 import { BlockSelectionPlugin } from '@platejs/selection/react';
-import { GripVertical } from 'lucide-react';
-import { type TElement, getPluginByType, isType, KEYS } from 'platejs';
+import { GripVertical, Plus } from 'lucide-react';
+import { type TElement, getPluginByType, isType, KEYS, PathApi } from 'platejs';
 import {
   type PlateEditor,
   type PlateElementProps,
@@ -141,15 +141,31 @@ function Draggable(props: PlateElementProps) {
           >
             <div
               className={cn(
-                'slate-blockToolbar relative w-4.5',
+                'slate-blockToolbar relative w-10',
                 'pointer-events-auto mr-1 flex items-center',
                 isInColumn && 'mr-1.5'
               )}
             >
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    className="absolute left-0 h-6 w-4.5 p-0 text-muted-foreground"
+                    style={{ top: `${dragButtonTop + 3}px` }}
+                    aria-label="Chèn khối bên dưới"
+                    data-plate-prevent-deselect
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => openInsertMenu(editor, element)}
+                  >
+                    <Plus />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Chèn khối: chữ, hình, bảng, công thức…</TooltipContent>
+              </Tooltip>
               <Button
                 ref={handleRef}
                 variant="ghost"
-                className="-left-0 absolute h-6 w-full p-0"
+                className="absolute left-5 h-6 w-4.5 p-0"
                 style={{ top: `${dragButtonTop + 3}px` }}
                 data-plate-prevent-deselect
               >
@@ -186,6 +202,19 @@ function Draggable(props: PlateElementProps) {
       </div>
     </div>
   );
+}
+
+/** Nút "+" như Lark: mở menu chèn khối ở dòng mới ngay dưới khối này (hoặc ngay tại dòng trống). */
+function openInsertMenu(editor: PlateEditor, element: TElement) {
+  const path = editor.api.findPath(element);
+  if (!path) return;
+  if (element.type === KEYS.p && editor.api.isEmpty(element)) {
+    editor.tf.select(editor.api.start(path)!);
+  } else {
+    editor.tf.insertNodes({ type: KEYS.p, children: [{ text: '' }] } as TElement, { at: PathApi.next(path), select: true });
+  }
+  editor.tf.focus();
+  editor.tf.insertText('/');
 }
 
 function Gutter({
@@ -328,7 +357,7 @@ const DragHandle = React.memo(function DragHandle({
           <GripVertical className="text-muted-foreground" />
         </div>
       </TooltipTrigger>
-      <TooltipContent>Drag to move</TooltipContent>
+      <TooltipContent>Kéo để di chuyển · bấm để chọn khối</TooltipContent>
     </Tooltip>
   );
 });

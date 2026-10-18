@@ -25,10 +25,11 @@ import {
   SuperscriptIcon,
   Table,
   TableOfContentsIcon,
-  ChartColumnIcon,
 } from 'lucide-react';
 import { type TComboboxInputElement, KEYS } from 'platejs';
 import { PlateElement } from 'platejs/react';
+
+import { FIGURE_TEMPLATES, insertFigure } from '@/figure/templates';
 
 import {
   insertBlock,
@@ -58,6 +59,17 @@ type Group = {
   }[];
 };
 
+const figureGroup: Group = {
+  group: 'Hình (JS)',
+  items: FIGURE_TEMPLATES.map((t) => ({
+    icon: <t.icon />,
+    keywords: ['hinh', 'bieu do', 'chart', 'figure', ...t.keywords],
+    label: t.label,
+    value: 'figure:' + t.id,
+    onSelect: (editor: PlateEditor) => insertFigure(editor, t.id),
+  })),
+};
+
 const groups: Group[] = [
   {
     group: 'AI',
@@ -72,6 +84,7 @@ const groups: Group[] = [
       },
     ],
   },
+  figureGroup,
   {
     group: 'Basic blocks',
     items: [
@@ -157,12 +170,6 @@ const groups: Group[] = [
   {
     group: 'Advanced blocks',
     items: [
-      {
-        icon: <ChartColumnIcon />,
-        keywords: ['figure', 'chart', 'plot', 'hinh', 'bieu do', 'js'],
-        label: 'Hình (JS)',
-        value: 'figure',
-      },
       {
         icon: <TableOfContentsIcon />,
         keywords: ['toc'],

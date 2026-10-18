@@ -100,8 +100,15 @@ function run(file: string, args: string[], shell: boolean, opts: { cwd?: string;
     // Qua shell chỉ khi bắt buộc (.cmd); khi đó tham số là hằng số, không chứa nội dung người dùng.
     const child = spawn(shell ? `"${file}"` : file, args, { cwd: opts.cwd, shell, windowsHide: true, env: process.env })
     let stdout = '', stderr = '', buf = ''
-    const timer = setTimeout(() => child.kill(), opts.timeoutMs)
-    opts.signal?.addEventListener('abort', () => child.kill())
+    // Tắt cả cây tiến trình: trên Windows, agent chạy qua cmd nên kill() chỉ tắt lớp vỏ ngoài.
+    const stop = () => {
+      if (child.exitCode !== null || !child.pid) return
+      if (process.platform === 'win32') spawn('taskkill', ['/pid', String(child.pid), '/T', '/F'], { windowsHide: true })
+      else child.kill('SIGTERM')
+    }
+    const timer = setTimeout(stop, opts.timeoutMs)
+    if (opts.signal?.aborted) stop()
+    opts.signal?.addEventListener('abort', stop)
     child.stdout.setEncoding('utf8').on('data', (d: string) => {
       stdout += d
       if (!opts.onLine) return

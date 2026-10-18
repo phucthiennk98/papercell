@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import remarkMath from 'remark-math'
+import rehypeKatex from 'rehype-katex'
 import type { PlateEditor } from 'platejs/react'
 import { Bot, Check, ClipboardCopy, Eye, EyeOff, KeyRound, Laptop, Loader2, RefreshCw, Settings2, Sparkles, Square, TextCursorInput, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -41,6 +43,15 @@ function parseStream(raw: string): { content: string; progress: string; error?: 
   }
   return { content: content.replace(/^\s+/, ''), progress }
 }
+
+/** Model hay viết công thức bằng \( \) và \[ \]; đổi sang $ và $$ để Markdown không nuốt dấu \ và để vẽ bằng KaTeX. */
+export function normalizeMath(md: string) {
+  return md
+    .replace(/\\\[([\s\S]+?)\\\]/g, (_, m: string) => '\n$$\n' + m.trim() + '\n$$\n')
+    .replace(/\\\(([\s\S]+?)\\\)/g, (_, m: string) => '$' + m.trim() + '$')
+}
+
+const STOPPED = '_Đã dừng._'
 
 const seconds = (ms: number) => `${Math.max(1, Math.round(ms / 1000))} giây`
 
@@ -150,12 +161,12 @@ export function AssistantPanel({ editor, onClose }: { editor: PlateEditor | null
   // Khi người dùng bấm Dừng: giữ phần đã nhận, nếu chưa có gì thì ghi chú đã dừng.
   const messagesContentOrStopped = () => {
     const last = latest.current[latest.current.length - 1]
-    return last?.content?.trim() ? last.content : '_Đã dừng._'
+    return last?.content?.trim() ? last.content : STOPPED
   }
 
   const insert = (md: string) => {
     if (!editor) return
-    const nodes = (editor.api as any).markdown.deserialize(md)
+    const nodes = (editor.api as any).markdown.deserialize(normalizeMath(md))
     const top = editor.selection ? editor.api.block({ highest: true }) : undefined
     editor.tf.insertNodes(nodes, { at: top ? [top[1][0] + 1] : [editor.children.length], select: true })
     editor.tf.focus()
@@ -280,10 +291,10 @@ export function AssistantPanel({ editor, onClose }: { editor: PlateEditor | null
               )}
               {m.content && (
                 <div className={cn('chat-md rounded-lg border bg-background px-3 py-2 leading-relaxed', live && 'is-streaming')}>
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.content}</ReactMarkdown>
+                  <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}>{normalizeMath(m.content)}</ReactMarkdown>
                 </div>
               )}
-              {!live && m.content && (
+              {!live && m.content && m.content !== STOPPED && (
                 <div className="flex items-center gap-1.5 text-xs">
                   <button className="flex items-center gap-1 rounded-md border px-2 py-1 hover:bg-accent" onClick={() => insert(m.content)}><TextCursorInput className="size-3.5" />Chèn vào bài</button>
                   <button className="flex items-center gap-1 rounded-md border px-2 py-1 hover:bg-accent" onClick={() => copy(i, m.content)}>{copied === i ? <Check className="size-3.5" /> : <ClipboardCopy className="size-3.5" />}{copied === i ? 'Đã chép' : 'Sao chép'}</button>

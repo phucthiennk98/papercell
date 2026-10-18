@@ -28,7 +28,6 @@ import {
   SuperscriptIcon,
   TableIcon,
   TableOfContentsIcon,
-  ChartColumnIcon,
 } from 'lucide-react';
 import { KEYS } from 'platejs';
 import { type PlateEditor, useEditorRef } from 'platejs/react';
@@ -163,11 +162,6 @@ const groups: Group[] = [
   {
     group: 'Advanced blocks',
     items: [
-      {
-        icon: <ChartColumnIcon />,
-        label: 'Hình (JS)',
-        value: 'figure',
-      },
       {
         icon: <TableOfContentsIcon />,
         label: 'Table of contents',
