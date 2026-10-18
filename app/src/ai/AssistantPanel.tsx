@@ -8,10 +8,7 @@ import { Bot, Check, ClipboardCopy, Eye, EyeOff, KeyRound, Laptop, Loader2, Refr
 import { cn } from '@/lib/utils'
 import { PROVIDERS, defaultConfig, type ProviderId } from './config'
 import { aiStore, useAI } from './store'
-
-/** Phải trùng với server/ai/assistant.ts */
-const ERROR_MARK = '\u0000ERR:'
-const PROGRESS_MARK = '\u0000P:'
+import { parseStream } from './ask'
 
 type AgentInfo = { id: string; label: string; available: boolean; version?: string; note: string }
 
@@ -25,23 +22,6 @@ type Msg = {
   by?: string
   startedAt?: number
   ms?: number
-}
-
-/** Tách dòng tiến độ và lỗi ra khỏi chữ của câu trả lời trong luồng dữ liệu từ server. */
-function parseStream(raw: string): { content: string; progress: string; error?: string } {
-  let content = '', progress = '', i = 0
-  for (;;) {
-    const p = raw.indexOf(PROGRESS_MARK, i), e = raw.indexOf(ERROR_MARK, i)
-    const next = [p, e].filter((x) => x >= 0).sort((a, b) => a - b)[0]
-    if (next === undefined) { content += raw.slice(i); break }
-    content += raw.slice(i, next)
-    if (next === e) return { content, progress, error: raw.slice(e + ERROR_MARK.length) || 'Nhà cung cấp báo lỗi.' }
-    const nl = raw.indexOf('\n', p + PROGRESS_MARK.length)
-    if (nl < 0) break // dòng tiến độ chưa đến đủ
-    progress = raw.slice(p + PROGRESS_MARK.length, nl)
-    i = nl + 1
-  }
-  return { content: content.replace(/^\s+/, ''), progress }
 }
 
 /** Model hay viết công thức bằng \( \) và \[ \]; đổi sang $ và $$ để Markdown không nuốt dấu \ và để vẽ bằng KaTeX. */

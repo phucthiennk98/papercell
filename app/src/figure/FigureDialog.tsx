@@ -6,6 +6,7 @@ import { ACCESS_LABEL, DISPLAY_LABEL, type CodeAccess, type FigureDisplay, type 
 import { visibleCode } from './FigureElement'
 import { DesignTab } from './DesignTab'
 import { ScenarioTab } from './ScenarioTab'
+import { CodeAssist, CodeEditor, useCodeHints } from './CodeEditor'
 import { FigureView, ParamSliders } from './FigureView'
 import { DataContext, dataKey } from './runtime'
 import { verifyFigure } from './verify'
@@ -28,14 +29,16 @@ export function FigureDialog({ fig, params, number, readOnly, initialTab, onPara
   const [tab, setTab] = useState<DialogTab>(tabs.some(([t]) => t === initialTab) ? initialTab : 'figure')
   const dlg = useRef<HTMLDivElement>(null)
 
+  // Chỉ chạy một lần khi mở: nếu chạy lại mỗi lần render, popup sẽ giật focus khỏi ô đang gõ
+  const close = useRef(onClose); close.current = onClose
   useEffect(() => {
     const prev = document.activeElement as HTMLElement | null
     dlg.current?.focus()
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') close.current() }
     addEventListener('keydown', onKey)
     document.body.classList.add('modal-open')
     return () => { removeEventListener('keydown', onKey); document.body.classList.remove('modal-open'); prev?.focus?.() }
-  }, [onClose])
+  }, [])
 
   const title = `${number ? `Hình ${number}. ` : ''}${fig.caption || 'Hình chưa có chú thích'}`
 
@@ -57,7 +60,7 @@ export function FigureDialog({ fig, params, number, readOnly, initialTab, onPara
               {params.length > 0 && <aside><ParamSliders params={params} onChange={onParam} onCommit={onCommitParams} idPrefix={'dlg-' + fig.id} large grid={fig.scenarios?.grid} /></aside>}
             </div>
           )}
-          {readOnly && (tab === 'js' || tab === 'python') && <pre className="dlg-code">{tab === 'js' ? fig.js : fig.python}</pre>}
+          {readOnly && (tab === 'js' || tab === 'python') && <div className="dlg-code-read"><CodeEditor key={tab} value={tab === 'js' ? fig.js : fig.python} lang={tab} label={tab === 'js' ? 'JS code' : 'Original Python code'} readOnly /></div>}
           {!readOnly && tab === 'design' && <DesignTab fig={fig} onUpdate={onUpdate} />}
           {!readOnly && tab === 'js' && <CodeTab fig={fig} params={params} lang="js" onUpdate={onUpdate} />}
           {!readOnly && tab === 'python' && <CodeTab fig={fig} params={params} lang="python" onUpdate={onUpdate} />}
@@ -79,6 +82,8 @@ const HINT = {
 
 function CodeTab({ fig, params, lang, onUpdate }: { fig: FigureNode; params: FigureParam[]; lang: 'js' | 'python'; onUpdate: (p: Partial<FigureNode>) => void }) {
   const [draft, setDraft] = useState(fig[lang])
+  const [error, setError] = useState<string | null>(null)
+  const hints = useCodeHints(params)
   const timer = useRef(0)
   const change = (v: string) => {
     setDraft(v)
@@ -90,20 +95,12 @@ function CodeTab({ fig, params, lang, onUpdate }: { fig: FigureNode; params: Fig
     <div className="dlg-code-edit">
       <div className="dlg-editor">
         <p className="hint">{HINT[lang]}</p>
-        <textarea spellCheck={false} value={draft} onChange={(e) => change(e.target.value)} aria-label={lang === 'js' ? 'Code JS' : 'Code Python gốc'}
-          placeholder={lang === 'python' ? 'Dán code Python gốc vào đây…' : ''}
-          onKeyDown={(e) => {
-            if (e.key === 'Tab') {
-              e.preventDefault()
-              const t = e.currentTarget, s = t.selectionStart
-              change(t.value.slice(0, s) + '  ' + t.value.slice(t.selectionEnd))
-              requestAnimationFrame(() => { t.selectionStart = t.selectionEnd = s + 2 })
-            }
-          }} />
+        <CodeEditor value={draft} onChange={change} lang={lang} hints={hints} label={lang === 'js' ? 'JS code' : 'Original Python code'} />
+        <CodeAssist lang={lang} code={draft} other={lang === 'js' ? fig.python : fig.js} hints={hints} error={error} onApply={change} />
       </div>
       <div className="dlg-preview">
-        <p className="hint">{lang === 'js' ? 'Xem trước (cập nhật khi gõ)' : 'Hình đang vẽ bằng JS'}</p>
-        <FigureView js={lang === 'js' ? draft : fig.js} params={params} scenarios={fig.scenarios} />
+        <p className="hint">{lang === 'js' ? 'Preview (updates as you type)' : 'Figure as drawn by the JS code'}</p>
+        <FigureView js={lang === 'js' ? draft : fig.js} params={params} scenarios={fig.scenarios} onError={setError} />
       </div>
     </div>
   )

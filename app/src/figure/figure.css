@@ -144,3 +144,19 @@
 .scen-progress .bar { height: 6px; border-radius: 3px; background: var(--line-2); overflow: hidden; }
 .scen-progress .bar i { display: block; height: 100%; background: #2a78d6; transition: width .3s; }
 .fig-empty { padding: 36px 16px; text-align: center; color: var(--ink-3); font-size: 13.5px; border: 1px dashed var(--line); border-radius: 8px; }
+
+/* ---- Code editor (CodeMirror) + AI prompt box ---- */
+.code-host { flex: 1; min-height: 0; overflow: hidden; }
+.code-host .cm-editor { height: 100%; }
+.code-assist { border-top: 1px solid var(--line); padding: 8px 10px 10px; display: flex; flex-direction: column; gap: 6px; background: var(--chrome); }
+.code-assist-box { display: flex; align-items: flex-end; gap: 6px; border: 1px solid var(--line); border-radius: 10px; background: #fff; padding: 6px 6px 6px 10px; }
+.code-assist-box:focus-within { border-color: #1d5fd1; box-shadow: 0 0 0 2px var(--accent-soft); }
+.code-assist-box textarea { flex: 1; border: 0; outline: none; resize: none; font: 13px/1.45 var(--font-ui); background: transparent; max-height: 120px; }
+.code-assist-box .send { background: #1d5fd1; color: #fff; border-radius: 8px; }
+.code-assist-box .send:disabled { opacity: .35; }
+.code-assist-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.code-assist-chips button { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; padding: 3px 9px; border: 1px solid var(--line); border-radius: 999px; background: #fff; color: var(--ink-2); cursor: pointer; }
+.code-assist-chips button:hover { border-color: #1d5fd1; color: #1d5fd1; }
+.code-assist-status { display: flex; align-items: flex-start; gap: 6px; font-size: 12.5px; color: var(--ok); }
+.code-assist-status.bad { color: var(--err); white-space: pre-wrap; }
+.dlg-code-read { height: 100%; display: flex; flex-direction: column; }
