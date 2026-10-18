@@ -53,6 +53,8 @@ export async function assistantChat(req: Request) {
 }
 
 export const ERROR_MARK = '\u0000ERR:'
+/** Dòng trạng thái tiến độ: PROGRESS_MARK + chữ + xuống dòng. */
+export const PROGRESS_MARK = '\u0000P:'
 
 export function describe(e: unknown): string {
   // Lỗi sau nhiều lần thử lại: lấy lỗi cuối cùng

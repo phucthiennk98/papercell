@@ -45,6 +45,8 @@ export default function App() {
   const [editor, setEditor] = useState<PlateEditor | null>(null)
   const [assistant, setAssistant] = useState(() => { try { return localStorage.getItem('papercell.assistant') === '1' } catch { return false } })
   useEffect(() => { try { localStorage.setItem('papercell.assistant', assistant ? '1' : '0') } catch { /* bỏ qua */ } }, [assistant])
+  // Hai thanh bên cùng mở trên màn hình vừa sẽ ép hẹp vùng soạn bài: thu gọn thanh trái
+  useEffect(() => { if (assistant && window.innerWidth < 1280) setSidebar(false) }, [assistant])
 
   const refresh = () => setDocs(listDocs())
   const create = (doc: PapercellDoc) => { const id = newDocId(); saveDoc(id, doc); refresh(); setDocId(id) }
@@ -64,7 +66,7 @@ export default function App() {
 
   return (
     <TooltipProvider>
-      <div className="flex h-screen w-full overflow-hidden bg-background text-foreground">
+      <div className="relative flex h-screen w-full overflow-hidden bg-background text-foreground">
         {sidebar && (
           <aside className="flex w-64 shrink-0 flex-col border-r bg-muted/30 text-sm" aria-label="Thanh bên">
             <div className="flex items-center justify-between px-3 pt-3 pb-2">
@@ -178,15 +180,15 @@ function DocView({ docId, sidebar, onShowSidebar, onSaved, onHeadings, onEditor,
       <FigureNumbers.Provider value={figs}>
         <Plate editor={editor} readOnly={readOnly} onChange={({ value }) => { const s = scan(value); setFigs(s.figs); onHeadings(s.headings); persist() }}>
           <main className="flex min-w-0 flex-1 flex-col">
-            <header className="flex h-12 shrink-0 items-center gap-3 border-b px-3 text-sm">
+            <header className="flex h-12 shrink-0 items-center gap-2 border-b px-3 text-sm whitespace-nowrap">
               {!sidebar && <button className="rounded-md p-1 text-muted-foreground hover:bg-accent" aria-label="Mở thanh bên" onClick={onShowSidebar}><PanelLeftOpen className="size-4" /></button>}
               <span className="min-w-0 flex-1 truncate text-muted-foreground">{meta.title || 'Bài chưa đặt tên'}</span>
               <div className="flex rounded-md border p-0.5" role="group" aria-label="Chế độ">
-                <button aria-pressed={!readOnly} onClick={() => setReadOnly(false)} className={cn('flex items-center gap-1.5 rounded px-2.5 py-1', !readOnly && 'bg-foreground text-background')}><PenLine className="size-3.5" />Soạn</button>
-                <button aria-pressed={readOnly} onClick={() => setReadOnly(true)} className={cn('flex items-center gap-1.5 rounded px-2.5 py-1', readOnly && 'bg-foreground text-background')}><BookOpen className="size-3.5" />Xem trước</button>
+                <button aria-pressed={!readOnly} aria-label="Soạn" title="Soạn" onClick={() => setReadOnly(false)} className={cn('flex items-center gap-1.5 rounded px-2.5 py-1', !readOnly && 'bg-foreground text-background')}><PenLine className="size-3.5" /><span className="hidden lg:inline">Soạn</span></button>
+                <button aria-pressed={readOnly} aria-label="Xem trước" title="Xem trước" onClick={() => setReadOnly(true)} className={cn('flex items-center gap-1.5 rounded px-2.5 py-1', readOnly && 'bg-foreground text-background')}><BookOpen className="size-3.5" /><span className="hidden lg:inline">Xem trước</span></button>
               </div>
-              {!readOnly && <button className="flex items-center gap-1.5 rounded-md border px-2.5 py-1 hover:bg-accent" onClick={() => setDataOpen(true)}><Database className="size-3.5" />Dữ liệu ({files.length})</button>}
-              <button className={cn('flex items-center gap-1.5 rounded-md border px-2.5 py-1 hover:bg-accent', assistant && 'bg-accent')} aria-pressed={assistant} onClick={onToggleAssistant}><Sparkles className="size-3.5" />Trợ lý AI</button>
+              {!readOnly && <button className="flex items-center gap-1.5 rounded-md border px-2.5 py-1 hover:bg-accent" onClick={() => setDataOpen(true)}><Database className="size-3.5" /><span className="hidden lg:inline">Dữ liệu</span> ({files.length})</button>}
+              <button className={cn('flex items-center gap-1.5 rounded-md border px-2.5 py-1 hover:bg-accent', assistant && 'bg-accent')} aria-pressed={assistant} aria-label="Trợ lý AI" title="Trợ lý AI" onClick={onToggleAssistant}><Sparkles className="size-3.5" /><span className="hidden lg:inline">Trợ lý AI</span></button>
               <button className="rounded-md p-1.5 hover:bg-accent" aria-label="Mở file" title="Mở file .papercell.json" onClick={() => fileRef.current?.click()}><FolderOpen className="size-4" /></button>
               <button className="rounded-md p-1.5 hover:bg-accent" aria-label="Lưu file" title="Tải về file .papercell.json" onClick={download}><Save className="size-4" /></button>
               <input ref={fileRef} type="file" accept=".json" hidden onChange={(e) => { open(e.target.files?.[0]); e.target.value = '' }} />

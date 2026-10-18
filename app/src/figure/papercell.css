@@ -18,3 +18,33 @@
 .spin { animation: spin 0.9s linear infinite; }
 [data-tip] { position: relative; }
 [data-tip]:hover::after { content: attr(data-tip); position: absolute; right: 0; top: calc(100% + 6px); background: var(--foreground); color: var(--background); font-size: 11.5px; padding: 4px 7px; border-radius: 5px; white-space: nowrap; pointer-events: none; z-index: 50; }
+
+/* ---- Trợ lý AI ---- */
+@keyframes chat-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+@keyframes chat-shimmer { from { background-position: 150% 0; } to { background-position: -50% 0; } }
+@keyframes chat-caret { 50% { opacity: 0; } }
+.chat-in { animation: chat-in .18s ease-out both; }
+.chat-shimmer {
+  background: linear-gradient(90deg, var(--muted-foreground) 35%, var(--foreground) 50%, var(--muted-foreground) 65%) 0 0 / 250% 100%;
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+  animation: chat-shimmer 1.6s linear infinite, chat-in .18s ease-out both;
+}
+.chat-md > :first-child { margin-top: 0; }
+.chat-md > :last-child { margin-bottom: 0; }
+.chat-md p, .chat-md ul, .chat-md ol, .chat-md pre, .chat-md blockquote, .chat-md table { margin: 0 0 .6em; }
+.chat-md ul { list-style: disc; padding-left: 1.2em; }
+.chat-md ol { list-style: decimal; padding-left: 1.3em; }
+.chat-md li + li { margin-top: .2em; }
+.chat-md h1, .chat-md h2, .chat-md h3 { font-weight: 600; margin: .8em 0 .4em; font-size: 1em; }
+.chat-md code { font-family: var(--font-mono); font-size: .88em; background: var(--muted); padding: 1px 4px; border-radius: 4px; }
+.chat-md pre { background: var(--muted); padding: 8px 10px; border-radius: 6px; overflow-x: auto; }
+.chat-md pre code { background: none; padding: 0; }
+.chat-md blockquote { border-left: 3px solid var(--border); padding-left: 10px; color: var(--muted-foreground); }
+.chat-md table { border-collapse: collapse; font-size: .92em; }
+.chat-md th, .chat-md td { border: 1px solid var(--border); padding: 3px 6px; }
+.chat-md a { color: #1d5fd1; text-decoration: underline; }
+.chat-md.is-streaming > :last-child::after { content: "▍"; margin-left: 1px; color: var(--muted-foreground); animation: chat-caret 1s step-end infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .chat-in, .chat-shimmer, .chat-md.is-streaming > :last-child::after { animation: none; }
+  .chat-shimmer { color: var(--muted-foreground); background: none; }
+}

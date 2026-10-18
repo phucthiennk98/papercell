@@ -83,6 +83,7 @@
     "react-dnd-html5-backend": "^16.0.1",
     "react-dom": "^19.3.1",
     "react-lite-youtube-embed": "^3.7.0",
+    "react-markdown": "^10.1.0",
     "react-player": "^3.3.1",
     "react-textarea-autosize": "^8.5.9",
     "react-tweet": "^3.3.1",

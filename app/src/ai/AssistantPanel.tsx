@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import type { PlateEditor } from 'platejs/react'
 import { Bot, Check, ClipboardCopy, Eye, EyeOff, KeyRound, Laptop, Loader2, RefreshCw, Settings2, Sparkles, Square, TextCursorInput, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -7,10 +9,40 @@ import { aiStore, useAI } from './store'
 
 /** Phải trùng với server/ai/assistant.ts */
 const ERROR_MARK = '\u0000ERR:'
+const PROGRESS_MARK = '\u0000P:'
 
 type AgentInfo = { id: string; label: string; available: boolean; version?: string; note: string }
 
-type Msg = { role: 'user' | 'assistant'; content: string; error?: boolean }
+type Msg = {
+  role: 'user' | 'assistant'
+  content: string
+  error?: boolean
+  /** Bước đang làm (đọc file, suy nghĩ…) khi agent chưa trả lời xong. */
+  progress?: string
+  /** Ai trả lời và mất bao lâu, hiện dưới câu trả lời. */
+  by?: string
+  startedAt?: number
+  ms?: number
+}
+
+/** Tách dòng tiến độ và lỗi ra khỏi chữ của câu trả lời trong luồng dữ liệu từ server. */
+function parseStream(raw: string): { content: string; progress: string; error?: string } {
+  let content = '', progress = '', i = 0
+  for (;;) {
+    const p = raw.indexOf(PROGRESS_MARK, i), e = raw.indexOf(ERROR_MARK, i)
+    const next = [p, e].filter((x) => x >= 0).sort((a, b) => a - b)[0]
+    if (next === undefined) { content += raw.slice(i); break }
+    content += raw.slice(i, next)
+    if (next === e) return { content, progress, error: raw.slice(e + ERROR_MARK.length) || 'Nhà cung cấp báo lỗi.' }
+    const nl = raw.indexOf('\n', p + PROGRESS_MARK.length)
+    if (nl < 0) break // dòng tiến độ chưa đến đủ
+    progress = raw.slice(p + PROGRESS_MARK.length, nl)
+    i = nl + 1
+  }
+  return { content: content.replace(/^\s+/, ''), progress }
+}
+
+const seconds = (ms: number) => `${Math.max(1, Math.round(ms / 1000))} giây`
 
 const SUGGESTIONS = [
   'Tóm tắt bài này trong 3 câu',
@@ -52,6 +84,10 @@ export function AssistantPanel({ editor, onClose }: { editor: PlateEditor | null
   const [copied, setCopied] = useState<number | null>(null)
   const abort = useRef<AbortController | null>(null)
   const list = useRef<HTMLDivElement>(null)
+  const latest = useRef<Msg[]>([]); latest.current = messages
+  // Đồng hồ đếm giây khi đang chờ trả lời
+  const [now, setNow] = useState(Date.now())
+  useEffect(() => { if (!busy) return; const t = setInterval(() => setNow(Date.now()), 500); return () => clearInterval(t) }, [busy])
 
   const detect = async (refresh = false) => {
     setDetecting(true)
@@ -81,7 +117,11 @@ export function AssistantPanel({ editor, onClose }: { editor: PlateEditor | null
     const q = text.trim(); if (!q || busy) return
     if (!ready) { setSettings(true); return }
     const next: Msg[] = [...messages.filter((m) => !m.error), { role: 'user', content: q }]
-    setMessages([...next, { role: 'assistant', content: '' }]); setInput(''); setBusy(true)
+    const by = mode === 'agent' ? (current?.label ?? 'Agent') : config.model
+    const startedAt = Date.now()
+    const update = (patch: Partial<Msg>) => setMessages((m) => [...m.slice(0, -1), { ...m[m.length - 1], ...patch }])
+    setMessages([...next, { role: 'assistant', content: '', by, startedAt, progress: mode === 'agent' ? `Đang mở ${by}…` : 'Đang gửi câu hỏi…' }])
+    setInput(''); setBusy(true); setSettings(false)
     const ctl = new AbortController(); abort.current = ctl
     try {
       const doc = editor ? docAsMarkdown(editor) : ''
@@ -91,18 +131,26 @@ export function AssistantPanel({ editor, onClose }: { editor: PlateEditor | null
       })
       if (!r.ok || !r.body) { const j = await r.json().catch(() => ({})); throw new Error(j.error || `Lỗi ${r.status}`) }
       const reader = r.body.pipeThrough(new TextDecoderStream()).getReader()
-      let acc = ''
+      let raw = '', content = ''
       for (;;) {
         const { value, done } = await reader.read(); if (done) break
-        acc += value
-        const at = acc.indexOf(ERROR_MARK)
-        if (at >= 0) throw new Error(acc.slice(at + ERROR_MARK.length) || 'Nhà cung cấp báo lỗi.')
-        setMessages((m) => [...m.slice(0, -1), { role: 'assistant', content: acc }])
+        raw += value
+        const s = parseStream(raw)
+        if (s.error) throw new Error(s.error)
+        content = s.content
+        update({ content, progress: s.progress || (content ? '' : 'Đang suy nghĩ…') })
       }
-      if (!acc.trim()) throw new Error('Không nhận được câu trả lời. Kiểm tra model và key.')
+      if (!content.trim()) throw new Error('Không nhận được câu trả lời. Kiểm tra model và key.')
+      update({ progress: '', ms: Date.now() - startedAt })
     } catch (e) {
-      if ((e as Error).name !== 'AbortError') setMessages((m) => [...m.slice(0, -1), { role: 'assistant', content: (e as Error).message, error: true }])
+      if ((e as Error).name === 'AbortError') update({ progress: '', ms: Date.now() - startedAt, content: messagesContentOrStopped() })
+      else update({ content: (e as Error).message, error: true, progress: '' })
     } finally { setBusy(false); abort.current = null }
+  }
+  // Khi người dùng bấm Dừng: giữ phần đã nhận, nếu chưa có gì thì ghi chú đã dừng.
+  const messagesContentOrStopped = () => {
+    const last = latest.current[latest.current.length - 1]
+    return last?.content?.trim() ? last.content : '_Đã dừng._'
   }
 
   const insert = (md: string) => {
@@ -116,7 +164,7 @@ export function AssistantPanel({ editor, onClose }: { editor: PlateEditor | null
 
   const field = 'h-8 w-full rounded-md border bg-background px-2 text-sm outline-none focus:border-ring'
   return (
-    <aside className="flex w-[360px] shrink-0 flex-col border-l bg-muted/20 text-sm" aria-label="Trợ lý AI">
+    <aside className="flex w-[360px] max-w-full shrink-0 flex-col border-l bg-muted/20 text-sm max-[900px]:absolute max-[900px]:inset-y-0 max-[900px]:right-0 max-[900px]:z-40 max-[900px]:bg-background max-[900px]:shadow-2xl" aria-label="Trợ lý AI">
       <div className="flex h-12 items-center justify-between border-b px-3">
         <span className="flex items-center gap-2 font-semibold"><Sparkles className="size-4" />Trợ lý AI</span>
         <button className="rounded-md p-1 text-muted-foreground hover:bg-accent" aria-label="Đóng trợ lý" onClick={onClose}><X className="size-4" /></button>
@@ -217,17 +265,34 @@ export function AssistantPanel({ editor, onClose }: { editor: PlateEditor | null
             </div>
           </div>
         )}
-        {messages.map((m, i) => (
-          <div key={i} className={cn('rounded-lg px-3 py-2', m.role === 'user' ? 'ml-6 bg-foreground/5' : m.error ? 'border border-red-200 bg-red-50 text-red-700' : 'border bg-background')}>
-            <div className="whitespace-pre-wrap break-words leading-relaxed">{m.content || (busy && i === messages.length - 1 ? <Loader2 className="size-4 animate-spin text-muted-foreground" /> : '')}</div>
-            {m.role === 'assistant' && !m.error && m.content && !(busy && i === messages.length - 1) && (
-              <div className="mt-2 flex gap-1.5 text-xs">
-                <button className="flex items-center gap-1 rounded-md border px-2 py-1 hover:bg-accent" onClick={() => insert(m.content)}><TextCursorInput className="size-3.5" />Chèn vào bài</button>
-                <button className="flex items-center gap-1 rounded-md border px-2 py-1 hover:bg-accent" onClick={() => copy(i, m.content)}>{copied === i ? <Check className="size-3.5" /> : <ClipboardCopy className="size-3.5" />}{copied === i ? 'Đã chép' : 'Sao chép'}</button>
-              </div>
-            )}
-          </div>
-        ))}
+        {messages.map((m, i) => {
+          const live = busy && i === messages.length - 1
+          if (m.role === 'user') return <div key={i} className="chat-in ml-8 whitespace-pre-wrap break-words rounded-2xl rounded-br-sm bg-foreground/[.06] px-3 py-2">{m.content}</div>
+          if (m.error) return <div key={i} className="chat-in rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-red-700">{m.content}</div>
+          return (
+            <div key={i} className="chat-in space-y-2">
+              {live && (
+                <div className="flex items-center gap-2 text-xs text-muted-foreground" role="status" aria-live="polite">
+                  <Loader2 className="size-3.5 shrink-0 animate-spin" />
+                  <span key={m.progress} className="chat-shimmer min-w-0 truncate">{m.progress || 'Đang trả lời…'}</span>
+                  <span className="ml-auto shrink-0 tabular-nums">{m.startedAt ? seconds(now - m.startedAt) : ''}</span>
+                </div>
+              )}
+              {m.content && (
+                <div className={cn('chat-md rounded-lg border bg-background px-3 py-2 leading-relaxed', live && 'is-streaming')}>
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.content}</ReactMarkdown>
+                </div>
+              )}
+              {!live && m.content && (
+                <div className="flex items-center gap-1.5 text-xs">
+                  <button className="flex items-center gap-1 rounded-md border px-2 py-1 hover:bg-accent" onClick={() => insert(m.content)}><TextCursorInput className="size-3.5" />Chèn vào bài</button>
+                  <button className="flex items-center gap-1 rounded-md border px-2 py-1 hover:bg-accent" onClick={() => copy(i, m.content)}>{copied === i ? <Check className="size-3.5" /> : <ClipboardCopy className="size-3.5" />}{copied === i ? 'Đã chép' : 'Sao chép'}</button>
+                  {m.ms !== undefined && <span className="ml-auto text-muted-foreground">{m.by} · {seconds(m.ms)}</span>}
+                </div>
+              )}
+            </div>
+          )
+        })}
       </div>
 
       <div className="border-t p-3">

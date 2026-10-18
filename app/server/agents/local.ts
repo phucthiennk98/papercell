@@ -6,7 +6,9 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
-type Parsed = { delta?: string; error?: string }
+/** Một mẩu đầu ra đã hiểu: chữ của câu trả lời, dòng trạng thái tiến độ, hoặc lỗi. */
+type Parsed = { delta?: string; progress?: string; error?: string }
+type Parser = { line: (l: string) => Parsed[]; end: () => Parsed[] }
 
 type AgentDef = {
   id: string
@@ -15,40 +17,68 @@ type AgentDef = {
   /** Tham số chạy; nếu promptInArgs thì câu hỏi nằm trong tham số (cần file chạy trực tiếp, không qua shell). */
   args: (prompt: string) => string[]
   promptInArgs?: boolean
-  /** Đọc một dòng đầu ra; null = dòng không mang nội dung. */
-  parse: (line: string) => Parsed | null
+  makeParser: () => Parser
   note: string
 }
 
 const json = (line: string) => { try { return JSON.parse(line) } catch { return null } }
+const short = (s: string, n = 90) => { const t = s.replace(/\s+/g, ' ').trim(); return t.length > n ? t.slice(0, n - 1) + '…' : t }
+const describeCommand = (cmd: string) => (/bai-viet\.md/.test(cmd) ? 'Đang đọc bai-viet.md' : `Đang chạy lệnh: ${short(cmd, 60)}`)
 
 export const AGENTS: AgentDef[] = [
   {
     id: 'claude', label: 'Claude Code', bin: 'claude', note: 'claude -p, chế độ plan (chỉ đọc)',
     args: () => ['-p', '--output-format', 'text', '--permission-mode', 'plan'],
-    parse: (line) => ({ delta: line + '\n' }),
+    makeParser: () => ({ line: (l) => [{ delta: l + '\n' }], end: () => [] }),
   },
   {
     id: 'codex', label: 'Codex', bin: 'codex', note: 'codex exec, sandbox read-only',
     args: () => ['exec', '--json', '-s', 'read-only', '--skip-git-repo-check', '--ephemeral', '-'],
-    parse: (line) => {
-      const e = json(line); if (!e) return null
-      if (e.type === 'item.completed' && e.item?.type === 'agent_message') return { delta: e.item.text + '\n' }
-      if (e.type === 'turn.failed') return { error: e.error?.message ?? 'Codex báo lỗi.' }
-      if (e.type === 'error') return { error: e.message ?? 'Codex báo lỗi.' }
-      return null
+    makeParser: () => {
+      // Codex gửi nhiều agent_message; chỉ cái cuối là câu trả lời, các cái trước là lời dẫn tiến độ.
+      let pending: string | null = null
+      const flush = (): Parsed[] => { const p = pending; pending = null; return p ? [{ delta: p + '\n' }] : [] }
+      return {
+        line: (l) => {
+          const e = json(l); if (!e) return []
+          const item = e.item ?? {}
+          if (e.type === 'turn.started') return [{ progress: 'Đang suy nghĩ…' }]
+          if (e.type === 'item.started' && item.type === 'command_execution') return [{ progress: describeCommand(String(item.command ?? '')) }]
+          if (e.type === 'item.completed' && item.type === 'reasoning') return [{ progress: 'Đang suy nghĩ…' }]
+          if (e.type === 'item.completed' && item.type === 'agent_message') {
+            const out: Parsed[] = pending ? [{ progress: short(pending) }] : []
+            pending = String(item.text ?? '')
+            return out
+          }
+          if (e.type === 'turn.completed') return flush()
+          if (e.type === 'turn.failed') return [{ error: e.error?.message ?? 'Codex báo lỗi.' }]
+          if (e.type === 'error') return [{ error: e.message ?? 'Codex báo lỗi.' }]
+          return []
+        },
+        end: flush,
+      }
     },
   },
   {
     id: 'agy', label: 'Antigravity', bin: 'agy', note: 'agy -p, chế độ plan', promptInArgs: true,
     args: (prompt) => [`-p=${prompt}`, '--output-format', 'stream-json', '--mode', 'plan'],
-    parse: (line) => {
-      const e = json(line); if (!e) return null
-      const s = e.step_update
-      if (e.event === 'step_update' && s?.step_type === 'agent_response' && s.text_delta) return { delta: s.text_delta }
-      if (e.event === 'result' && e.result?.status && e.result.status !== 'SUCCESS') return { error: e.result.error ?? `Antigravity kết thúc với trạng thái ${e.result.status}.` }
-      return null
-    },
+    makeParser: () => ({
+      line: (l) => {
+        const e = json(l); if (!e) return []
+        const s = e.step_update
+        if (e.event === 'init') return [{ progress: 'Đang khởi động Antigravity…' }]
+        if (e.event === 'step_update' && s) {
+          if (s.step_type === 'agent_response') return s.text_delta ? [{ delta: s.text_delta }] : []
+          if (s.step_type !== 'user_input' && s.state === 'ACTIVE') {
+            const t = String(s.step_type ?? '')
+            return [{ progress: /view|read|file/i.test(t) ? 'Đang đọc bai-viet.md' : /plan|think/i.test(t) ? 'Đang suy nghĩ…' : `Đang thực hiện: ${t.replace(/_/g, ' ')}` }]
+          }
+        }
+        if (e.event === 'result' && e.result?.status && e.result.status !== 'SUCCESS') return [{ error: e.result.error ?? `Antigravity kết thúc với trạng thái ${e.result.status}.` }]
+        return []
+      },
+      end: () => [],
+    }),
   },
 ]
 
@@ -112,7 +142,7 @@ Khi được nhờ viết hoặc sửa nội dung, chỉ trả về phần nội
 type Msg = { role: 'user' | 'assistant'; content: string }
 
 /** Chạy một agent cục bộ, trả về stream chữ; lỗi được gửi sau errorMark. */
-export async function agentChat(agentId: string, messages: Msg[], doc: string, signal: AbortSignal, errorMark: string): Promise<Response> {
+export async function agentChat(agentId: string, messages: Msg[], doc: string, signal: AbortSignal, errorMark: string, progressMark: string): Promise<Response> {
   const def = AGENTS.find((a) => a.id === agentId)
   const bin = def && resolveBin(def.bin)
   if (!def || !bin) return Response.json({ error: 'Không tìm thấy agent này trên máy chạy server.' }, { status: 404 })
@@ -130,11 +160,19 @@ export async function agentChat(agentId: string, messages: Msg[], doc: string, s
     async start(ctrl) {
       let sent = false, lastError = ''
       const fail = (m: string) => ctrl.enqueue(enc.encode(errorMark + m))
+      const parser = def.makeParser()
+      const emit = (items: Parsed[]) => items.forEach((p) => {
+        if (p.delta) { sent = true; ctrl.enqueue(enc.encode(p.delta)) }
+        if (p.progress) ctrl.enqueue(enc.encode(progressMark + p.progress + '\n'))
+        if (p.error) lastError = p.error
+      })
+      ctrl.enqueue(enc.encode(progressMark + `Đang mở ${def.label}…\n`))
       try {
         const r = await run(bin.file, def.args(prompt), bin.shell, {
           cwd: dir, input: def.promptInArgs ? undefined : prompt, timeoutMs: 5 * 60_000, signal,
-          onLine: (line) => { const p = def.parse(line); if (p?.delta) { sent = true; ctrl.enqueue(enc.encode(p.delta)) } if (p?.error) lastError = p.error },
+          onLine: (line) => emit(parser.line(line)),
         })
+        emit(parser.end())
         if (!sent && !signal.aborted) fail((lastError || r.stderr.trim().split('\n').slice(-3).join(' ') || `${def.label} không trả lời (mã thoát ${r.code}).`).slice(0, 500))
       } catch (e) { if (!signal.aborted) fail((e as Error).message) }
       finally { ctrl.close(); rm(dir, { recursive: true, force: true }).catch(() => {}) }

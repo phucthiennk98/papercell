@@ -6,7 +6,7 @@ import { Hono } from 'hono'
 import { POST as aiCommand } from './ai/command/route'
 import { POST as aiCopilot } from './ai/copilot/route'
 import { getConnInfo } from '@hono/node-server/conninfo'
-import { assistantChat, ERROR_MARK } from './ai/assistant'
+import { assistantChat, ERROR_MARK, PROGRESS_MARK } from './ai/assistant'
 import { agentChat, detectAgents } from './agents/local'
 import { listModels, readConfig, serverKeys } from './ai/provider'
 
@@ -33,7 +33,7 @@ app.post('/api/agents/chat', async (c) => {
   const b = await c.req.json()
   const messages = (Array.isArray(b.messages) ? b.messages : []).filter((m: any) => (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string')
   if (!messages.length) return c.json({ error: 'Chưa có câu hỏi.' }, 400)
-  return agentChat(String(b.agent), messages, typeof b.doc === 'string' ? b.doc.slice(0, 500_000) : '', c.req.raw.signal, ERROR_MARK)
+  return agentChat(String(b.agent), messages, typeof b.doc === 'string' ? b.doc.slice(0, 500_000) : '', c.req.raw.signal, ERROR_MARK, PROGRESS_MARK)
 })
 app.get('/api/ai/status', (c) => c.json({ serverKeys: serverKeys() }))
 app.post('/api/ai/models', async (c) => {
