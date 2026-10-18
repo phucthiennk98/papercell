@@ -25,32 +25,32 @@ const isLocal = (c: Parameters<typeof getConnInfo>[0]) => {
 }
 app.get('/api/agents', async (c) => {
   if (!isLocal(c)) return c.json({ agents: [], inDocker: existsSync('/.dockerenv'), note: existsSync('/.dockerenv')
-    ? 'Bạn đang mở bản chạy trong Docker, mà container không thấy các agent cài trên máy. Bấm đúp file chay-tren-may.bat trong thư mục dự án rồi mở http://localhost:8780.'
-    : 'Agent trên máy chỉ dùng được khi mở Papercell trên chính máy chạy server.' })
+    ? 'You are using the Docker build, and the container cannot see agents installed on your computer. Double-click chay-tren-may.bat in the project folder, then open http://localhost:8780.'
+    : 'Local agents only work when Papercell is opened on the computer running the server.' })
   return c.json({ agents: await detectAgents(c.req.query('refresh') === '1') })
 })
 app.post('/api/agents/chat', async (c) => {
-  if (!isLocal(c)) return c.json({ error: 'Agent trên máy chỉ dùng được từ chính máy chạy server.' }, 403)
+  if (!isLocal(c)) return c.json({ error: 'Local agents can only be used from the computer running the server.' }, 403)
   const b = await c.req.json()
   const messages = (Array.isArray(b.messages) ? b.messages : []).filter((m: any) => (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string')
-  if (!messages.length) return c.json({ error: 'Chưa có câu hỏi.' }, 400)
+  if (!messages.length) return c.json({ error: 'No question was sent.' }, 400)
   return agentChat(String(b.agent), messages, typeof b.doc === 'string' ? b.doc.slice(0, 500_000) : '', c.req.raw.signal, ERROR_MARK, PROGRESS_MARK)
 })
 // Python trên máy để tính sẵn kịch bản (cũng chỉ cho phép từ chính máy này)
 app.get('/api/python', async (c) => {
-  if (!isLocal(c)) return c.json({ available: false, error: 'Python trên máy chỉ dùng được khi mở Papercell trên chính máy chạy server.' })
+  if (!isLocal(c)) return c.json({ available: false, error: 'Local Python only works when Papercell is opened on the computer running the server.' })
   return c.json(await detectPython())
 })
 app.post('/api/python/grid', async (c) => {
-  if (!isLocal(c)) return c.json({ error: 'Python trên máy chỉ dùng được từ chính máy chạy server.' }, 403)
+  if (!isLocal(c)) return c.json({ error: 'Local Python can only be used from the computer running the server.' }, 403)
   const b = await c.req.json()
-  if (typeof b.code !== 'string' || !Array.isArray(b.combos) || !Array.isArray(b.files)) return c.json({ error: 'Thiếu code, dữ liệu hoặc danh sách tổ hợp.' }, 400)
+  if (typeof b.code !== 'string' || !Array.isArray(b.combos) || !Array.isArray(b.files)) return c.json({ error: 'Missing code, data or the list of combinations.' }, 400)
   return runGrid(b, c.req.raw.signal)
 })
 app.get('/api/ai/status', (c) => c.json({ serverKeys: serverKeys() }))
 app.post('/api/ai/models', async (c) => {
   try { return c.json({ models: await listModels(readConfig(await c.req.json())) }) }
-  catch (e) { return c.json({ error: 'Không lấy được danh sách model: ' + (e as Error).message }, 502) }
+  catch (e) { return c.json({ error: 'Could not load the model list: ' + (e as Error).message }, 502) }
 })
 
 if (process.env.NODE_ENV === 'production') {

@@ -1,34 +1,36 @@
-// Bài "Bộ thử biểu đồ": mỗi loại hình app hỗ trợ có ít nhất một ví dụ, dữ liệu giả lập đủ đa dạng để thử.
-// Số liệu là giả lập (cố định nhờ hạt giống ngẫu nhiên), KHÔNG phải số liệu thật.
+// "Chart gallery" document: at least one example of every figure type the app supports,
+// with varied synthetic data to try things on. The numbers are synthetic (fixed seed), NOT real data.
 import type { DataFile, FigureNode, PapercellDoc } from './editor/types'
 import { codegen, defaultSpec, specParams, type ChartSpec } from './figure/builder'
 import { FIGURE_TEMPLATES, figureFromTemplate } from './figure/templates'
+
+export const GALLERY_TITLE = 'Chart gallery'
 
 function mulberry32(a: number) {
   return () => { a = (a + 0x6d2b79f5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296 }
 }
 
-// Tỉnh/thành: tên, vùng, tọa độ gần đúng; dân số (nghìn người) và các chỉ số là giả lập.
-const TINH: [string, string, number, number, number][] = [
-  ['Hà Nội', 'Đồng bằng sông Hồng', 21.03, 105.85, 8400], ['Hải Phòng', 'Đồng bằng sông Hồng', 20.86, 106.68, 2100],
-  ['Bắc Ninh', 'Đồng bằng sông Hồng', 21.18, 106.07, 1500], ['Nam Định', 'Đồng bằng sông Hồng', 20.43, 106.18, 1880],
-  ['Thái Bình', 'Đồng bằng sông Hồng', 20.45, 106.34, 1870], ['Quảng Ninh', 'Đồng bằng sông Hồng', 20.95, 107.08, 1360],
-  ['Lào Cai', 'Trung du miền núi phía Bắc', 22.48, 103.97, 770], ['Thái Nguyên', 'Trung du miền núi phía Bắc', 21.59, 105.85, 1330],
-  ['Lạng Sơn', 'Trung du miền núi phía Bắc', 21.85, 106.76, 800], ['Điện Biên', 'Trung du miền núi phía Bắc', 21.39, 103.02, 640],
-  ['Thanh Hóa', 'Bắc Trung Bộ', 19.81, 105.78, 3720], ['Nghệ An', 'Bắc Trung Bộ', 18.67, 105.69, 3420],
-  ['Huế', 'Bắc Trung Bộ', 16.46, 107.59, 1160], ['Quảng Bình', 'Bắc Trung Bộ', 17.47, 106.62, 910],
-  ['Đà Nẵng', 'Duyên hải Nam Trung Bộ', 16.05, 108.2, 1220], ['Quảng Nam', 'Duyên hải Nam Trung Bộ', 15.57, 108.47, 1520],
-  ['Bình Định', 'Duyên hải Nam Trung Bộ', 13.78, 109.22, 1500], ['Khánh Hòa', 'Duyên hải Nam Trung Bộ', 12.24, 109.19, 1260],
-  ['Đắk Lắk', 'Tây Nguyên', 12.67, 108.04, 1930], ['Lâm Đồng', 'Tây Nguyên', 11.94, 108.44, 1330],
-  ['Gia Lai', 'Tây Nguyên', 13.98, 108.0, 1590], ['TP Hồ Chí Minh', 'Đông Nam Bộ', 10.78, 106.7, 9400],
-  ['Bình Dương', 'Đông Nam Bộ', 11.0, 106.65, 2760], ['Đồng Nai', 'Đông Nam Bộ', 10.95, 106.82, 3250],
-  ['Bà Rịa - Vũng Tàu', 'Đông Nam Bộ', 10.35, 107.08, 1180], ['Cần Thơ', 'Đồng bằng sông Cửu Long', 10.03, 105.78, 1250],
-  ['An Giang', 'Đồng bằng sông Cửu Long', 10.52, 105.13, 1900], ['Kiên Giang', 'Đồng bằng sông Cửu Long', 10.0, 105.08, 1750],
-  ['Cà Mau', 'Đồng bằng sông Cửu Long', 9.18, 105.15, 1200], ['Long An', 'Đồng bằng sông Cửu Long', 10.54, 106.41, 1730],
+// Provinces: name, region, approximate coordinates; population (thousands) and indicators are synthetic.
+const PROVINCES: [string, string, number, number, number][] = [
+  ['Ha Noi', 'Red River Delta', 21.03, 105.85, 8400], ['Hai Phong', 'Red River Delta', 20.86, 106.68, 2100],
+  ['Bac Ninh', 'Red River Delta', 21.18, 106.07, 1500], ['Nam Dinh', 'Red River Delta', 20.43, 106.18, 1880],
+  ['Thai Binh', 'Red River Delta', 20.45, 106.34, 1870], ['Quang Ninh', 'Red River Delta', 20.95, 107.08, 1360],
+  ['Lao Cai', 'Northern Uplands', 22.48, 103.97, 770], ['Thai Nguyen', 'Northern Uplands', 21.59, 105.85, 1330],
+  ['Lang Son', 'Northern Uplands', 21.85, 106.76, 800], ['Dien Bien', 'Northern Uplands', 21.39, 103.02, 640],
+  ['Thanh Hoa', 'North Central Coast', 19.81, 105.78, 3720], ['Nghe An', 'North Central Coast', 18.67, 105.69, 3420],
+  ['Hue', 'North Central Coast', 16.46, 107.59, 1160], ['Quang Binh', 'North Central Coast', 17.47, 106.62, 910],
+  ['Da Nang', 'South Central Coast', 16.05, 108.2, 1220], ['Quang Nam', 'South Central Coast', 15.57, 108.47, 1520],
+  ['Binh Dinh', 'South Central Coast', 13.78, 109.22, 1500], ['Khanh Hoa', 'South Central Coast', 12.24, 109.19, 1260],
+  ['Dak Lak', 'Central Highlands', 12.67, 108.04, 1930], ['Lam Dong', 'Central Highlands', 11.94, 108.44, 1330],
+  ['Gia Lai', 'Central Highlands', 13.98, 108.0, 1590], ['Ho Chi Minh City', 'Southeast', 10.78, 106.7, 9400],
+  ['Binh Duong', 'Southeast', 11.0, 106.65, 2760], ['Dong Nai', 'Southeast', 10.95, 106.82, 3250],
+  ['Ba Ria - Vung Tau', 'Southeast', 10.35, 107.08, 1180], ['Can Tho', 'Mekong Delta', 10.03, 105.78, 1250],
+  ['An Giang', 'Mekong Delta', 10.52, 105.13, 1900], ['Kien Giang', 'Mekong Delta', 10.0, 105.08, 1750],
+  ['Ca Mau', 'Mekong Delta', 9.18, 105.15, 1200], ['Long An', 'Mekong Delta', 10.54, 106.41, 1730],
 ]
-const VUNG = [...new Set(TINH.map((t) => t[1]))]
-const PHUONG_TIEN = ['Xe máy', 'Ô tô', 'Xe buýt', 'Đi bộ', 'Xe đạp', 'Gọi xe công nghệ']
-const NHOM_TUOI = ['18–24', '25–34', '35–44', '45–54', '55+']
+const REGIONS = [...new Set(PROVINCES.map((t) => t[1]))]
+const MODES = ['Motorbike', 'Car', 'Bus', 'Walking', 'Bicycle', 'Ride-hailing']
+const AGE_GROUPS = ['18–24', '25–34', '35–44', '45–54', '55+']
 
 function makeData(): DataFile[] {
   const rnd = mulberry32(42)
@@ -40,59 +42,59 @@ function makeData(): DataFile[] {
     return xs[xs.length - 1]
   }
 
-  // 1. Tỉnh/thành
-  const tinh = TINH.map(([ten, vung, lat, lon, dan_so]) => {
-    const do_thi = Math.min(0.95, Math.max(0.12, 0.2 + dan_so / 12000 + normal(0, 0.08)))
-    return { ten, vung, lat, lon, dan_so, ty_le_do_thi: +do_thi.toFixed(2), thu_nhap: +(4 + 9 * do_thi + normal(0, 0.8)).toFixed(1) }
+  // 1. Provinces
+  const provinces = PROVINCES.map(([name, region, lat, lon, population]) => {
+    const urban = Math.min(0.95, Math.max(0.12, 0.2 + population / 12000 + normal(0, 0.08)))
+    return { name, region, lat, lon, population, urban_share: +urban.toFixed(2), income: +(4 + 9 * urban + normal(0, 0.8)).toFixed(1) }
   })
 
-  // 2. Chuỗi theo tháng 2023–2025 cho từng vùng: có xu hướng tăng, mùa vụ (Tết) và nhiễu
-  const thang: string[] = ['thang,vung,chi_tieu,giao_dich']
-  VUNG.forEach((v, k) => {
+  // 2. Monthly series 2023–2025 per region: upward trend, Tet seasonality and noise
+  const monthly: string[] = ['month,region,spending,transactions']
+  REGIONS.forEach((v, k) => {
     const base = 40 + 12 * k
     for (let i = 0; i < 36; i++) {
       const d = new Date(Date.UTC(2023, i, 1)).toISOString().slice(0, 10)
-      const mua = i % 12 === 0 || i % 12 === 1 ? 1.25 : 1
-      const chi = base * (1 + 0.012 * i) * mua + normal(0, 3)
-      thang.push([d, v, chi.toFixed(1), Math.round(chi * (18 + normal(0, 1.5)))].join(','))
+      const season = i % 12 === 0 || i % 12 === 1 ? 1.25 : 1
+      const spend = base * (1 + 0.012 * i) * season + normal(0, 3)
+      monthly.push([d, v, spend.toFixed(1), Math.round(spend * (18 + normal(0, 1.5)))].join(','))
     }
   })
 
-  // 3. Khảo sát hành vi đi lại: 1.500 người, có tọa độ quanh tỉnh nơi sống
-  const ks: string[] = ['id,tinh,vung,lat,lon,tuoi,nhom_tuoi,gioi,thu_nhap,phuong_tien,so_chuyen_tuan,thoi_gian_phut,diem_hai_long']
-  const wTinh = tinh.map((t) => t.dan_so)
+  // 3. Travel behaviour survey: 1,500 people, with coordinates around their province
+  const survey: string[] = ['id,province,region,lat,lon,age,age_group,gender,income,mode,trips_per_week,travel_min,satisfaction']
+  const w = provinces.map((t) => t.population)
   for (let i = 0; i < 1500; i++) {
-    const t = pick(tinh, wTinh)
-    const tuoi = Math.round(Math.min(75, Math.max(18, normal(37, 12))))
-    const nhom = tuoi < 25 ? NHOM_TUOI[0] : tuoi < 35 ? NHOM_TUOI[1] : tuoi < 45 ? NHOM_TUOI[2] : tuoi < 55 ? NHOM_TUOI[3] : NHOM_TUOI[4]
-    const thu = Math.max(2, Math.exp(normal(Math.log(t.thu_nhap), 0.45)))
-    const pt = pick(PHUONG_TIEN, [60, 6 + thu * 1.2, 8 * t.ty_le_do_thi, 6, 4, 5 + 10 * t.ty_le_do_thi * (tuoi < 35 ? 1.5 : 0.6)])
-    const tg = Math.max(5, normal({ 'Xe máy': 25, 'Ô tô': 35, 'Xe buýt': 48, 'Đi bộ': 15, 'Xe đạp': 20, 'Gọi xe công nghệ': 28 }[pt]!, 9))
-    const diem = Math.round(Math.min(10, Math.max(1, normal(7.5 - tg / 25 + (pt === 'Ô tô' ? 0.6 : 0), 1.4))))
-    ks.push([i + 1, t.ten, t.vung, (t.lat + normal(0, 0.12)).toFixed(4), (t.lon + normal(0, 0.12)).toFixed(4), tuoi, nhom, rnd() < 0.5 ? 'Nam' : 'Nữ',
-      thu.toFixed(1), pt, Math.max(1, Math.round(normal(9, 3))), tg.toFixed(0), diem].join(','))
+    const t = pick(provinces, w)
+    const age = Math.round(Math.min(75, Math.max(18, normal(37, 12))))
+    const group = age < 25 ? AGE_GROUPS[0] : age < 35 ? AGE_GROUPS[1] : age < 45 ? AGE_GROUPS[2] : age < 55 ? AGE_GROUPS[3] : AGE_GROUPS[4]
+    const inc = Math.max(2, Math.exp(normal(Math.log(t.income), 0.45)))
+    const mode = pick(MODES, [60, 6 + inc * 1.2, 8 * t.urban_share, 6, 4, 5 + 10 * t.urban_share * (age < 35 ? 1.5 : 0.6)])
+    const minutes = Math.max(5, normal({ Motorbike: 25, Car: 35, Bus: 48, Walking: 15, Bicycle: 20, 'Ride-hailing': 28 }[mode]!, 9))
+    const score = Math.round(Math.min(10, Math.max(1, normal(7.5 - minutes / 25 + (mode === 'Car' ? 0.6 : 0), 1.4))))
+    survey.push([i + 1, t.name, t.region, (t.lat + normal(0, 0.12)).toFixed(4), (t.lon + normal(0, 0.12)).toFixed(4), age, group, rnd() < 0.5 ? 'Male' : 'Female',
+      inc.toFixed(1), mode, Math.max(1, Math.round(normal(9, 3))), minutes.toFixed(0), score].join(','))
   }
 
-  // 4. Lưới ô 1° × 1° (GeoJSON) phủ các tỉnh: thuộc tính là số người khảo sát và thu nhập trung bình trong ô
-  const rows = ks.slice(1).map((r) => r.split(','))
-  const cells = new Map<string, { n: number; tn: number }>()
+  // 4. 1° × 1° grid cells (GeoJSON) over the provinces: number of respondents and mean income per cell
+  const rows = survey.slice(1).map((r) => r.split(','))
+  const cells = new Map<string, { n: number; inc: number }>()
   for (const r of rows) {
     const k = `${Math.floor(+r[3])},${Math.floor(+r[4])}`
-    const c = cells.get(k) ?? { n: 0, tn: 0 }; c.n++; c.tn += +r[8]; cells.set(k, c)
+    const c = cells.get(k) ?? { n: 0, inc: 0 }; c.n++; c.inc += +r[8]; cells.set(k, c)
   }
   const features = [...cells].map(([k, c]) => {
     const [la, lo] = k.split(',').map(Number)
     return {
-      type: 'Feature', properties: { o: `${la}°N ${lo}°E`, so_nguoi: c.n, thu_nhap_tb: +(c.tn / c.n).toFixed(1) },
+      type: 'Feature', properties: { cell: `${la}°N ${lo}°E`, respondents: c.n, mean_income: +(c.inc / c.n).toFixed(1) },
       geometry: { type: 'Polygon', coordinates: [[[lo, la], [lo + 1, la], [lo + 1, la + 1], [lo, la + 1], [lo, la]]] },
     }
   })
 
   return [
-    { name: 'tinh.csv', kind: 'csv', content: ['ten,vung,lat,lon,dan_so,ty_le_do_thi,thu_nhap', ...tinh.map((t) => [t.ten, t.vung, t.lat, t.lon, t.dan_so, t.ty_le_do_thi, t.thu_nhap].join(','))].join('\n') },
-    { name: 'thang.csv', kind: 'csv', content: thang.join('\n') },
-    { name: 'khao_sat.csv', kind: 'csv', content: ks.join('\n') },
-    { name: 'o_luoi.geojson', kind: 'json', content: JSON.stringify({ type: 'FeatureCollection', features }) },
+    { name: 'provinces.csv', kind: 'csv', content: ['name,region,lat,lon,population,urban_share,income', ...provinces.map((t) => [t.name, t.region, t.lat, t.lon, t.population, t.urban_share, t.income].join(','))].join('\n') },
+    { name: 'monthly.csv', kind: 'csv', content: monthly.join('\n') },
+    { name: 'survey.csv', kind: 'csv', content: survey.join('\n') },
+    { name: 'grid_cells.geojson', kind: 'json', content: JSON.stringify({ type: 'FeatureCollection', features }) },
   ]
 }
 
@@ -109,175 +111,175 @@ const p = (text: string) => ({ type: 'p', children: [{ text }] })
 const h = (level: 2 | 3, text: string) => ({ type: 'h' + level, children: [{ text }] })
 const cols = (...columns: FigureNode[]) => ({ type: 'column_group', children: columns.map((f) => ({ type: 'column', width: `${100 / columns.length}%`, children: [f] })) })
 
-const STACK_JS = `// Cột chồng 100%: cơ cấu phương tiện theo nhóm tuổi (tự viết bằng Observable Plot)
-const ds = data.khao_sat
+const STACK_JS = `// 100% stacked bars: travel mode share by age group (hand-written Observable Plot)
+const ds = data.survey
 expose(ds.length)
 return Plot.plot({
   width, height: 300, marginLeft: 50,
-  x: { label: "Nhóm tuổi", domain: ["18–24", "25–34", "35–44", "45–54", "55+"] },
-  y: { label: "Tỉ lệ", percent: true },
+  x: { label: "Age group", domain: ["18–24", "25–34", "35–44", "45–54", "55+"] },
+  y: { label: "Share", percent: true },
   color: { legend: true, scheme: "tableau10" },
   marks: [
-    Plot.barY(ds, Plot.groupX({ y: "proportion-facet" }, { x: "nhom_tuoi", fill: "phuong_tien", offset: "normalize", tip: true })),
+    Plot.barY(ds, Plot.groupX({ y: "proportion-facet" }, { x: "age_group", fill: "mode", offset: "normalize", tip: true })),
     Plot.ruleY([0]),
   ],
 })`
 
-const DOT_JS = `// Biểu đồ chấm (dot plot) có thanh trượt: tỉnh có thu nhập trên ngưỡng được tô đậm
-const ds = data.tinh.slice().sort((a, b) => b.thu_nhap - a.thu_nhap)
-expose(ds.filter(d => d.thu_nhap >= nguong).length)
+const DOT_JS = `// Dot plot with a slider: provinces with income above the threshold are highlighted
+const ds = data.provinces.slice().sort((a, b) => b.income - a.income)
+expose(ds.filter(d => d.income >= threshold).length)
 return Plot.plot({
   width, height: 560, marginLeft: 130,
-  x: { label: "Thu nhập (triệu đồng/tháng)", grid: true },
-  y: { label: null, domain: ds.map(d => d.ten) },
+  x: { label: "Income (million VND / month)", grid: true },
+  y: { label: null, domain: ds.map(d => d.name) },
   marks: [
-    Plot.ruleX([nguong], { stroke: "#e45d2f", strokeDasharray: "4,3" }),
-    Plot.ruleY(ds, { y: "ten", x1: 0, x2: "thu_nhap", stroke: "#e5e7eb" }),
-    Plot.dot(ds, { y: "ten", x: "thu_nhap", r: 5, fill: d => d.thu_nhap >= nguong ? "#2a78d6" : "#cbd5e1", tip: true }),
+    Plot.ruleX([threshold], { stroke: "#e45d2f", strokeDasharray: "4,3" }),
+    Plot.ruleY(ds, { y: "name", x1: 0, x2: "income", stroke: "#e5e7eb" }),
+    Plot.dot(ds, { y: "name", x: "income", r: 5, fill: d => d.income >= threshold ? "#2a78d6" : "#cbd5e1", tip: true }),
   ],
 })`
 
-const DOT_PY = `tinh = data["tinh"]
-ket_qua = int((tinh.thu_nhap >= nguong).sum())`
+const DOT_PY = `provinces = data["provinces"]
+ket_qua = int((provinces.income >= threshold).sum())`
 
-const RIDGE_JS = `// Đường mật độ (KDE) thời gian đi lại theo phương tiện, độ mượt chỉnh bằng thanh trượt
-const ds = data.khao_sat
+const DENSITY_JS = `// Density lines of travel time by mode; smoothness set by the slider
+const ds = data.survey
 expose(ds.length)
 return Plot.plot({
   width, height: 300,
-  x: { label: "Thời gian đi lại (phút)" },
-  y: { label: "Mật độ", grid: true },
+  x: { label: "Travel time (minutes)" },
+  y: { label: "Density", grid: true },
   color: { legend: true, scheme: "tableau10" },
   marks: [
-    Plot.areaY(ds, Plot.normalizeY("sum", Plot.binX({ y: "count" }, { x: "thoi_gian_phut", fill: "phuong_tien", thresholds: so_khoang, fillOpacity: 0.15, curve: "basis" }))),
-    Plot.lineY(ds, Plot.normalizeY("sum", Plot.binX({ y: "count" }, { x: "thoi_gian_phut", stroke: "phuong_tien", thresholds: so_khoang, curve: "basis" }))),
+    Plot.areaY(ds, Plot.normalizeY("sum", Plot.binX({ y: "count" }, { x: "travel_min", fill: "mode", thresholds: bins, fillOpacity: 0.15, curve: "basis" }))),
+    Plot.lineY(ds, Plot.normalizeY("sum", Plot.binX({ y: "count" }, { x: "travel_min", stroke: "mode", thresholds: bins, curve: "basis" }))),
   ],
 })`
 
-const CORR_JS = `// Ma trận tương quan giữa các biến số của khảo sát (tính bằng d3)
-const cot = ["tuoi", "thu_nhap", "so_chuyen_tuan", "thoi_gian_phut", "diem_hai_long"]
-const ds = data.khao_sat
+const CORR_JS = `// Correlation matrix of the survey's numeric variables (computed with d3)
+const vars = ["age", "income", "trips_per_week", "travel_min", "satisfaction"]
+const ds = data.survey
 const r = (a, b) => {
   const ma = d3.mean(ds, d => d[a]), mb = d3.mean(ds, d => d[b])
   const s = d3.sum(ds, d => (d[a] - ma) * (d[b] - mb))
   return s / Math.sqrt(d3.sum(ds, d => (d[a] - ma) ** 2) * d3.sum(ds, d => (d[b] - mb) ** 2))
 }
-const m = cot.flatMap(a => cot.map(b => ({ a, b, r: +r(a, b).toFixed(2) })))
+const m = vars.flatMap(a => vars.map(b => ({ a, b, r: +r(a, b).toFixed(2) })))
 expose(m)
 return Plot.plot({
   width, height: 320, marginLeft: 110, marginBottom: 60,
-  x: { label: null, tickRotate: -25, domain: cot }, y: { label: null, domain: cot },
-  color: { scheme: "rdbu", domain: [-1, 1], legend: true, label: "Hệ số tương quan" },
+  x: { label: null, tickRotate: -25, domain: vars }, y: { label: null, domain: vars },
+  color: { scheme: "rdbu", domain: [-1, 1], legend: true, label: "Correlation" },
   marks: [
     Plot.cell(m, { x: "a", y: "b", fill: "r", tip: true }),
-    Plot.text(m, { x: "a", y: "b", text: d => d.r.toLocaleString("vi-VN"), fill: d => Math.abs(d.r) > 0.5 ? "white" : "black" }),
+    Plot.text(m, { x: "a", y: "b", text: d => d.r.toFixed(2), fill: d => Math.abs(d.r) > 0.5 ? "white" : "black" }),
   ],
 })`
 
-const CORR_PY = `cot = ["tuoi", "thu_nhap", "so_chuyen_tuan", "thoi_gian_phut", "diem_hai_long"]
-c = data["khao_sat"][cot].corr().round(2)
-ket_qua = [{"a": a, "b": b, "r": float(c.loc[b, a])} for a in cot for b in cot]`
+const CORR_PY = `vars = ["age", "income", "trips_per_week", "travel_min", "satisfaction"]
+c = data["survey"][vars].corr().round(2)
+ket_qua = [{"a": a, "b": b, "r": float(c.loc[b, a])} for a in vars for b in vars]`
 
-const WAFFLE_JS = `// Biểu đồ ô vuông (waffle): mỗi ô ≈ 1% người được khảo sát
-const dem = d3.rollups(data.khao_sat, v => v.length, d => d.phuong_tien).sort((a, b) => b[1] - a[1])
-const tong = d3.sum(dem, d => d[1])
-let o = []
-dem.forEach(([pt, n]) => { for (let i = 0; i < Math.round(100 * n / tong); i++) o.push({ pt }) })
-o = o.slice(0, 100).map((d, i) => ({ ...d, cot: i % 10, hang: Math.floor(i / 10) }))
-expose(dem)
+const WAFFLE_JS = `// Waffle chart: each square ≈ 1% of respondents
+const counts = d3.rollups(data.survey, v => v.length, d => d.mode).sort((a, b) => b[1] - a[1])
+const total = d3.sum(counts, d => d[1])
+let cells = []
+counts.forEach(([mode, n]) => { for (let i = 0; i < Math.round(100 * n / total); i++) cells.push({ mode }) })
+cells = cells.slice(0, 100).map((d, i) => ({ ...d, col: i % 10, row: Math.floor(i / 10) }))
+expose(counts)
 return Plot.plot({
   width: Math.min(width, 420), height: 330, padding: 0.12,
   x: { axis: null }, y: { axis: null, reverse: true },
   color: { legend: true, scheme: "tableau10" },
-  marks: [Plot.cell(o, { x: "cot", y: "hang", fill: "pt", rx: 3, tip: true })],
+  marks: [Plot.cell(cells, { x: "col", y: "row", fill: "mode", rx: 3, tip: true })],
 })`
 
-const TREND_JS = `// Đường xu hướng: trung bình trượt và dải min–max trong cửa sổ (Đông Nam Bộ)
-const goc = data.thang.filter(d => d.vung === "Đông Nam Bộ")
-const cua = (i, f) => f(goc.slice(Math.max(0, i - cua_so + 1), i + 1), d => d.chi_tieu)
-const ds = goc.map((d, i) => ({ ...d, thap: cua(i, d3.min), cao: cua(i, d3.max), tb: cua(i, d3.mean) }))
-expose(ds.map(d => +d.tb.toFixed(2)))
+const TREND_JS = `// Trend line: moving average with a min–max band over the window (Southeast region)
+const raw = data.monthly.filter(d => d.region === "Southeast")
+const win = (i, f) => f(raw.slice(Math.max(0, i - window_size + 1), i + 1), d => d.spending)
+const ds = raw.map((d, i) => ({ ...d, low: win(i, d3.min), high: win(i, d3.max), avg: win(i, d3.mean) }))
+expose(ds.map(d => +d.avg.toFixed(2)))
 return Plot.plot({
   width, height: 280,
-  x: { label: "Tháng" }, y: { label: "Chi tiêu (tỉ đồng)", grid: true },
+  x: { label: "Month" }, y: { label: "Spending (billion VND)", grid: true },
   marks: [
-    Plot.areaY(ds, { x: "thang", y1: "thap", y2: "cao", fill: "#dbeafe" }),
-    Plot.line(ds, { x: "thang", y: "chi_tieu", stroke: "#94a3b8" }),
-    Plot.line(ds, { x: "thang", y: "tb", stroke: "#2a78d6", strokeWidth: 2.5 }),
-    Plot.dot(ds, { x: "thang", y: "chi_tieu", r: 2, fill: "#94a3b8", tip: true }),
+    Plot.areaY(ds, { x: "month", y1: "low", y2: "high", fill: "#dbeafe" }),
+    Plot.line(ds, { x: "month", y: "spending", stroke: "#94a3b8" }),
+    Plot.line(ds, { x: "month", y: "avg", stroke: "#2a78d6", strokeWidth: 2.5 }),
+    Plot.dot(ds, { x: "month", y: "spending", r: 2, fill: "#94a3b8", tip: true }),
   ],
 })`
 
-const HTML_JS = `// Thẻ số liệu bằng HTML (không phải biểu đồ): tóm tắt nhanh dữ liệu khảo sát
-const ds = data.khao_sat
-const the = [
-  ["Người trả lời", ds.length.toLocaleString("vi-VN"), ""],
-  ["Thu nhập trung vị", d3.median(ds, d => d.thu_nhap).toLocaleString("vi-VN", { maximumFractionDigits: 1 }), "triệu/tháng"],
-  ["Thời gian đi lại TB", Math.round(d3.mean(ds, d => d.thoi_gian_phut)), "phút"],
-  ["Hài lòng TB", d3.mean(ds, d => d.diem_hai_long).toLocaleString("vi-VN", { maximumFractionDigits: 1 }), "/ 10"],
+const CARDS_JS = `// KPI cards in HTML (not a chart): a quick summary of the survey
+const ds = data.survey
+const cards = [
+  ["Respondents", ds.length.toLocaleString("en-US"), ""],
+  ["Median income", d3.median(ds, d => d.income).toFixed(1), "million VND / month"],
+  ["Mean travel time", Math.round(d3.mean(ds, d => d.travel_min)), "minutes"],
+  ["Mean satisfaction", d3.mean(ds, d => d.satisfaction).toFixed(1), "/ 10"],
 ]
-expose(the.map(t => t[1]))
-return \`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;padding:4px">\${the.map(([t, v, dv]) =>
+expose(cards.map(t => t[1]))
+return \`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;padding:4px">\${cards.map(([t, v, unit]) =>
   \`<div style="border:1px solid #e5e7eb;border-radius:10px;padding:12px 14px"><div style="font-size:12px;color:#6b7280">\${pc.esc(t)}</div>
-   <div style="font-size:24px;font-weight:600;margin-top:4px">\${v} <span style="font-size:12px;font-weight:400;color:#6b7280">\${dv}</span></div></div>\`).join("")}</div>\``
+   <div style="font-size:24px;font-weight:600;margin-top:4px">\${v} <span style="font-size:12px;font-weight:400;color:#6b7280">\${unit}</span></div></div>\`).join("")}</div>\``
 
 export function makeGallery(): PapercellDoc {
   n = 0
   return {
     version: 3,
-    meta: { title: 'Bộ thử biểu đồ', authors: 'Dữ liệu giả lập · Papercell', date: '2026-10-18' },
+    meta: { title: GALLERY_TITLE, authors: 'Synthetic data · Papercell', date: '2026-10-18' },
     data: makeData(),
     content: [
-      p('Bài này gom mọi loại hình Papercell đang hỗ trợ để thử nhanh. Dữ liệu (bấm nút "Dữ liệu" ở trên) đều là giả lập: 30 tỉnh/thành, chuỗi chi tiêu theo tháng của 7 vùng, khảo sát 1.500 người và một lưới ô GeoJSON.'),
-      p('Mỗi hình ở phần 1 và 2 tạo bằng tab Thiết kế (chọn cột, không cần code): mở hình (✎) để đổi cột, loại hình, cách gộp. Phần 4 là hình viết code tay.'),
-      h(2, '1. Biểu đồ cơ bản (tab Thiết kế)'),
+      p('This document collects every kind of figure Papercell supports, for quick testing. All data (see the "Data" button above) is synthetic: 30 provinces, monthly spending for 7 regions, a survey of 1,500 people and a GeoJSON grid.'),
+      p('Figures in sections 1 and 2 are built with the Design tab (pick columns, no code): open a figure (✎) to change columns, chart type or aggregation. Sections 3 and 4 are written in code.'),
+      h(2, '1. Basic charts (Design tab)'),
       cols(
-        specFig('Cột: tổng dân số theo vùng.', { data: 'tinh', type: 'bar', x: 'vung', y: 'dan_so', agg: 'sum', sort: 'desc', yLabel: 'Dân số (nghìn người)' }),
-        specFig('Thanh ngang: thu nhập trung bình theo vùng.', { data: 'tinh', type: 'barh', y: 'vung', x: 'thu_nhap', agg: 'mean', sort: 'desc', xLabel: 'Thu nhập (triệu/tháng)' }),
+        specFig('Bar: total population by region.', { data: 'provinces', type: 'bar', x: 'region', y: 'population', agg: 'sum', sort: 'desc', yLabel: 'Population (thousands)' }),
+        specFig('Horizontal bar: mean income by region.', { data: 'provinces', type: 'barh', y: 'region', x: 'income', agg: 'mean', sort: 'desc', xLabel: 'Income (million VND / month)' }),
       ),
       cols(
-        specFig('Đường: chi tiêu theo tháng, mỗi vùng một đường.', { data: 'thang', type: 'line', x: 'thang', y: 'chi_tieu', color: 'vung', agg: 'sum' }),
-        specFig('Vùng chồng: số giao dịch theo tháng.', { data: 'thang', type: 'area', x: 'thang', y: 'giao_dich', color: 'vung', agg: 'sum' }),
+        specFig('Line: monthly spending, one line per region.', { data: 'monthly', type: 'line', x: 'month', y: 'spending', color: 'region', agg: 'sum' }),
+        specFig('Stacked area: monthly transactions.', { data: 'monthly', type: 'area', x: 'month', y: 'transactions', color: 'region', agg: 'sum' }),
       ),
       cols(
-        specFig('Phân tán: tỉ lệ đô thị và thu nhập, cỡ điểm theo dân số.', { data: 'tinh', type: 'scatter', x: 'ty_le_do_thi', y: 'thu_nhap', color: 'vung', size: 'dan_so' }),
-        specFig('Histogram: phân bố thu nhập theo giới.', { data: 'khao_sat', type: 'histogram', x: 'thu_nhap', color: 'gioi', bins: 40 }),
+        specFig('Scatter: urban share vs income, dot size by population.', { data: 'provinces', type: 'scatter', x: 'urban_share', y: 'income', color: 'region', size: 'population' }),
+        specFig('Histogram: income distribution by gender.', { data: 'survey', type: 'histogram', x: 'income', color: 'gender', bins: 40 }),
       ),
       cols(
-        specFig('Hộp: điểm hài lòng theo phương tiện.', { data: 'khao_sat', type: 'box', y: 'diem_hai_long', x: 'phuong_tien' }),
-        specFig('Bản đồ nhiệt ô: số người theo nhóm tuổi × phương tiện.', { data: 'khao_sat', type: 'heatmap', x: 'nhom_tuoi', y: 'phuong_tien', agg: 'count', scheme: 'purples' }),
+        specFig('Box plot: satisfaction by travel mode.', { data: 'survey', type: 'box', y: 'satisfaction', x: 'mode' }),
+        specFig('Heatmap: respondents by age group × travel mode.', { data: 'survey', type: 'heatmap', x: 'age_group', y: 'mode', agg: 'count', scheme: 'purples' }),
       ),
-      specFig('Chia ô (facet): phương tiện theo từng vùng.', { data: 'khao_sat', type: 'bar', x: 'phuong_tien', facet: 'vung', agg: 'count' }),
+      specFig('Facets: travel mode in each region.', { data: 'survey', type: 'bar', x: 'mode', facet: 'region', agg: 'count' }),
       cols(
-        specFig('Bảng: thu nhập trung bình theo vùng.', { data: 'khao_sat', type: 'table', x: 'vung', y: 'thu_nhap', agg: 'mean', sort: 'desc' }),
-        specFig('Bảng: số người theo phương tiện.', { data: 'khao_sat', type: 'table', x: 'phuong_tien', agg: 'count', sort: 'desc' }),
+        specFig('Table: mean income by region.', { data: 'survey', type: 'table', x: 'region', y: 'income', agg: 'mean', sort: 'desc' }),
+        specFig('Table: respondents by travel mode.', { data: 'survey', type: 'table', x: 'mode', agg: 'count', sort: 'desc' }),
       ),
-      specFig('Bảng: các dòng đầu của dữ liệu tỉnh (cuộn ngang nếu hẹp).', { data: 'tinh', type: 'table' }),
-      h(2, '2. Bản đồ (MapLibre, nền OpenFreeMap)'),
-      specFig('Bản đồ điểm: tỉnh/thành, màu theo vùng, cỡ theo dân số.', { data: 'tinh', type: 'map-points', lat: 'lat', lon: 'lon', color: 'vung', size: 'dan_so', basemap: 'light' }),
+      specFig('Table: first rows of the province data (scrolls sideways when narrow).', { data: 'provinces', type: 'table' }),
+      h(2, '2. Maps (MapLibre, OpenFreeMap basemaps)'),
+      specFig('Point map: provinces, colored by region, sized by population.', { data: 'provinces', type: 'map-points', lat: 'lat', lon: 'lon', color: 'region', size: 'population', basemap: 'light' }),
       cols(
-        specFig('Bản đồ nhiệt: nơi ở của người được khảo sát.', { data: 'khao_sat', type: 'map-heat', lat: 'lat', lon: 'lon', basemap: 'dark' }),
-        specFig('Tô màu vùng (GeoJSON): số người khảo sát trong mỗi ô 1°.', { data: 'o_luoi', type: 'map-regions', color: 'so_nguoi', scheme: 'ylorrd', basemap: 'streets' }),
+        specFig('Heat map: where survey respondents live.', { data: 'survey', type: 'map-heat', lat: 'lat', lon: 'lon', basemap: 'dark' }),
+        specFig('Choropleth (GeoJSON): respondents in each 1° cell.', { data: 'grid_cells', type: 'map-regions', color: 'respondents', scheme: 'ylorrd', basemap: 'streets' }),
       ),
-      h(2, '3. Mẫu có sẵn (nút Hình)'),
-      p('Các mẫu dùng dữ liệu minh họa riêng, có thanh trượt. Mẫu "Mô hình Python" cần mở tab Tính sẵn và bấm Chạy để có hình.'),
+      h(2, '3. Built-in templates (Figure button)'),
+      p('Templates carry their own sample data inside the code and have sliders. The "Python model" template needs the Precompute tab: press Run to get a figure.'),
       cols(tplFig('line'), tplFig('scatter')),
       cols(tplFig('histogram'), tplFig('hexbin')),
       tplFig('model'),
-      h(2, '4. Hình viết code tay (Observable Plot, d3, HTML)'),
-      codeFig('Thẻ số liệu HTML.', HTML_JS),
+      h(2, '4. Hand-written code (Observable Plot, d3, HTML)'),
+      codeFig('KPI cards in HTML.', CARDS_JS),
       cols(
-        codeFig('Cột chồng 100%: cơ cấu phương tiện theo nhóm tuổi.', STACK_JS),
-        codeFig('Ô vuông (waffle): mỗi ô ≈ 1% người trả lời.', WAFFLE_JS),
+        codeFig('100% stacked bars: travel mode share by age group.', STACK_JS),
+        codeFig('Waffle chart: each square ≈ 1% of respondents.', WAFFLE_JS),
       ),
-      codeFig('Biểu đồ chấm: thu nhập theo tỉnh, ngưỡng chỉnh bằng thanh trượt.', DOT_JS,
-        [{ name: 'nguong', label: 'Ngưỡng thu nhập', min: 4, max: 12, step: 0.5, value: 8, unit: 'triệu' }], DOT_PY),
+      codeFig('Dot plot: income by province, threshold set by a slider.', DOT_JS,
+        [{ name: 'threshold', label: 'Income threshold', min: 4, max: 12, step: 0.5, value: 8, unit: 'M VND' }], DOT_PY),
       cols(
-        codeFig('Đường mật độ thời gian đi lại theo phương tiện.', RIDGE_JS, [{ name: 'so_khoang', label: 'Số khoảng', min: 10, max: 60, step: 5, value: 30 }]),
-        codeFig('Ma trận tương quan (có Python gốc để kiểm chứng).', CORR_JS, [], CORR_PY),
+        codeFig('Density of travel time by mode.', DENSITY_JS, [{ name: 'bins', label: 'Bins', min: 10, max: 60, step: 5, value: 30 }]),
+        codeFig('Correlation matrix (with original Python to verify).', CORR_JS, [], CORR_PY),
       ),
-      codeFig('Xu hướng có trung bình trượt (Đông Nam Bộ).', TREND_JS, [{ name: 'cua_so', label: 'Cửa sổ trượt', min: 1, max: 12, step: 1, value: 3, unit: 'tháng' }]),
-      p('Thêm hình: bấm nút "Hình" trên thanh công cụ, gõ / ở dòng trống, hoặc bấm + cạnh tay cầm ⠿ bên trái mỗi khối.'),
+      codeFig('Trend with moving average (Southeast).', TREND_JS, [{ name: 'window_size', label: 'Moving window', min: 1, max: 12, step: 1, value: 3, unit: 'months' }]),
+      p('Add a figure: use the "Figure" button on the toolbar, type / on an empty line, or click + next to the ⠿ handle left of any block.'),
     ],
   }
 }

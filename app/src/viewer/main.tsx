@@ -20,7 +20,7 @@ const EMPTY = '__PC' + '_DOC__'
 
 async function readDoc(): Promise<PapercellDoc> {
   const raw = document.getElementById('papercell-doc')?.textContent?.trim() ?? ''
-  if (!raw || raw === EMPTY) throw new Error('File này chưa có bài viết. Hãy xuất từ Papercell bằng nút "Xuất HTML".')
+  if (!raw || raw === EMPTY) throw new Error('This file has no document in it. Export one from Papercell with the "Export HTML" button.')
   return JSON.parse(await unpackText(raw))
 }
 
@@ -35,8 +35,8 @@ function Viewer({ doc }: { doc: PapercellDoc }) {
       <FigureNumbers.Provider value={figs}>
         <div className="pv">
           {headings.length > 1 && (
-            <nav className="pv-toc" aria-label="Mục lục">
-              <b>Mục lục</b>
+            <nav className="pv-toc" aria-label="Contents">
+              <b>Contents</b>
               {headings.map((h) => <a key={h.id} href={'#' + h.id} style={{ paddingLeft: (h.level - 1) * 12 }}
                 onClick={(e) => { e.preventDefault(); document.getElementById(h.id)?.scrollIntoView({ behavior: 'smooth' }) }}>{h.text}</a>)}
             </nav>
@@ -47,7 +47,7 @@ function Viewer({ doc }: { doc: PapercellDoc }) {
               {(authors || date) && <p className="mt-2 text-sm text-muted-foreground">{authors}{authors && date ? ' · ' : ''}{date}</p>}
             </header>
             <EditorStatic editor={editor} variant="demo" className="pb-24" />
-            <footer className="pv-foot">Xuất bằng Papercell. Hình và kết quả tính sẵn nằm ngay trong file này, không cần Python hay server.</footer>
+            <footer className="pv-foot">Exported with Papercell. Figures and precomputed results live inside this file; no Python or server needed.</footer>
           </main>
         </div>
       </FigureNumbers.Provider>
@@ -60,7 +60,7 @@ function App() {
   const [err, setErr] = useState('')
   useEffect(() => { readDoc().then(setDoc, (e) => setErr((e as Error).message)) }, [])
   if (err) return <p className="pv-msg">{err}</p>
-  if (!doc) return <p className="pv-msg">Đang mở bài…</p>
+  if (!doc) return <p className="pv-msg">Opening…</p>
   return <Viewer doc={doc} />
 }
 

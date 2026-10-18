@@ -46,7 +46,7 @@ export async function runFigure(js: string, params: FigureParam[], data: Dataset
     const r = await fn(Plot, d3, data, width, expose, values, pc, ketQua, ...params.map((p) => p.value))
     if (r instanceof Node) return { node: r, html: null, exposed, error: null }
     if (typeof r === 'string') return { node: null, html: r, exposed, error: null }
-    return { node: null, html: null, exposed, error: 'Code cần return một hình (Plot.plot(...)) hoặc một chuỗi HTML.' }
+    return { node: null, html: null, exposed, error: 'The code must return a figure (Plot.plot(...)) or an HTML string.' }
   } catch (e) {
     return { node: null, html: null, exposed, error: (e as Error).message || String(e) }
   }

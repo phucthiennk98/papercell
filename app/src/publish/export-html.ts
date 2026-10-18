@@ -20,11 +20,11 @@ export const docSlug = (title: string) => title.normalize('NFD').replace(/[\u030
   .replace(/[^A-Za-z0-9]+/g, '-').replace(/^-|-$/g, '').toLowerCase() || 'bai-viet'
 
 export async function exportDocHtml({ meta, files, content }: { meta: DocMeta; files: DataFile[]; content: any[] }) {
-  const id = toast.loading('Đang đóng gói file HTML…')
+  const id = toast.loading('Packing the HTML file…')
   try {
     const res = await fetch('/viewer.html', { cache: 'no-store' })
     let html = res.ok ? await res.text() : ''
-    if (!html.includes('>__PC_DOC__<') || html.includes('/src/viewer/')) throw new Error('Bản đang chạy chưa có trang đọc đóng gói (bản dev). Chạy bản build rồi xuất lại.')
+    if (!html.includes('>__PC_DOC__<') || html.includes('/src/viewer/')) throw new Error('This is a dev build without the packaged reader page. Run the production build and export again.')
     const { b64 } = await packText(JSON.stringify({ version: 3, meta, data: files, content: forPublish(content) }))
     const esc = (t: string) => t.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!)
     html = html.replace('>__PC_DOC__<', () => '>' + b64 + '<').replace('<title>Papercell</title>', () => `<title>${esc(meta.title || 'Papercell')}</title>`)
@@ -32,7 +32,7 @@ export async function exportDocHtml({ meta, files, content }: { meta: DocMeta; f
     const a = document.createElement('a')
     a.href = URL.createObjectURL(blob); a.download = docSlug(meta.title) + '.html'
     a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000)
-    toast.success(`Đã xuất ${a.download} (${formatBytes(blob.size)}). Mở bằng trình duyệt bất kỳ, không cần cài gì.`, { id })
+    toast.success(`Exported ${a.download} (${formatBytes(blob.size)}). Opens in any browser, nothing to install.`, { id })
   } catch (e) {
     toast.error((e as Error).message, { id })
   }

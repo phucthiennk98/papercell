@@ -17,8 +17,8 @@ css = css.replace(/,\s*url\(data:font\/(?:woff|ttf|truetype)[^)]*\)\s*format\(["
 
 let js = ''
 html = html.replace(/<script type="module"[^>]*src="(\/assets\/[^"]+\.js)"[^>]*><\/script>\s*/g, (_, src) => { js += read(src); return '' })
-if (/src="\/assets\/|href="\/assets\//.test(html)) throw new Error('viewer.html vẫn còn tham chiếu file ngoài')
-if (!js) throw new Error('Không thấy file JS của viewer')
+if (/src="\/assets\/|href="\/assets\//.test(html)) throw new Error('viewer.html still references external files')
+if (!js) throw new Error('Viewer JS file not found')
 
 const boot = `<script type="module">
 const unpack = async (id) => {
@@ -33,7 +33,7 @@ const blobs = `<script id="pc-css" type="application/x-gzip-base64">${pack(css)}
     ${boot}`
 html = html.replace('</body>', () => `    ${blobs}\n  </body>`)
 
-if (!html.includes('>__PC_DOC__<')) throw new Error('viewer.html thiếu chỗ chèn tài liệu')
-if (!existsSync(path.join(root, 'dist'))) throw new Error('Chưa có dist/')
+if (!html.includes('>__PC_DOC__<')) throw new Error('viewer.html is missing the document placeholder')
+if (!existsSync(path.join(root, 'dist'))) throw new Error('dist/ does not exist yet')
 writeFileSync(path.join(root, 'dist', 'viewer.html'), html)
-console.log(`dist/viewer.html: ${(html.length / 1e6).toFixed(2)} MB (JS ${(js.length / 1e6).toFixed(1)} MB, CSS ${(css.length / 1e6).toFixed(1)} MB trước khi nén)`)
+console.log(`dist/viewer.html: ${(html.length / 1e6).toFixed(2)} MB (JS ${(js.length / 1e6).toFixed(1)} MB, CSS ${(css.length / 1e6).toFixed(1)} MB before compression)`)

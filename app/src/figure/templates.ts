@@ -1,5 +1,5 @@
-// Mẫu biểu đồ để chèn nhanh. Mỗi mẫu có dữ liệu minh họa nên vẽ được ngay;
-// đổi `ds` thành data.<tên_file> để dùng dữ liệu của bài.
+// Chart templates for quick insertion. Each template carries sample data so it draws right away;
+// replace `ds` with data.<file> to use the document's data.
 import { Database, ChartColumn, ChartLine, ChartScatter, ChartNoAxesColumn, Hexagon, Table2, SquareCode, FlaskConical, type LucideIcon } from 'lucide-react'
 import { newId, type FigureNode, type FigureParam } from '@/editor/types'
 import { codegen, defaultSpec, specParams, type ChartType } from './builder'
@@ -7,157 +7,157 @@ import { codegen, defaultSpec, specParams, type ChartType } from './builder'
 export type FigureTemplate = { id: string; label: string; hint: string; icon: LucideIcon; keywords: string[]; js: string; python?: string; params?: FigureParam[]; caption?: string }
 
 const HEAD = (what: string) => `// ${what}
-// Có sẵn: Plot, d3, data.<tên_file>, width, expose(giá_trị); mỗi tham số là một biến.
-// Đang dùng dữ liệu minh họa: thay \`ds\` bằng data.<tên_file> để dùng dữ liệu của bài.`
+// Available: Plot, d3, data.<file>, width, expose(value); every parameter is a variable.
+// Uses sample data: replace \`ds\` with data.<file> to use the document's data.`
 
 export const FIGURE_TEMPLATES: FigureTemplate[] = [
   {
-    id: 'data', label: 'Từ dữ liệu (chọn cột)', hint: 'Nạp CSV, Excel… rồi chọn cột, không cần code', icon: Database,
-    keywords: ['du lieu', 'csv', 'excel', 'chon cot', 'data'], js: '',
+    id: 'data', label: 'From data (pick columns)', hint: 'Load CSV, Excel… then pick columns, no code', icon: Database,
+    keywords: ['data', 'csv', 'excel', 'columns'], js: '',
   },
   {
-    id: 'bar', label: 'Biểu đồ cột', hint: 'So sánh giá trị giữa các nhóm', icon: ChartColumn, keywords: ['cot', 'bar', 'column'],
-    js: `${HEAD('Biểu đồ cột')}
+    id: 'bar', label: 'Bar chart', hint: 'Compare values across groups', icon: ChartColumn, keywords: ['bar', 'column'],
+    js: `${HEAD('Bar chart')}
 const ds = [
-  { nhom: "Nhóm A", gia_tri: 28 }, { nhom: "Nhóm B", gia_tri: 55 },
-  { nhom: "Nhóm C", gia_tri: 43 }, { nhom: "Nhóm D", gia_tri: 91 }, { nhom: "Nhóm E", gia_tri: 64 },
+  { group: "Group A", value: 28 }, { group: "Group B", value: 55 },
+  { group: "Group C", value: 43 }, { group: "Group D", value: 91 }, { group: "Group E", value: 64 },
 ]
 expose(ds)
 return Plot.plot({
   width, height: 280, marginLeft: 48,
   x: { label: null },
-  y: { grid: true, label: "Giá trị" },
+  y: { grid: true, label: "Value" },
   marks: [
-    Plot.barY(ds, { x: "nhom", y: "gia_tri", fill: "#2a78d6", tip: true }),
+    Plot.barY(ds, { x: "group", y: "value", fill: "#2a78d6", tip: true }),
     Plot.ruleY([0]),
   ],
 })`,
   },
   {
-    id: 'line', label: 'Biểu đồ đường', hint: 'Xu hướng theo thời gian', icon: ChartLine, keywords: ['duong', 'line', 'thoi gian', 'xu huong'],
-    params: [{ name: 'cua_so', label: 'Làm mượt (số điểm)', min: 1, max: 15, step: 1, value: 1 }],
-    js: `${HEAD('Biểu đồ đường, có làm mượt bằng trung bình trượt')}
+    id: 'line', label: 'Line chart', hint: 'Trend over time', icon: ChartLine, keywords: ['line', 'time', 'trend'],
+    params: [{ name: 'window_size', label: 'Smoothing (points)', min: 1, max: 15, step: 1, value: 1 }],
+    js: `${HEAD('Line chart with moving-average smoothing')}
 const rnd = d3.randomNormal.source(d3.randomLcg(1))(0, 6)
-const ds = d3.range(60).map((i) => ({ thang: i + 1, gia_tri: 50 + i * 0.8 + 12 * Math.sin(i / 5) + rnd() }))
+const ds = d3.range(60).map((i) => ({ month: i + 1, value: 50 + i * 0.8 + 12 * Math.sin(i / 5) + rnd() }))
 expose(ds.length)
 return Plot.plot({
   width, height: 280,
-  x: { label: "Tháng" },
-  y: { grid: true, label: "Giá trị" },
+  x: { label: "Month" },
+  y: { grid: true, label: "Value" },
   marks: [
-    Plot.line(ds, { x: "thang", y: "gia_tri", stroke: "#94a3b8", strokeWidth: 1 }),
-    Plot.line(ds, Plot.windowY({ k: cua_so, x: "thang", y: "gia_tri", stroke: "#2a78d6", strokeWidth: 2 })),
+    Plot.line(ds, { x: "month", y: "value", stroke: "#94a3b8", strokeWidth: 1 }),
+    Plot.line(ds, Plot.windowY({ k: window_size, x: "month", y: "value", stroke: "#2a78d6", strokeWidth: 2 })),
   ],
 })`,
   },
   {
-    id: 'scatter', label: 'Biểu đồ phân tán', hint: 'Quan hệ giữa hai biến', icon: ChartScatter, keywords: ['phan tan', 'scatter', 'tuong quan'],
-    params: [{ name: 'ban_kinh_diem', label: 'Cỡ điểm', min: 1, max: 8, step: 0.5, value: 3 }],
-    js: `${HEAD('Biểu đồ phân tán, kèm đường hồi quy tuyến tính')}
+    id: 'scatter', label: 'Scatter plot', hint: 'Relationship between two variables', icon: ChartScatter, keywords: ['scatter', 'correlation'],
+    params: [{ name: 'dot_size', label: 'Dot size', min: 1, max: 8, step: 0.5, value: 3 }],
+    js: `${HEAD('Scatter plot with a linear regression line')}
 const rnd = d3.randomNormal.source(d3.randomLcg(2))(0, 8)
 const ds = d3.range(150).map(() => { const x = Math.random() * 100; return { x, y: 0.6 * x + 10 + rnd() } })
 expose(ds.length)
 return Plot.plot({
   width, height: 300,
-  x: { label: "Biến X" },
-  y: { grid: true, label: "Biến Y" },
+  x: { label: "Variable X" },
+  y: { grid: true, label: "Variable Y" },
   marks: [
-    Plot.dot(ds, { x: "x", y: "y", r: ban_kinh_diem, fill: "#2a78d6", fillOpacity: 0.6 }),
+    Plot.dot(ds, { x: "x", y: "y", r: dot_size, fill: "#2a78d6", fillOpacity: 0.6 }),
     Plot.linearRegressionY(ds, { x: "x", y: "y", stroke: "#e45d2f" }),
   ],
 })`,
   },
   {
-    id: 'histogram', label: 'Histogram', hint: 'Phân bố của một biến', icon: ChartNoAxesColumn, keywords: ['histogram', 'phan bo', 'tan suat'],
-    params: [{ name: 'so_cot', label: 'Số cột', min: 5, max: 60, step: 1, value: 20 }],
-    js: `${HEAD('Histogram: phân bố của một biến số')}
+    id: 'histogram', label: 'Histogram', hint: 'Distribution of one variable', icon: ChartNoAxesColumn, keywords: ['histogram', 'distribution', 'frequency'],
+    params: [{ name: 'bins', label: 'Bins', min: 5, max: 60, step: 1, value: 20 }],
+    js: `${HEAD('Histogram: distribution of a numeric variable')}
 const rnd = d3.randomExponential.source(d3.randomLcg(3))(1 / 0.6)
-const ds = d3.range(2000).map(() => ({ khoang_cach: rnd() }))
+const ds = d3.range(2000).map(() => ({ distance: rnd() }))
 expose(ds.length)
 return Plot.plot({
   width, height: 280,
-  x: { label: "Khoảng cách (km)" },
-  y: { grid: true, label: "Số lượng" },
+  x: { label: "Distance (km)" },
+  y: { grid: true, label: "Count" },
   marks: [
-    Plot.rectY(ds, Plot.binX({ y: "count" }, { x: "khoang_cach", thresholds: so_cot, fill: "#2a78d6", tip: true })),
+    Plot.rectY(ds, Plot.binX({ y: "count" }, { x: "distance", thresholds: bins, fill: "#2a78d6", tip: true })),
     Plot.ruleY([0]),
   ],
 })`,
   },
   {
-    id: 'hexbin', label: 'Bản đồ mật độ', hint: 'Mật độ điểm theo ô lục giác', icon: Hexagon, keywords: ['ban do', 'map', 'mat do', 'hexbin', 'luc giac'],
-    params: [{ name: 'o_luoi', label: 'Kích thước ô', min: 6, max: 30, step: 1, value: 14, unit: 'px' }],
-    js: `${HEAD('Bản đồ mật độ: gộp điểm theo ô lục giác')}
+    id: 'hexbin', label: 'Density (hexbin)', hint: 'Point density in hexagonal cells', icon: Hexagon, keywords: ['map', 'density', 'hexbin', 'hexagon'],
+    params: [{ name: 'cell_size', label: 'Cell size', min: 6, max: 30, step: 1, value: 14, unit: 'px' }],
+    js: `${HEAD('Density map: points binned into hexagons')}
 const rx = d3.randomNormal.source(d3.randomLcg(4))
 const ds = [...d3.range(800).map(() => ({ x: rx(10, 3)(), y: rx(5, 2)() })), ...d3.range(500).map(() => ({ x: rx(20, 2)(), y: rx(9, 1.5)() }))]
 expose(ds.length)
 return Plot.plot({
   width, aspectRatio: 1,
-  x: { label: "Đông (km)" }, y: { label: "Bắc (km)" },
-  color: { scheme: "blues", legend: true, label: "Số điểm" },
-  marks: [Plot.dot(ds, Plot.hexbin({ fill: "count" }, { x: "x", y: "y", binWidth: o_luoi }))],
+  x: { label: "East (km)" }, y: { label: "North (km)" },
+  color: { scheme: "blues", legend: true, label: "Points" },
+  marks: [Plot.dot(ds, Plot.hexbin({ fill: "count" }, { x: "x", y: "y", binWidth: cell_size }))],
 })`,
   },
   {
-    id: 'table', label: 'Bảng số liệu', hint: 'Bảng tóm tắt dạng HTML', icon: Table2, keywords: ['bang', 'table', 'so lieu'],
-    js: `${HEAD('Bảng số liệu: trả về chuỗi HTML')}
+    id: 'table', label: 'Summary table', hint: 'HTML summary table', icon: Table2, keywords: ['table', 'summary'],
+    js: `${HEAD('Summary table: returns an HTML string')}
 const ds = [
-  { chi_tieu: "Số quan sát", gia_tri: 5000 },
-  { chi_tieu: "Trung bình (km)", gia_tri: 0.6 },
-  { chi_tieu: "Trung vị (km)", gia_tri: 0.42 },
+  { metric: "Observations", value: 5000 },
+  { metric: "Mean (km)", value: 0.6 },
+  { metric: "Median (km)", value: 0.42 },
 ]
 expose(ds)
 return \`<table class="fig-table">
-  <thead><tr><th>Chỉ tiêu</th><th>Giá trị</th></tr></thead>
-  <tbody>\${ds.map((r) => \`<tr><td>\${r.chi_tieu}</td><td>\${r.gia_tri.toLocaleString("vi-VN")}</td></tr>\`).join("")}</tbody>
+  <thead><tr><th>Metric</th><th>Value</th></tr></thead>
+  <tbody>\${ds.map((r) => \`<tr><td>\${r.metric}</td><td>\${r.value.toLocaleString("en-US")}</td></tr>\`).join("")}</tbody>
 </table>\``,
   },
   {
-    id: 'model', label: 'Mô hình Python (tính sẵn)', hint: 'Python nặng chạy trước mọi tổ hợp, người đọc chỉ kéo thanh trượt', icon: FlaskConical,
-    keywords: ['python', 'mo hinh', 'model', 'tinh san', 'kich ban', 'mo phong'],
-    caption: 'Mô hình lan truyền hành vi theo không gian',
+    id: 'model', label: 'Python model (precomputed)', hint: 'Heavy Python runs ahead for every combination; readers only move sliders', icon: FlaskConical,
+    keywords: ['python', 'model', 'precompute', 'scenario', 'simulation'],
+    caption: 'Spatial diffusion of a behavior',
     params: [
-      { name: 'anh_huong', label: 'Mức ảnh hưởng của hàng xóm', min: 0.05, max: 0.5, step: 0.05, value: 0.15 },
-      { name: 'ban_kinh', label: 'Bán kính lân cận', min: 0.02, max: 0.2, step: 0.02, value: 0.06 },
+      { name: 'influence', label: 'Neighbor influence', min: 0.05, max: 0.5, step: 0.05, value: 0.15 },
+      { name: 'radius', label: 'Neighborhood radius', min: 0.02, max: 0.2, step: 0.02, value: 0.06 },
     ],
-    python: `# Mô phỏng lan truyền hành vi: mỗi bước, người chưa áp dụng bị hàng xóm trong bán kính tác động.
-# Code này chỉ chạy trên máy tác giả (tab "Tính sẵn"); người đọc nhận kết quả đã tính.
+    python: `# Behavior diffusion: at each step, people who have not adopted yet are influenced by neighbors within the radius.
+# This code only runs on the author's computer (Precompute tab); readers get the precomputed results.
 import numpy as np
 
 rng = np.random.default_rng(7)
 n = 800
 xy = rng.random((n, 2))
 d = np.sqrt(((xy[:, None, :] - xy[None, :, :]) ** 2).sum(-1))
-gan = (d < ban_kinh) & (d > 0)
-da_ap_dung = rng.random(n) < 0.02
+near = (d < radius) & (d > 0)
+adopted = rng.random(n) < 0.02
 
-ty_le = []
-for buoc in range(40):
-    so_hang_xom = gan[:, da_ap_dung].sum(1)
-    p = 1 - (1 - anh_huong) ** so_hang_xom
-    da_ap_dung = da_ap_dung | (rng.random(n) < p)
-    ty_le.append(round(float(da_ap_dung.mean()), 4))
+share = []
+for step in range(40):
+    neighbors = near[:, adopted].sum(1)
+    p = 1 - (1 - influence) ** neighbors
+    adopted = adopted | (rng.random(n) < p)
+    share.append(round(float(adopted.mean()), 4))
 
-ket_qua = [{"buoc": i + 1, "ty_le": v} for i, v in enumerate(ty_le)]
+ket_qua = [{"step": i + 1, "share": v} for i, v in enumerate(share)]
 `,
-    js: `// Vẽ từ kết quả Python đã tính sẵn (biến ket_qua), không tính lại gì trong trình duyệt.
-if (!ket_qua) return '<div class="fig-empty">Chưa tính sẵn. Mở hình (✎) → tab <b>Tính sẵn</b> → bấm <b>Chạy</b>.</div>'
+    js: `// Draws from the precomputed Python result (ket_qua); nothing is recomputed in the browser.
+if (!ket_qua) return '<div class="fig-empty">Not precomputed yet. Open the figure (✎) → <b>Precompute</b> tab → press <b>Run</b>.</div>'
 expose(ket_qua)
 return Plot.plot({
   width, height: 280,
-  x: { label: "Bước" },
-  y: { grid: true, label: "Tỉ lệ đã áp dụng", percent: true, domain: [0, 100] },
+  x: { label: "Step" },
+  y: { grid: true, label: "Share adopted", percent: true, domain: [0, 100] },
   marks: [
-    Plot.areaY(ket_qua, { x: "buoc", y: "ty_le", fill: "#2a78d6", fillOpacity: 0.12 }),
-    Plot.line(ket_qua, { x: "buoc", y: "ty_le", stroke: "#2a78d6", strokeWidth: 2, tip: true }),
+    Plot.areaY(ket_qua, { x: "step", y: "share", fill: "#2a78d6", fillOpacity: 0.12 }),
+    Plot.line(ket_qua, { x: "step", y: "share", stroke: "#2a78d6", strokeWidth: 2, tip: true }),
     Plot.ruleY([0]),
   ],
 })`,
   },
   {
-    id: 'blank', label: 'Hình trống', hint: 'Tự viết code, hoặc nhờ AI', icon: SquareCode, keywords: ['trong', 'code', 'tu viet', 'js'],
-    js: `${HEAD('Hình trống')}
-return Plot.plot({ width, height: 160, marks: [Plot.text(["Mở hình (✎) để viết code"], { frameAnchor: "middle", fontSize: 14 })] })`,
+    id: 'blank', label: 'Blank figure', hint: 'Write your own code, or ask AI', icon: SquareCode, keywords: ['blank', 'code', 'js'],
+    js: `${HEAD('Blank figure')}
+return Plot.plot({ width, height: 160, marks: [Plot.text(["Open the figure (✎) to write code"], { frameAnchor: "middle", fontSize: 14 })] })`,
   },
 ]
 
@@ -172,22 +172,21 @@ export const figureFromTemplate = (t: FigureTemplate): FigureNode => {
   }
 }
 
-/** Chèn một hình theo mẫu ngay sau khối đang chọn (hoặc thay đoạn văn trống). */
-export function insertFigure(editor: any, templateId: string) {
-  const t = FIGURE_TEMPLATES.find((x) => x.id === templateId) ?? FIGURE_TEMPLATES[FIGURE_TEMPLATES.length - 1]
-  const node = figureFromTemplate(t)
+function insertNode(editor: any, node: FigureNode) {
   const block = editor.api.block()
   const emptyPara = block && block[0].type === 'p' && editor.api.isEmpty(block[0])
   if (emptyPara) editor.tf.replaceNodes(node, { at: block[1] })
   else editor.tf.insertNodes(node, { select: true })
 }
 
-/** Chèn một hình loại `type` của trình tạo biểu đồ; popup mở ngay ở tab Thiết kế để chọn cột. */
+/** Insert a figure from a template after the selected block (or in place of an empty paragraph). */
+export function insertFigure(editor: any, templateId: string) {
+  const t = FIGURE_TEMPLATES.find((x) => x.id === templateId) ?? FIGURE_TEMPLATES[FIGURE_TEMPLATES.length - 1]
+  insertNode(editor, figureFromTemplate(t))
+}
+
+/** Insert a chart-builder figure of `type`; the dialog opens on the Design tab to pick columns. */
 export function insertChart(editor: any, type: ChartType) {
   const spec = { ...defaultSpec(''), type }
-  const node: FigureNode = { type: 'figure', id: newId(), caption: '', js: codegen(spec), python: '', params: specParams(spec), spec, autoOpen: true, display: 'output', codeAccess: 'both', children: [{ text: '' }] }
-  const block = editor.api.block()
-  const emptyPara = block && block[0].type === 'p' && editor.api.isEmpty(block[0])
-  if (emptyPara) editor.tf.replaceNodes(node, { at: block[1] })
-  else editor.tf.insertNodes(node, { select: true })
+  insertNode(editor, { type: 'figure', id: newId(), caption: '', js: codegen(spec), python: '', params: specParams(spec), spec, autoOpen: true, display: 'output', codeAccess: 'both', children: [{ text: '' }] })
 }

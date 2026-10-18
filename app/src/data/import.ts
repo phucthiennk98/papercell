@@ -38,7 +38,7 @@ function rowsToCsv(rows: unknown[][], decimalComma: boolean) {
       const s = String(c).trim()
       return decimalComma && DECIMAL_COMMA.test(s) ? s.replace(/\./g, '').replace(',', '.') : s
     }))
-  if (!clean.length) throw new Error('File không có dòng dữ liệu nào.')
+  if (!clean.length) throw new Error('The file has no data rows.')
   // Tên cột trống hoặc trùng thì đặt lại
   const seen = new Map<string, number>()
   clean[0] = clean[0].map((h, i) => {
@@ -51,7 +51,7 @@ function rowsToCsv(rows: unknown[][], decimalComma: boolean) {
 const baseName = (name: string) => name.replace(/\.[^.]+$/, '')
 
 export async function importFile(file: File): Promise<DataFile[]> {
-  if (file.size > MAX_BYTES) throw new Error(`${file.name} lớn hơn 20 MB. Hãy lọc bớt hoặc gộp dữ liệu trước khi nạp.`)
+  if (file.size > MAX_BYTES) throw new Error(`${file.name} is larger than 20 MB. Filter or aggregate the data before loading it.`)
   const ext = (file.name.split('.').pop() ?? '').toLowerCase()
 
   if (ext === 'xlsx') {
@@ -62,10 +62,10 @@ export async function importFile(file: File): Promise<DataFile[]> {
       kind: 'csv' as const,
       content: rowsToCsv(s.data as unknown[][], false),
     }))
-    if (!out.length) throw new Error('File Excel không có sheet nào có dữ liệu.')
+    if (!out.length) throw new Error('The Excel file has no sheet with data.')
     return out
   }
-  if (ext === 'xls') throw new Error('Định dạng .xls cũ chưa hỗ trợ. Mở bằng Excel rồi lưu lại dạng .xlsx hoặc .csv.')
+  if (ext === 'xls') throw new Error('The old .xls format is not supported. Open it in Excel and save as .xlsx or .csv.')
 
   const text = await readText(file)
   if (ext === 'json' || ext === 'geojson') {
@@ -77,7 +77,7 @@ export async function importFile(file: File): Promise<DataFile[]> {
     const rows = d3.dsvFormat(delim).parseRows(text)
     return [{ name: `${baseName(file.name)}.csv`, kind: 'csv', content: rowsToCsv(rows, delim === ';' || delim === '\t') }]
   }
-  throw new Error(`Chưa hỗ trợ file .${ext}. Dùng CSV, TXT, TSV, XLSX, JSON hoặc GeoJSON.`)
+  throw new Error(`.${ext} files are not supported. Use CSV, TXT, TSV, XLSX, JSON or GeoJSON.`)
 }
 
 // ---- Mô tả cột để gợi ý khi chọn ----

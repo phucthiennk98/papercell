@@ -10,7 +10,7 @@ class Kernel {
   private pending = new Map<number, { resolve: (r: VerifyRaw) => void; reject: (e: Error) => void }>()
   private listeners = new Set<Listener>()
   private gridHandlers = new Map<number, (item: GridItem) => void>()
-  status = { text: 'Python chưa tải', ready: false }
+  status = { text: 'Python not loaded', ready: false }
 
   private ensure() {
     if (this.worker) return this.worker
@@ -48,9 +48,9 @@ class Kernel {
   /** Dừng mọi việc đang chạy (tắt worker; lần sau tự khởi động lại). */
   cancel() {
     this.worker?.terminate(); this.worker = null
-    this.pending.forEach((p) => p.reject(new Error('Đã dừng.')))
+    this.pending.forEach((p) => p.reject(new Error('Stopped.')))
     this.pending.clear(); this.gridHandlers.clear()
-    this.status = { text: 'Python chưa tải', ready: false }; this.listeners.forEach((l) => l(this.status))
+    this.status = { text: 'Python not loaded', ready: false }; this.listeners.forEach((l) => l(this.status))
   }
 
   subscribe(l: Listener) { this.listeners.add(l); l(this.status); return () => { this.listeners.delete(l) } }

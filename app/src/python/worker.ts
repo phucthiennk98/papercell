@@ -31,7 +31,7 @@ def __pc_jsonable(v):
 __pc_data = {}
 
 def __pc_load(files_json):
-    """Đọc dữ liệu một lần (dùng lại cho cả lưới tổ hợp)."""
+    """Load the data once (reused for the whole parameter grid)."""
     import pandas as pd
     global __pc_data
     __pc_data = {}
@@ -39,7 +39,7 @@ def __pc_load(files_json):
         __pc_data[f["key"]] = pd.read_csv(io.StringIO(f["content"])) if f["kind"] == "csv" else json.loads(f["content"])
 
 def __pc_run_one(code, params_json):
-    """Chạy code với một bộ tham số; dữ liệu được sao chép để lần chạy sau không bị ảnh hưởng."""
+    """Run the code for one parameter set; data is copied so later runs are not affected."""
     import copy, linecache
     linecache.cache["<python>"] = (len(code), None, code.splitlines(True), "<python>")
     data = {k: (v.copy() if hasattr(v, "copy") else copy.deepcopy(v)) for k, v in __pc_data.items()}
@@ -52,7 +52,7 @@ def __pc_run_one(code, params_json):
     except BaseException as e:
         sys.stdout = saved
         tb = [f for f in traceback.extract_tb(e.__traceback__) if f.filename == "<python>"]
-        lines = [f"Dòng {f.lineno}: {f.line}" if f.line else f"Dòng {f.lineno}" for f in tb]
+        lines = [f"Line {f.lineno}: {f.line}" if f.line else f"Line {f.lineno}" for f in tb]
         return json.dumps({"error": "\\n".join(lines + [f"{type(e).__name__}: {e}"])})
     finally:
         sys.stdout = saved
@@ -60,7 +60,7 @@ def __pc_run_one(code, params_json):
         if plt is not None:
             plt.close("all")
     if "ket_qua" not in g:
-        return json.dumps({"error": "Code Python chưa gán biến ket_qua."})
+        return json.dumps({"error": "The Python code did not assign the variable ket_qua."})
     return json.dumps({"value": __pc_jsonable(g["ket_qua"]), "stdout": out.getvalue()}, default=str)
 
 def __pc_verify(code, params_json, files_json):
@@ -77,12 +77,12 @@ let py: any
 const post = (m: unknown) => (self as DedicatedWorkerGlobalScope).postMessage(m)
 
 const ready = (async () => {
-  post({ type: 'status', text: 'Đang tải Python…' })
+  post({ type: 'status', text: 'Loading Python…' })
   const mod = await import(/* @vite-ignore */ `${INDEX_URL}pyodide.mjs`)
   py = await mod.loadPyodide({ indexURL: INDEX_URL })
   await py.loadPackage(['pandas'])
   await py.runPythonAsync(GLUE)
-  post({ type: 'status', text: 'Python sẵn sàng', ready: true })
+  post({ type: 'status', text: 'Python ready', ready: true })
 })()
 
 let chain: Promise<unknown> = ready.catch(() => {})
@@ -91,7 +91,7 @@ async function handle(req: Req) {
   try {
     await ready
     await py.loadPackagesFromImports(req.code, {
-      messageCallback: (m: string) => { if (/^Loading /.test(m)) post({ type: 'status', text: 'Đang cài ' + m.replace(/^Loading /, '') }) },
+      messageCallback: (m: string) => { if (/^Loading /.test(m)) post({ type: 'status', text: 'Installing ' + m.replace(/^Loading /, '') }) },
       errorCallback: () => {},
     })
     if (req.type === 'grid') {
@@ -108,7 +108,7 @@ async function handle(req: Req) {
       const res = py.globals.get('__pc_verify')(req.code, JSON.stringify(req.params ?? {}), JSON.stringify(req.files ?? []))
       post({ id: req.id, ok: true, result: JSON.parse(res) })
     }
-    post({ type: 'status', text: 'Python sẵn sàng', ready: true })
+    post({ type: 'status', text: 'Python ready', ready: true })
   } catch (e) {
     post({ id: req.id, ok: false, error: String((e as Error)?.message ?? e) })
   }

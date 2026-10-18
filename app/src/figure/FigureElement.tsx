@@ -45,7 +45,7 @@ export function FigureCard({ fig, readOnly, update }: { fig: FigureNode; readOnl
   const commit = () => { if (!readOnly) update({ params }) }
 
   const caption = (
-    <span>{no ? <b className="fig-no">Hình {no}.</b> : null} {fig.caption}</span>
+    <span>{no ? <b className="fig-no">Figure {no}.</b> : null} {fig.caption}</span>
   )
   const codes = readOnly ? visibleCode(fig) : [{ lang: 'JS' as const, code: fig.js }]
   const showInlineCode = (fig.display === 'both' || fig.display === 'code') && codes.length > 0
@@ -55,22 +55,22 @@ export function FigureCard({ fig, readOnly, update }: { fig: FigureNode; readOnl
       <div contentEditable={false} className="fig-card">
         <div className="fig-head">
           <span className="fig-badges">
-            {!readOnly && <span className="fig-badge">JS{fig.python.trim() ? ' · có Python gốc' : ''}</span>}
+            {!readOnly && <span className="fig-badge">JS{fig.python.trim() ? ' · has original Python' : ''}</span>}
             {!readOnly && fig.verify && (
               <span className={'fig-verify ' + (fig.verify.ok ? 'ok' : 'bad')} data-tip={fig.verify.message}>
-                {fig.verify.ok ? <CircleCheck size={13} /> : <CircleX size={13} />}{fig.verify.ok ? 'Đã kiểm chứng' : 'Chưa khớp'}
+                {fig.verify.ok ? <CircleCheck size={13} /> : <CircleX size={13} />}{fig.verify.ok ? 'Verified' : 'Mismatch'}
               </span>
             )}
-            {!readOnly && fig.scenarios && <span className="fig-badge" data-tip={`${fig.scenarios.count} tổ hợp đã tính sẵn bằng Python`}>Tính sẵn {fig.scenarios.count.toLocaleString('vi-VN')}</span>}
-            {!readOnly && fig.display === 'hidden' && <span className="fig-badge muted">Ẩn khi xuất bản</span>}
+            {!readOnly && fig.scenarios && <span className="fig-badge" data-tip={`${fig.scenarios.count} combinations precomputed with Python`}>Precomputed {fig.scenarios.count.toLocaleString('en-US')}</span>}
+            {!readOnly && fig.display === 'hidden' && <span className="fig-badge muted">Hidden when published</span>}
           </span>
           <span className="fig-actions">
-            {!readOnly && <button type="button" className="pc-icon-btn" aria-label="Sửa hình và code" data-tip="Sửa hình và code" onClick={() => setDialog(fig.spec && !fig.specDetached ? 'design' : 'js')}><Pencil size={15} /></button>}
-            <button type="button" className="pc-icon-btn" aria-label="Phóng to" data-tip="Phóng to" onClick={() => setDialog('figure')}><Maximize2 size={15} /></button>
+            {!readOnly && <button type="button" className="pc-icon-btn" aria-label="Edit figure and code" data-tip="Edit figure and code" onClick={() => setDialog(fig.spec && !fig.specDetached ? 'design' : 'js')}><Pencil size={15} /></button>}
+            <button type="button" className="pc-icon-btn" aria-label="Enlarge" data-tip="Enlarge" onClick={() => setDialog('figure')}><Maximize2 size={15} /></button>
           </span>
         </div>
         {fig.display !== 'code' && (
-          <div className="fig-click" onClick={() => setDialog('figure')} role="button" tabIndex={0} aria-label="Mở hình lớn"
+          <div className="fig-click" onClick={() => setDialog('figure')} role="button" tabIndex={0} aria-label="Open large figure"
             onKeyDown={(e) => { e.stopPropagation(); if (e.key === 'Enter') setDialog('figure') }}>
             <FigureView js={fig.js} params={params} scenarios={fig.scenarios} />
           </div>
@@ -84,8 +84,8 @@ export function FigureCard({ fig, readOnly, update }: { fig: FigureNode; readOnl
         <div className="fig-caption">
           {readOnly ? caption : (
             <>
-              {no ? <b className="fig-no">Hình {no}.</b> : null}
-              <input defaultValue={fig.caption} placeholder="Chú thích hình (để trống thì không đánh số)" aria-label="Chú thích hình"
+              {no ? <b className="fig-no">Figure {no}.</b> : null}
+              <input defaultValue={fig.caption} placeholder="Figure caption (leave empty for no number)" aria-label="Figure caption"
                 onBlur={(e) => { if (e.target.value !== fig.caption) update({ caption: e.target.value }) }} onKeyDown={(e) => e.stopPropagation()} />
             </>
           )}

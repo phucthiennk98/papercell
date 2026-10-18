@@ -7,7 +7,7 @@ import { FigureView } from './FigureView'
 import { BASEMAPS, type Basemap } from './map'
 import { DataContext, dataKey } from './runtime'
 
-const TYPE_BADGE: Record<ColType, string> = { number: 'số', date: 'ngày', text: 'chữ', lat: 'vĩ độ', lon: 'kinh độ' }
+const TYPE_BADGE: Record<ColType, string> = { number: 'number', date: 'date', text: 'text', lat: 'latitude', lon: 'longitude' }
 
 /** Tham số mới: giữ giá trị người dùng đã kéo nếu cùng tên. */
 const mergeParams = (old: FigureParam[], fresh: FigureParam[]) => fresh.map((p) => ({ ...p, value: old.find((o) => o.name === p.name)?.value ?? p.value }))
@@ -92,29 +92,29 @@ export function DesignTab({ fig, onUpdate }: { fig: FigureNode; onUpdate: (p: Pa
     <div className="dlg-design">
       <div className="dlg-design-form">
         <section>
-          <h3>Dữ liệu</h3>
+          <h3>Data</h3>
           <div className="flex gap-2">
-            <select className={field} value={spec.data} onChange={(e) => apply({ ...defaultSpec(e.target.value), type: spec.type, scheme: spec.scheme, basemap: spec.basemap })} aria-label="Chọn bảng dữ liệu">
-              {!keys.length && <option value="">Chưa có dữ liệu</option>}
+            <select className={field} value={spec.data} onChange={(e) => apply({ ...defaultSpec(e.target.value), type: spec.type, scheme: spec.scheme, basemap: spec.basemap })} aria-label="Dataset">
+              {!keys.length && <option value="">No data yet</option>}
               {keys.map((k) => <option key={k} value={k}>{k}</option>)}
             </select>
             <button className="btn shrink-0" onClick={() => input.current?.click()} disabled={busy}>
-              {busy ? <Loader2 size={14} className="spin" /> : <FileUp size={14} />}Nạp file
+              {busy ? <Loader2 size={14} className="spin" /> : <FileUp size={14} />}Load file
             </button>
             <input ref={input} type="file" multiple accept={ACCEPT} hidden onChange={(e) => { load(e.target.files); e.target.value = '' }} />
           </div>
-          <p className="hint">CSV, TXT, TSV, Excel (.xlsx), JSON, GeoJSON. {raw ? `${geo ? 'GeoJSON' : 'Bảng'} · ${asRows(raw).length.toLocaleString('vi-VN')} dòng · ${columns.length} cột` : ''}</p>
+          <p className="hint">CSV, TXT, TSV, Excel (.xlsx), JSON, GeoJSON. {raw ? `${geo ? 'GeoJSON' : 'Table'} · ${asRows(raw).length.toLocaleString('en-US')} rows · ${columns.length} columns` : ''}</p>
           {msg && <p className="pc-err">{msg}</p>}
         </section>
 
         <section>
-          <h3>Loại biểu đồ</h3>
-          <div className="type-grid" role="radiogroup" aria-label="Loại biểu đồ">
+          <h3>Chart type</h3>
+          <div className="type-grid" role="radiogroup" aria-label="Chart type">
             {CHART_TYPES.map((t) => {
               const disabled = t.type === 'map-regions' && !geo
               return (
                 <button key={t.type} role="radio" aria-checked={spec.type === t.type} disabled={disabled}
-                  title={disabled ? 'Cần dữ liệu GeoJSON có vùng (polygon)' : t.label}
+                  title={disabled ? 'Needs GeoJSON data with polygons' : t.label}
                   className={'type-btn' + (spec.type === t.type ? ' on' : '')} onClick={() => chooseType(t.type)}>
                   <t.icon size={18} strokeWidth={1.7} /><span>{t.label}</span>
                 </button>
@@ -124,12 +124,12 @@ export function DesignTab({ fig, onUpdate }: { fig: FigureNode; onUpdate: (p: Pa
         </section>
 
         <section>
-          <h3>Cột</h3>
+          <h3>Columns</h3>
           {info.channels.map((c) => (
             <label key={c.channel} className="design-row">
               <span>{c.label}{c.required && <b className="req">*</b>}</span>
               <select className={field} value={spec[c.channel] ?? ''} onChange={(e) => set({ [c.channel]: e.target.value || undefined } as Partial<ChartSpec>)}>
-                <option value="">{c.hint ? `— ${c.hint} —` : '— không —'}</option>
+                <option value="">{c.hint ? `— ${c.hint} —` : '— none —'}</option>
                 {colOptions(c.channel === 'lat' || c.channel === 'lon' || c.channel === 'size' ? (col) => col.type !== 'text' && col.type !== 'date' : undefined).map((col) => (
                   <option key={col.name} value={col.name}>{col.name} · {TYPE_BADGE[col.type]}</option>
                 ))}
@@ -137,33 +137,33 @@ export function DesignTab({ fig, onUpdate }: { fig: FigureNode; onUpdate: (p: Pa
             </label>
           ))}
           {info.agg && (
-            <label className="design-row"><span>Gộp giá trị</span>
+            <label className="design-row"><span>Aggregate</span>
               <select className={field} value={spec.agg} onChange={(e) => set({ agg: e.target.value as Agg })}>
                 {(Object.keys(AGG_LABEL) as Agg[]).filter((a) => a !== 'none' || spec.type === 'line' || spec.type === 'area').map((a) => <option key={a} value={a}>{AGG_LABEL[a]}</option>)}
               </select>
             </label>
           )}
           {info.sort && (
-            <label className="design-row"><span>Sắp xếp</span>
+            <label className="design-row"><span>Sort</span>
               <select className={field} value={spec.sort} onChange={(e) => set({ sort: e.target.value as ChartSpec['sort'] })}>
-                <option value="none">Theo dữ liệu</option><option value="desc">Giảm dần</option><option value="asc">Tăng dần</option>
+                <option value="none">Data order</option><option value="desc">Descending</option><option value="asc">Ascending</option>
               </select>
             </label>
           )}
-          {info.bins && <p className="hint">Số cột của histogram là một thanh trượt; người đọc kéo được.</p>}
+          {info.bins && <p className="hint">The number of bins is a slider readers can drag.</p>}
         </section>
 
         <section>
-          <h3>Hiển thị</h3>
+          <h3>Display</h3>
           {!info.map && spec.type !== 'table' && <>
-            <label className="design-row"><span>Nhãn trục X</span><input className={field} value={spec.xLabel ?? ''} placeholder="tự động" onChange={(e) => set({ xLabel: e.target.value || undefined })} /></label>
-            <label className="design-row"><span>Nhãn trục Y</span><input className={field} value={spec.yLabel ?? ''} placeholder="tự động" onChange={(e) => set({ yLabel: e.target.value || undefined })} /></label>
+            <label className="design-row"><span>X axis label</span><input className={field} value={spec.xLabel ?? ''} placeholder="automatic" onChange={(e) => set({ xLabel: e.target.value || undefined })} /></label>
+            <label className="design-row"><span>Y axis label</span><input className={field} value={spec.yLabel ?? ''} placeholder="automatic" onChange={(e) => set({ yLabel: e.target.value || undefined })} /></label>
           </>}
-          <label className="design-row"><span>Bảng màu</span>
+          <label className="design-row"><span>Color scheme</span>
             <select className={field} value={spec.scheme} onChange={(e) => set({ scheme: e.target.value })}>{SCHEMES.map((s) => <option key={s} value={s}>{s}</option>)}</select>
           </label>
           {info.map && (
-            <label className="design-row"><span>Bản đồ nền</span>
+            <label className="design-row"><span>Basemap</span>
               <select className={field} value={spec.basemap} onChange={(e) => set({ basemap: e.target.value as Basemap })}>
                 {(Object.keys(BASEMAPS) as Basemap[]).map((b) => <option key={b} value={b}>{BASEMAPS[b].label}</option>)}
               </select>
@@ -175,8 +175,8 @@ export function DesignTab({ fig, onUpdate }: { fig: FigureNode; onUpdate: (p: Pa
           <div className="detached">
             <TriangleAlert size={16} />
             <div>
-              <b>{fig.spec ? 'Code JS đã được sửa tay.' : 'Hình này viết bằng code.'}</b> Chọn ở đây chỉ để xem trước, chưa áp vào hình.
-              <button className="btn" onClick={() => apply(spec, true)}>Dùng thiết kế này (thay code, vẫn quay lại được)</button>
+              <b>{fig.spec ? 'The JS code was edited by hand.' : 'This figure is written in code.'}</b> Choices here are only a preview and are not applied.
+              <button className="btn" onClick={() => apply(spec, true)}>Use this design (replaces the code, can be undone)</button>
             </div>
           </div>
         )}
@@ -184,14 +184,14 @@ export function DesignTab({ fig, onUpdate }: { fig: FigureNode; onUpdate: (p: Pa
           <div className="detached">
             <TriangleAlert size={16} />
             <div>
-              Code viết tay trước đó đã được thay bằng thiết kế này.
-              <button className="btn" onClick={restore}>Quay lại code cũ</button>
+              The previous hand-written code was replaced by this design.
+              <button className="btn" onClick={restore}>Restore previous code</button>
             </div>
           </div>
         )}
       </div>
       <div className="dlg-preview">
-        <p className="hint">Xem trước</p>
+        <p className="hint">Preview</p>
         <FigureView js={detached && !touched ? fig.js : js} params={detached && !touched ? fig.params : params} scenarios={fig.scenarios} />
       </div>
     </div>

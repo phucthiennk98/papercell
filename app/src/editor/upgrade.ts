@@ -1,29 +1,30 @@
-// Nâng cấp tài liệu khi mở: áp các bản sửa của trình tạo biểu đồ và chữa hình bị ghi đè nhầm.
-import { makeGallery } from '@/gallery'
+// Upgrades a document when it is opened: applies chart-builder fixes and repairs figures overwritten by mistake.
+import { makeGallery as makeLegacyGallery } from '@/legacy/gallery-vi'
 import { codegen } from '@/figure/builder'
 import type { FigureNode, PapercellDoc } from './types'
 
-const GALLERY_TITLE = 'Bộ thử biểu đồ'
+/** Title of the old Vietnamese chart gallery. */
+const LEGACY_GALLERY_TITLE = 'Bộ thử biểu đồ'
 
 function mapFigures(nodes: any[], fn: (f: FigureNode) => FigureNode): any[] {
   return nodes.map((n) => (n.type === 'figure' ? fn(n as FigureNode) : n.children ? { ...n, children: mapFigures(n.children, fn) } : n))
 }
 
+/** Figures keyed by caption (each gallery figure has its own caption; ids may differ between gallery versions). */
 function collect(nodes: any[], out = new Map<string, FigureNode>()) {
-  // Theo chú thích (mỗi hình trong bộ thử có chú thích riêng); id có thể lệch giữa các phiên bản bộ thử
   nodes.forEach((n) => { if (n.type === 'figure') out.set(n.caption, n); else if (n.children) collect(n.children, out) })
   return out
 }
 
 export function upgradeDoc(doc: PapercellDoc): PapercellDoc {
-  // Hình viết code tay của bộ thử từng bị tab Thiết kế ghi đè (lỗi đã sửa): đưa về bản gốc
-  const original = doc.meta.title === GALLERY_TITLE ? collect(makeGallery().content) : null
+  // Hand-written gallery figures once overwritten by the Design tab (bug since fixed): put the original back
+  const original = doc.meta.title === LEGACY_GALLERY_TITLE ? collect(makeLegacyGallery().content) : null
   return {
     ...doc,
     content: mapFigures(doc.content, (f) => {
       const o = original?.get(f.caption)
       if (o && !o.spec && f.spec && !f.codeBackup) return { ...o, id: f.id }
-      // Hình tạo bằng Thiết kế, chưa sửa tay: sinh lại code để nhận bản sửa mới của trình tạo biểu đồ
+      // Built with the Design tab and not edited by hand: regenerate so it picks up chart-builder fixes
       if (f.spec && !f.specDetached) {
         const js = codegen(f.spec)
         if (js !== f.js) return { ...f, js }

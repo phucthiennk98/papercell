@@ -31,15 +31,15 @@ export function normalizeMath(md: string) {
     .replace(/\\\(([\s\S]+?)\\\)/g, (_, m: string) => '$' + m.trim() + '$')
 }
 
-const STOPPED = '_Đã dừng._'
+const STOPPED = '_Stopped._'
 
-const seconds = (ms: number) => `${Math.max(1, Math.round(ms / 1000))} giây`
+const seconds = (ms: number) => `${Math.max(1, Math.round(ms / 1000))}s`
 
 const SUGGESTIONS = [
-  'Tóm tắt bài này trong 3 câu',
-  'Viết đoạn Kết luận dựa trên phần Kết quả',
-  'Kiểm tra lỗi chính tả và câu văn',
-  'Gợi ý một hình nên có trong phần Kết quả',
+  'Summarize this document in 3 sentences',
+  'Write a Conclusion based on the Results',
+  'Check spelling and grammar',
+  'Suggest a figure for the Results section',
 ]
 
 /** Nội dung bài dạng Markdown để làm ngữ cảnh; thẻ hình JS được thay bằng chú thích + code. */
@@ -47,7 +47,7 @@ function docAsMarkdown(editor: PlateEditor) {
   const parts: string[] = []
   const text = (n: any): string => (typeof n.text === 'string' ? n.text : (n.children ?? []).map(text).join(''))
   for (const node of editor.children as any[]) {
-    if (node.type === 'figure') { parts.push(`[Hình: ${node.caption || 'chưa có chú thích'}]\n\`\`\`js\n${node.js}\n\`\`\``); continue }
+    if (node.type === 'figure') { parts.push(`[Figure: ${node.caption || 'no caption'}]\n\`\`\`js\n${node.js}\n\`\`\``); continue }
     try { parts.push((editor.api as any).markdown.serialize({ value: [node] })) }
     catch { parts.push(text(node)) }
   }
@@ -87,7 +87,7 @@ export function AssistantPanel({ editor, onClose }: { editor: PlateEditor | null
       setAgents(j.agents ?? []); setAgentNote(j.note ?? '')
       const first = (j.agents as AgentInfo[]).find((a) => a.available)
       if (first && !(j.agents as AgentInfo[]).some((a) => a.id === aiStore.get().agent && a.available)) aiStore.setMode(aiStore.get().mode, first.id)
-    } catch { setAgents([]); setAgentNote('Không dò được agent: server chưa chạy?') } finally { setDetecting(false) }
+    } catch { setAgents([]); setAgentNote('Could not detect agents: is the server running?') } finally { setDetecting(false) }
   }
   useEffect(() => { if (mode === 'agent' && agents === null) detect() }, [mode])
   useEffect(() => { fetch('/api/ai/status').then((r) => r.json()).then((j) => setServerKeys(j.serverKeys ?? {})).catch(() => {}) }, [])
@@ -111,7 +111,7 @@ export function AssistantPanel({ editor, onClose }: { editor: PlateEditor | null
     const by = mode === 'agent' ? (current?.label ?? 'Agent') : config.model
     const startedAt = Date.now()
     const update = (patch: Partial<Msg>) => setMessages((m) => [...m.slice(0, -1), { ...m[m.length - 1], ...patch }])
-    setMessages([...next, { role: 'assistant', content: '', by, startedAt, progress: mode === 'agent' ? `Đang mở ${by}…` : 'Đang gửi câu hỏi…' }])
+    setMessages([...next, { role: 'assistant', content: '', by, startedAt, progress: mode === 'agent' ? `Starting ${by}…` : 'Sending…' }])
     setInput(''); setBusy(true); setSettings(false)
     const ctl = new AbortController(); abort.current = ctl
     try {
@@ -120,7 +120,7 @@ export function AssistantPanel({ editor, onClose }: { editor: PlateEditor | null
         method: 'POST', headers: { 'content-type': 'application/json' }, signal: ctl.signal,
         body: JSON.stringify(mode === 'agent' ? { agent, messages: next, doc } : { aiConfig: config, messages: next, doc }),
       })
-      if (!r.ok || !r.body) { const j = await r.json().catch(() => ({})); throw new Error(j.error || `Lỗi ${r.status}`) }
+      if (!r.ok || !r.body) { const j = await r.json().catch(() => ({})); throw new Error(j.error || `Error ${r.status}`) }
       const reader = r.body.pipeThrough(new TextDecoderStream()).getReader()
       let raw = '', content = ''
       for (;;) {
@@ -129,9 +129,9 @@ export function AssistantPanel({ editor, onClose }: { editor: PlateEditor | null
         const s = parseStream(raw)
         if (s.error) throw new Error(s.error)
         content = s.content
-        update({ content, progress: s.progress || (content ? '' : 'Đang suy nghĩ…') })
+        update({ content, progress: s.progress || (content ? '' : 'Thinking…') })
       }
-      if (!content.trim()) throw new Error('Không nhận được câu trả lời. Kiểm tra model và key.')
+      if (!content.trim()) throw new Error('No answer received. Check the model and API key.')
       update({ progress: '', ms: Date.now() - startedAt })
     } catch (e) {
       if ((e as Error).name === 'AbortError') update({ progress: '', ms: Date.now() - startedAt, content: messagesContentOrStopped() })
@@ -155,20 +155,20 @@ export function AssistantPanel({ editor, onClose }: { editor: PlateEditor | null
 
   const field = 'h-8 w-full rounded-md border bg-background px-2 text-sm outline-none focus:border-ring'
   return (
-    <aside className="flex w-[360px] max-w-full shrink-0 flex-col border-l bg-muted/20 text-sm max-[900px]:absolute max-[900px]:inset-y-0 max-[900px]:right-0 max-[900px]:z-40 max-[900px]:bg-background max-[900px]:shadow-2xl" aria-label="Trợ lý AI">
+    <aside className="flex w-[360px] max-w-full shrink-0 flex-col border-l bg-muted/20 text-sm max-[900px]:absolute max-[900px]:inset-y-0 max-[900px]:right-0 max-[900px]:z-40 max-[900px]:bg-background max-[900px]:shadow-2xl" aria-label="AI Assistant">
       <div className="flex h-12 items-center justify-between border-b px-3">
-        <span className="flex items-center gap-2 font-semibold"><Sparkles className="size-4" />Trợ lý AI</span>
-        <button className="rounded-md p-1 text-muted-foreground hover:bg-accent" aria-label="Đóng trợ lý" onClick={onClose}><X className="size-4" /></button>
+        <span className="flex items-center gap-2 font-semibold"><Sparkles className="size-4" />AI Assistant</span>
+        <button className="rounded-md p-1 text-muted-foreground hover:bg-accent" aria-label="Close assistant" onClick={onClose}><X className="size-4" /></button>
       </div>
 
       <div className="flex items-center justify-between gap-2 border-b px-3 py-2 text-xs text-muted-foreground">
-        <span className="min-w-0 truncate">{mode === 'agent' ? (current ? `${current.label} · trên máy` : 'Chưa chọn agent trên máy') : `${info.label} · ${config.model || 'chưa chọn model'}`}</span>
-        <button className={cn('rounded-md p-1 hover:bg-accent', settings && 'bg-accent text-foreground')} aria-label="Cài đặt nhà cung cấp" aria-expanded={settings} onClick={() => setSettings(!settings)}><Settings2 className="size-4" /></button>
+        <span className="min-w-0 truncate">{mode === 'agent' ? (current ? `${current.label} · local` : 'No local agent selected') : `${info.label} · ${config.model || 'no model selected'}`}</span>
+        <button className={cn('rounded-md p-1 hover:bg-accent', settings && 'bg-accent text-foreground')} aria-label="Provider settings" aria-expanded={settings} onClick={() => setSettings(!settings)}><Settings2 className="size-4" /></button>
       </div>
 
       {settings && (
-        <div className="flex gap-1 border-b px-3 pt-3 pb-2" role="radiogroup" aria-label="Cách chạy AI">
-          {([['api', KeyRound, 'Nhập API key'], ['agent', Laptop, 'Agent trên máy']] as const).map(([m, Icon, label]) => (
+        <div className="flex gap-1 border-b px-3 pt-3 pb-2" role="radiogroup" aria-label="How to run AI">
+          {([['api', KeyRound, 'API key'], ['agent', Laptop, 'Local agent']] as const).map(([m, Icon, label]) => (
             <button key={m} role="radio" aria-checked={mode === m} onClick={() => aiStore.setMode(m)}
               className={cn('flex flex-1 items-center justify-center gap-1.5 rounded-md border px-2 py-1.5', mode === m ? 'border-foreground bg-foreground text-background' : 'hover:bg-accent')}>
               <Icon className="size-3.5" />{label}
@@ -180,12 +180,12 @@ export function AssistantPanel({ editor, onClose }: { editor: PlateEditor | null
       {settings && mode === 'agent' && (
         <div className="space-y-2 border-b px-3 py-3">
           <div className="flex items-center justify-between text-xs font-medium text-muted-foreground">
-            <span>Agent tìm thấy trên máy</span>
+            <span>Agents found on this computer</span>
             <button className="flex items-center gap-1 rounded-md px-1.5 py-0.5 hover:bg-accent" onClick={() => detect(true)}>
-              {detecting ? <Loader2 className="size-3.5 animate-spin" /> : <RefreshCw className="size-3.5" />}Dò lại
+              {detecting ? <Loader2 className="size-3.5 animate-spin" /> : <RefreshCw className="size-3.5" />}Rescan
             </button>
           </div>
-          {agents === null || (detecting && !agents.length) ? <p className="text-xs text-muted-foreground">Đang dò…</p> : (
+          {agents === null || (detecting && !agents.length) ? <p className="text-xs text-muted-foreground">Scanning…</p> : (
             <div className="space-y-1">
               {agents.map((a) => (
                 <label key={a.id} className={cn('flex items-center gap-2 rounded-md border px-2 py-1.5', !a.available && 'opacity-50', a.id === agent && a.available && 'border-foreground')}>
@@ -193,7 +193,7 @@ export function AssistantPanel({ editor, onClose }: { editor: PlateEditor | null
                   <Bot className="size-4 text-muted-foreground" />
                   <span className="min-w-0 flex-1">
                     <span className="block font-medium">{a.label}</span>
-                    <span className="block truncate text-xs text-muted-foreground">{a.available ? `${a.version ?? ''} · ${a.note}` : 'Chưa cài trên máy này'}</span>
+                    <span className="block truncate text-xs text-muted-foreground">{a.available ? `${a.version ?? ''} · ${a.note}` : 'Not installed on this computer'}</span>
                   </span>
                 </label>
               ))}
@@ -201,48 +201,48 @@ export function AssistantPanel({ editor, onClose }: { editor: PlateEditor | null
           )}
           <div className="space-y-1 text-xs text-muted-foreground">
             {agentNote && <p className="text-amber-600">{agentNote}</p>}
-            <p>Dùng tài khoản đã đăng nhập sẵn trong agent, không cần nhập key.</p>
-            <p>Agent chạy trên máy này ở chế độ chỉ đọc, trong một thư mục tạm chứa nội dung bài (<code>bai-viet.md</code>); thư mục bị xóa sau khi trả lời.</p>
-            {agents && !agents.some((a) => a.available) && <p className="text-amber-600">Chưa thấy agent nào. Cài Claude Code, Codex hoặc Antigravity rồi bấm Dò lại.</p>}
+            <p>Uses the account already signed in to the agent; no key needed.</p>
+            <p>The agent runs on this computer in read-only mode, in a temporary folder holding the document (<code>document.md</code>); the folder is deleted after it answers.</p>
+            {agents && !agents.some((a) => a.available) && <p className="text-amber-600">No agents found. Install Claude Code, Codex or Antigravity, then click Rescan.</p>}
           </div>
         </div>
       )}
 
       {settings && mode === 'api' && (
         <div className="space-y-2.5 border-b px-3 py-3">
-          <div className="text-xs font-medium text-muted-foreground">Nhà cung cấp AI</div>
-          <label className="grid grid-cols-[72px_1fr] items-center gap-2">Nhà cung cấp
+          <div className="text-xs font-medium text-muted-foreground">AI provider</div>
+          <label className="grid grid-cols-[72px_1fr] items-center gap-2">Provider
             <select className={field} value={config.provider} onChange={(e) => { const p = e.target.value as ProviderId; aiStore.set({ ...defaultConfig(p), apiKey: '' }) }}>
               {(Object.keys(PROVIDERS) as ProviderId[]).map((p) => <option key={p} value={p}>{PROVIDERS[p].label}</option>)}
             </select>
           </label>
           <label className="grid grid-cols-[72px_1fr_auto] items-center gap-2">Model
-            <input className={field} list="pc-models" value={config.model} placeholder={info.defaultModel || 'tên model'} onChange={(e) => aiStore.set({ model: e.target.value })} />
-            <button className="grid size-8 place-items-center rounded-md border hover:bg-accent" aria-label="Tải danh sách model" title="Tải danh sách model từ nhà cung cấp" onClick={refreshModels}>
+            <input className={field} list="pc-models" value={config.model} placeholder={info.defaultModel || 'model name'} onChange={(e) => aiStore.set({ model: e.target.value })} />
+            <button className="grid size-8 place-items-center rounded-md border hover:bg-accent" aria-label="Load models" title="Load the model list from the provider" onClick={refreshModels}>
               {loadingModels ? <Loader2 className="size-4 animate-spin" /> : <RefreshCw className="size-4" />}
             </button>
           </label>
           <datalist id="pc-models">{[...new Set([...info.suggestions, ...models])].map((m) => <option key={m} value={m} />)}</datalist>
           {modelsMsg && <p className="pl-[80px] text-xs text-muted-foreground">{modelsMsg}</p>}
-          <label className="grid grid-cols-[72px_1fr] items-center gap-2">Địa chỉ
+          <label className="grid grid-cols-[72px_1fr] items-center gap-2">Base URL
             <input className={field} value={config.baseURL} onChange={(e) => aiStore.set({ baseURL: e.target.value })} spellCheck={false} />
           </label>
           <label className="grid grid-cols-[72px_1fr_auto] items-center gap-2">API key
             <input className={field} type={showKey ? 'text' : 'password'} value={config.apiKey} autoComplete="off" spellCheck={false}
-              placeholder={serverKeys[config.provider] ? 'server đã có key, có thể để trống' : info.keyOptional ? 'không bắt buộc' : 'dán key vào đây'}
+              placeholder={serverKeys[config.provider] ? 'the server has a key, can be empty' : info.keyOptional ? 'optional' : 'paste your key'}
               onChange={(e) => aiStore.set({ apiKey: e.target.value })} />
-            <button className="grid size-8 place-items-center rounded-md border hover:bg-accent" aria-label={showKey ? 'Ẩn key' : 'Hiện key'} onClick={() => setShowKey(!showKey)}>
+            <button className="grid size-8 place-items-center rounded-md border hover:bg-accent" aria-label={showKey ? 'Hide key' : 'Show key'} onClick={() => setShowKey(!showKey)}>
               {showKey ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
             </button>
           </label>
-          <label className="flex items-center gap-2"><input type="checkbox" checked={remember} onChange={(e) => aiStore.set({}, e.target.checked)} />Nhớ key trên máy này</label>
+          <label className="flex items-center gap-2"><input type="checkbox" checked={remember} onChange={(e) => aiStore.set({}, e.target.checked)} />Remember key on this computer</label>
           <div className="space-y-1 text-xs text-muted-foreground">
             <p>{info.note}</p>
-            <p>{remember ? 'Key được lưu trong trình duyệt của máy này.' : 'Key chỉ giữ trong phiên này, đóng tab là mất.'} Có thể đặt sẵn biến môi trường <code>{info.envVar}</code> cho server để không phải nhập.</p>
-            <p>Mỗi câu hỏi gửi kèm nội dung bài đang mở tới nhà cung cấp đã chọn.</p>
-            {info.keyUrl && <a className="text-blue-600 hover:underline" href={info.keyUrl} target="_blank" rel="noreferrer">Lấy key</a>}
-            {!hasKey && <p className="text-amber-600">Nhập API key để dùng trợ lý.</p>}
-            <p>Menu AI trong bài (Space ở dòng trống, Ctrl+J) cũng dùng cài đặt này.</p>
+            <p>{remember ? 'The key is stored in this browser.' : 'The key is kept for this session only; closing the tab forgets it.'} You can also set <code>{info.envVar}</code> on the server instead.</p>
+            <p>Each question sends the open document to the selected provider.</p>
+            {info.keyUrl && <a className="text-blue-600 hover:underline" href={info.keyUrl} target="_blank" rel="noreferrer">Get a key</a>}
+            {!hasKey && <p className="text-amber-600">Enter an API key to use the assistant.</p>}
+            <p>The in-document AI menu (Space on an empty line, Ctrl+J) uses these settings too.</p>
           </div>
         </div>
       )}
@@ -250,7 +250,7 @@ export function AssistantPanel({ editor, onClose }: { editor: PlateEditor | null
       <div ref={list} className="min-h-0 flex-1 space-y-3 overflow-y-auto px-3 py-3">
         {!messages.length && (
           <div className="space-y-3">
-            <p className="text-muted-foreground">Hỏi về bài đang viết, hoặc nhờ viết, sửa, tóm tắt. Trợ lý đọc nội dung bài để trả lời; bấm <b>Chèn vào bài</b> để đưa câu trả lời vào vị trí con trỏ.</p>
+            <p className="text-muted-foreground">Ask about the document, or have it write, edit or summarize. The assistant reads the document to answer; click <b>Insert</b> to put an answer at the cursor.</p>
             <div className="flex flex-wrap gap-1.5">
               {SUGGESTIONS.map((s) => <button key={s} className="rounded-full border px-2.5 py-1 text-xs hover:bg-accent" onClick={() => send(s)}>{s}</button>)}
             </div>
@@ -265,7 +265,7 @@ export function AssistantPanel({ editor, onClose }: { editor: PlateEditor | null
               {live && (
                 <div className="flex items-center gap-2 text-xs text-muted-foreground" role="status" aria-live="polite">
                   <Loader2 className="size-3.5 shrink-0 animate-spin" />
-                  <span key={m.progress} className="chat-shimmer min-w-0 truncate">{m.progress || 'Đang trả lời…'}</span>
+                  <span key={m.progress} className="chat-shimmer min-w-0 truncate">{m.progress || 'Answering…'}</span>
                   <span className="ml-auto shrink-0 tabular-nums">{m.startedAt ? seconds(now - m.startedAt) : ''}</span>
                 </div>
               )}
@@ -276,8 +276,8 @@ export function AssistantPanel({ editor, onClose }: { editor: PlateEditor | null
               )}
               {!live && m.content && m.content !== STOPPED && (
                 <div className="flex items-center gap-1.5 text-xs">
-                  <button className="flex items-center gap-1 rounded-md border px-2 py-1 hover:bg-accent" onClick={() => insert(m.content)}><TextCursorInput className="size-3.5" />Chèn vào bài</button>
-                  <button className="flex items-center gap-1 rounded-md border px-2 py-1 hover:bg-accent" onClick={() => copy(i, m.content)}>{copied === i ? <Check className="size-3.5" /> : <ClipboardCopy className="size-3.5" />}{copied === i ? 'Đã chép' : 'Sao chép'}</button>
+                  <button className="flex items-center gap-1 rounded-md border px-2 py-1 hover:bg-accent" onClick={() => insert(m.content)}><TextCursorInput className="size-3.5" />Insert</button>
+                  <button className="flex items-center gap-1 rounded-md border px-2 py-1 hover:bg-accent" onClick={() => copy(i, m.content)}>{copied === i ? <Check className="size-3.5" /> : <ClipboardCopy className="size-3.5" />}{copied === i ? 'Copied' : 'Copy'}</button>
                   {m.ms !== undefined && <span className="ml-auto text-muted-foreground">{m.by} · {seconds(m.ms)}</span>}
                 </div>
               )}
@@ -288,13 +288,13 @@ export function AssistantPanel({ editor, onClose }: { editor: PlateEditor | null
 
       <div className="border-t p-3">
         <textarea className="min-h-[64px] w-full resize-none rounded-md border bg-background px-2.5 py-2 outline-none focus:border-ring" value={input}
-          placeholder="Hỏi về bài, hoặc nhờ viết một đoạn…" aria-label="Câu hỏi cho trợ lý"
+          placeholder="Ask about the document, or ask for a paragraph…" aria-label="Message to the assistant"
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); send(input) } }} />
         <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
-          <span>Enter để gửi, Shift+Enter xuống dòng</span>
-          {busy ? <button className="flex items-center gap-1 rounded-md border px-3 py-1.5 text-foreground hover:bg-accent" onClick={() => abort.current?.abort()}><Square className="size-3.5" />Dừng</button>
-            : <button className="rounded-md bg-foreground px-4 py-1.5 font-medium text-background disabled:opacity-40" disabled={!input.trim()} onClick={() => send(input)}>Gửi</button>}
+          <span>Enter to send, Shift+Enter for a new line</span>
+          {busy ? <button className="flex items-center gap-1 rounded-md border px-3 py-1.5 text-foreground hover:bg-accent" onClick={() => abort.current?.abort()}><Square className="size-3.5" />Stop</button>
+            : <button className="rounded-md bg-foreground px-4 py-1.5 font-medium text-background disabled:opacity-40" disabled={!input.trim()} onClick={() => send(input)}>Send</button>}
         </div>
       </div>
     </aside>

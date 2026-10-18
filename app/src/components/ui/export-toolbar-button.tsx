@@ -128,7 +128,7 @@ export function ExportToolbarButton(props: DropdownMenuProps) {
   return (
     <DropdownMenu open={open} onOpenChange={setOpen} modal={false} {...props}>
       <DropdownMenuTrigger asChild>
-        <ToolbarButton pressed={open} tooltip="Xuất / tải về" isDropdown>
+        <ToolbarButton pressed={open} tooltip="Export / download" isDropdown>
           <ArrowDownToLineIcon className="size-4" />
         </ToolbarButton>
       </DropdownMenuTrigger>
@@ -136,19 +136,19 @@ export function ExportToolbarButton(props: DropdownMenuProps) {
       <DropdownMenuContent align="start">
         <DropdownMenuGroup>
           <DropdownMenuItem onSelect={exportToHtml}>
-            Xuất HTML (hình tương tác, mở ở mọi nơi)
+            HTML (interactive figures, opens anywhere)
           </DropdownMenuItem>
           <DropdownMenuItem onSelect={exportToPdf}>
-            Xuất PDF (ảnh chụp trang)
+            PDF (page snapshot)
           </DropdownMenuItem>
           <DropdownMenuItem onSelect={exportToImage}>
-            Xuất ảnh PNG
+            PNG image
           </DropdownMenuItem>
           <DropdownMenuItem onSelect={exportToMarkdown}>
-            Xuất Markdown (chỉ chữ)
+            Markdown (text only)
           </DropdownMenuItem>
           <DropdownMenuItem onSelect={exportToWord}>
-            Xuất Word (chỉ chữ)
+            Word (text only)
           </DropdownMenuItem>
         </DropdownMenuGroup>
       </DropdownMenuContent>

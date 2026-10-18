@@ -1,4 +1,4 @@
 // Bản xuất HTML không có Python: mọi kết quả đã được tính sẵn trong file.
-const off = () => Promise.reject(new Error('Bản xuất bản không chạy Python.'))
+const off = () => Promise.reject(new Error('Published files do not run Python.'))
 export type GridItem = { i: number; ok: boolean; value?: unknown; error?: string }
-export const kernel = { status: { text: 'Không có Python', ready: false }, verify: off, runGrid: off, cancel() {}, subscribe: () => () => {} }
+export const kernel = { status: { text: 'No Python', ready: false }, verify: off, runGrid: off, cancel() {}, subscribe: () => () => {} }

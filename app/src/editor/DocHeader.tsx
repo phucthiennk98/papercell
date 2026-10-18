@@ -12,11 +12,11 @@ export function DocHeader() {
     <div className="px-16 pt-10 sm:px-[max(64px,calc(50%-350px))]">
       {readOnly ? <h1 className="text-4xl font-bold tracking-tight">{meta.title}</h1>
         : <input className="w-full bg-transparent text-4xl font-bold tracking-tight outline-none placeholder:text-muted-foreground/50"
-            value={meta.title} placeholder="Tiêu đề bài viết" aria-label="Tiêu đề bài viết" onChange={(e) => setMeta({ ...meta, title: e.target.value })} />}
+            value={meta.title} placeholder="Title" aria-label="Title" onChange={(e) => setMeta({ ...meta, title: e.target.value })} />}
       <div className="mt-2 flex gap-4 text-sm text-muted-foreground">
         {readOnly ? <span>{meta.authors}{meta.authors && meta.date ? ' · ' : ''}{meta.date}</span> : <>
-          <input className="min-w-0 flex-1 bg-transparent outline-none" value={meta.authors} placeholder="Tác giả, đơn vị" aria-label="Tác giả" onChange={(e) => setMeta({ ...meta, authors: e.target.value })} />
-          <input className="bg-transparent outline-none" type="date" value={meta.date} aria-label="Ngày" onChange={(e) => setMeta({ ...meta, date: e.target.value })} />
+          <input className="min-w-0 flex-1 bg-transparent outline-none" value={meta.authors} placeholder="Authors, affiliation" aria-label="Authors" onChange={(e) => setMeta({ ...meta, authors: e.target.value })} />
+          <input className="bg-transparent outline-none" type="date" value={meta.date} aria-label="Date" onChange={(e) => setMeta({ ...meta, date: e.target.value })} />
         </>}
       </div>
     </div>

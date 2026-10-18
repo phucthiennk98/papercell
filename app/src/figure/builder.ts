@@ -27,21 +27,21 @@ export type ChartTypeInfo = { type: ChartType; label: string; icon: LucideIcon; 
 const C = (channel: Channel, label: string, required = false, hint?: string): ChannelInfo => ({ channel, label, required, hint })
 
 export const CHART_TYPES: ChartTypeInfo[] = [
-  { type: 'bar', label: 'Cột', icon: ChartColumn, agg: true, sort: true, channels: [C('x', 'Nhóm (trục X)', true), C('y', 'Giá trị (trục Y)', false, 'để trống thì đếm số dòng'), C('color', 'Màu theo'), C('facet', 'Chia ô theo')] },
-  { type: 'barh', label: 'Thanh ngang', icon: BarChartHorizontal, agg: true, sort: true, channels: [C('y', 'Nhóm (trục Y)', true), C('x', 'Giá trị (trục X)', false, 'để trống thì đếm số dòng'), C('color', 'Màu theo')] },
-  { type: 'line', label: 'Đường', icon: ChartLine, agg: true, channels: [C('x', 'Trục X (thời gian/số)', true), C('y', 'Trục Y', true), C('color', 'Mỗi đường một màu theo'), C('facet', 'Chia ô theo')] },
-  { type: 'area', label: 'Vùng', icon: AreaChart, agg: true, channels: [C('x', 'Trục X', true), C('y', 'Trục Y', true), C('color', 'Chồng vùng theo')] },
-  { type: 'scatter', label: 'Phân tán', icon: ChartScatter, channels: [C('x', 'Trục X', true), C('y', 'Trục Y', true), C('color', 'Màu theo'), C('size', 'Cỡ điểm theo'), C('facet', 'Chia ô theo')] },
-  { type: 'histogram', label: 'Histogram', icon: ChartNoAxesColumn, bins: true, channels: [C('x', 'Biến số', true), C('color', 'Màu theo'), C('facet', 'Chia ô theo')] },
-  { type: 'box', label: 'Hộp (box)', icon: Box, channels: [C('y', 'Giá trị', true), C('x', 'Nhóm')] },
-  { type: 'heatmap', label: 'Bản đồ nhiệt ô', icon: Grid3x3, agg: true, channels: [C('x', 'Cột', true), C('y', 'Hàng', true), C('color', 'Giá trị tô màu', false, 'để trống thì đếm số dòng')] },
-  { type: 'table', label: 'Bảng', icon: Table2, agg: true, channels: [C('x', 'Gộp nhóm theo', false, 'để trống thì hiện các dòng đầu'), C('y', 'Cột giá trị')] },
-  { type: 'map-points', label: 'Bản đồ điểm', icon: MapPin, map: true, channels: [C('lat', 'Vĩ độ', true), C('lon', 'Kinh độ', true), C('color', 'Màu theo'), C('size', 'Cỡ điểm theo')] },
-  { type: 'map-heat', label: 'Bản đồ nhiệt', icon: Flame, map: true, channels: [C('lat', 'Vĩ độ', true), C('lon', 'Kinh độ', true), C('size', 'Trọng số')] },
-  { type: 'map-regions', label: 'Tô màu vùng', icon: MapIcon, map: true, channels: [C('color', 'Tô màu theo thuộc tính')] },
+  { type: 'bar', label: 'Bar', icon: ChartColumn, agg: true, sort: true, channels: [C('x', 'Group (X axis)', true), C('y', 'Value (Y axis)', false, 'empty = count rows'), C('color', 'Color by'), C('facet', 'Facet by')] },
+  { type: 'barh', label: 'Horizontal bar', icon: BarChartHorizontal, agg: true, sort: true, channels: [C('y', 'Group (Y axis)', true), C('x', 'Value (X axis)', false, 'empty = count rows'), C('color', 'Color by')] },
+  { type: 'line', label: 'Line', icon: ChartLine, agg: true, channels: [C('x', 'X axis (time/number)', true), C('y', 'Y axis', true), C('color', 'One line per'), C('facet', 'Facet by')] },
+  { type: 'area', label: 'Area', icon: AreaChart, agg: true, channels: [C('x', 'X axis', true), C('y', 'Y axis', true), C('color', 'Stack by')] },
+  { type: 'scatter', label: 'Scatter', icon: ChartScatter, channels: [C('x', 'X axis', true), C('y', 'Y axis', true), C('color', 'Color by'), C('size', 'Size by'), C('facet', 'Facet by')] },
+  { type: 'histogram', label: 'Histogram', icon: ChartNoAxesColumn, bins: true, channels: [C('x', 'Variable', true), C('color', 'Color by'), C('facet', 'Facet by')] },
+  { type: 'box', label: 'Box plot', icon: Box, channels: [C('y', 'Value', true), C('x', 'Group')] },
+  { type: 'heatmap', label: 'Heatmap', icon: Grid3x3, agg: true, channels: [C('x', 'Columns', true), C('y', 'Rows', true), C('color', 'Color value', false, 'empty = count rows')] },
+  { type: 'table', label: 'Table', icon: Table2, agg: true, channels: [C('x', 'Group by', false, 'empty = show first rows'), C('y', 'Value column')] },
+  { type: 'map-points', label: 'Point map', icon: MapPin, map: true, channels: [C('lat', 'Latitude', true), C('lon', 'Longitude', true), C('color', 'Color by'), C('size', 'Size by')] },
+  { type: 'map-heat', label: 'Heat map', icon: Flame, map: true, channels: [C('lat', 'Latitude', true), C('lon', 'Longitude', true), C('size', 'Weight')] },
+  { type: 'map-regions', label: 'Choropleth', icon: MapIcon, map: true, channels: [C('color', 'Color by property')] },
 ]
 
-export const AGG_LABEL: Record<Agg, string> = { none: 'Giữ nguyên', count: 'Đếm', sum: 'Tổng', mean: 'Trung bình', median: 'Trung vị', min: 'Nhỏ nhất', max: 'Lớn nhất' }
+export const AGG_LABEL: Record<Agg, string> = { none: 'None', count: 'Count', sum: 'Sum', mean: 'Mean', median: 'Median', min: 'Min', max: 'Max' }
 export const SCHEMES = ['blues', 'greens', 'oranges', 'reds', 'purples', 'viridis', 'turbo', 'ylorrd'] as const
 
 export const typeInfo = (t: ChartType) => CHART_TYPES.find((c) => c.type === t)!
@@ -59,11 +59,11 @@ const prop = (s: string) => /^[A-Za-z_$][\w$]*$/.test(s) ? `d.${s}` : `d[${q(s)}
 /** Sinh code JS (Observable Plot hoặc bản đồ MapLibre) từ lựa chọn. */
 export function codegen(s: ChartSpec): string {
   const info = typeInfo(s.type)
-  const head = `// Tạo bằng trình tạo biểu đồ (tab Thiết kế). Sửa ở đây thì Thiết kế sẽ không cập nhật code nữa.
+  const head = `// Generated by the chart builder (Design tab). If you edit it here, the Design tab stops updating this code.
 const ds = data[${q(s.data)}] ?? []`
-  if (!s.data) return `return "<p>Chọn dữ liệu ở tab Thiết kế.</p>"`
+  if (!s.data) return `return "<p>Pick a dataset in the Design tab.</p>"`
   const miss = missingChannels(s)
-  if (miss.length) return `${head}\nreturn "<p>Chọn cột cho: ${miss.join(', ')}.</p>"`
+  if (miss.length) return `${head}\nreturn "<p>Pick columns for: ${miss.join(', ')}.</p>"`
 
   if (info.map) {
     const opts = [`data: ds`, `kind: ${q(s.type === 'map-points' ? 'points' : s.type === 'map-heat' ? 'heat' : 'regions')}`,
@@ -79,12 +79,12 @@ const cot = Object.keys(ds[0] ?? {})
 return \`<table class="fig-table"><thead><tr>\${cot.map((c) => \`<th>\${pc.esc(c)}</th>\`).join("")}</tr></thead>
 <tbody>\${ds.slice(0, 50).map((d) => \`<tr>\${cot.map((c) => \`<td>\${pc.esc(d[c])}</td>\`).join("")}</tr>\`).join("")}</tbody></table>\``
     const fn = s.agg === 'count' || !s.y ? 'v.length' : `d3.${s.agg === 'none' ? 'sum' : s.agg}(v, (d) => ${prop(s.y)})`
-    const head2 = s.agg === 'count' || !s.y ? 'Số dòng' : `${AGG_LABEL[s.agg === 'none' ? 'sum' : s.agg]} ${s.y}`
+    const head2 = s.agg === 'count' || !s.y ? 'Rows' : `${AGG_LABEL[s.agg === 'none' ? 'sum' : s.agg]} ${s.y}`
     return `${head}
-const bang = d3.rollups(ds, (v) => ${fn}, (d) => ${prop(s.x)})${s.sort === 'desc' ? '.sort((a, b) => b[1] - a[1])' : s.sort === 'asc' ? '.sort((a, b) => a[1] - b[1])' : ''}
-expose(bang)
+const table = d3.rollups(ds, (v) => ${fn}, (d) => ${prop(s.x)})${s.sort === 'desc' ? '.sort((a, b) => b[1] - a[1])' : s.sort === 'asc' ? '.sort((a, b) => a[1] - b[1])' : ''}
+expose(table)
 return \`<table class="fig-table"><thead><tr><th>\${pc.esc(${q(s.x)})}</th><th>\${pc.esc(${q(head2)})}</th></tr></thead>
-<tbody>\${bang.map(([k, v]) => \`<tr><td>\${pc.esc(k)}</td><td>\${typeof v === "number" ? v.toLocaleString("vi-VN", { maximumFractionDigits: 2 }) : v}</td></tr>\`).join("")}</tbody></table>\``
+<tbody>\${table.map(([k, v]) => \`<tr><td>\${pc.esc(k)}</td><td>\${typeof v === "number" ? v.toLocaleString("en-US", { maximumFractionDigits: 2 }) : v}</td></tr>\`).join("")}</tbody></table>\``
   }
 
   const facet = s.facet ? `fy: ${q(s.facet)}` : ''
@@ -104,7 +104,7 @@ return \`<table class="fig-table"><thead><tr><th>\${pc.esc(${q(s.x)})}</th><th>\
       const reducer = !s.x || s.agg === 'count' ? `{ x: "count" }` : `{ x: ${q(agg)} }`
       const sortOpt = s.sort === 'none' ? '' : `sort: { y: ${q(s.sort === 'desc' ? '-x' : 'x')} }`
       marks = `Plot.barX(ds, Plot.groupY(${reducer}, { ${join(`y: ${q(s.y)}`, s.x && s.agg !== 'count' ? `x: ${q(s.x)}` : '', color('fill'), sortOpt, 'tip: true')} })),\n    Plot.ruleX([0])`
-      extra = ['marginLeft: lechTrai']
+      extra = ['marginLeft: marginL']
       break
     }
     case 'line':
@@ -113,7 +113,7 @@ return \`<table class="fig-table"><thead><tr><th>\${pc.esc(${q(s.x)})}</th><th>\
       const key = s.type === 'line' ? 'stroke' : 'fill'
       const opts = join(`x: ${q(s.x)}`, `y: ${q(s.y)}`, s.color ? `${key}: ${q(s.color)}` : `${key}: "#2a78d6"`, facet, 'tip: true')
       // Đường nối điểm theo thứ tự dữ liệu: sắp theo trục X trước, nếu không sẽ thành hình zíc zắc
-      marks = s.agg === 'none' ? `Plot.${mark}(theoX, { ${opts} })` : `Plot.${mark}(theoX, Plot.groupX({ y: ${q(agg === 'count' ? 'count' : agg)} }, { ${opts} }))`
+      marks = s.agg === 'none' ? `Plot.${mark}(sorted, { ${opts} })` : `Plot.${mark}(sorted, Plot.groupX({ y: ${q(agg === 'count' ? 'count' : agg)} }, { ${opts} }))`
       if (s.type === 'area') marks += ',\n    Plot.ruleY([0])'
       break
     }
@@ -129,7 +129,7 @@ return \`<table class="fig-table"><thead><tr><th>\${pc.esc(${q(s.x)})}</th><th>\
     case 'heatmap': {
       const reducer = !s.color || s.agg === 'count' ? `{ fill: "count" }` : `{ fill: ${q(agg)} }`
       marks = `Plot.cell(ds, Plot.group(${reducer}, { ${join(`x: ${q(s.x)}`, `y: ${q(s.y)}`, s.color && s.agg !== 'count' ? `fill: ${q(s.color)}` : '', 'tip: true')} }))`
-      extra = [`color: { scheme: ${q(s.scheme)}, legend: true }`, 'marginLeft: lechTrai']
+      extra = [`color: { scheme: ${q(s.scheme)}, legend: true }`, 'marginLeft: marginL']
       break
     }
   }
@@ -137,30 +137,30 @@ return \`<table class="fig-table"><thead><tr><th>\${pc.esc(${q(s.x)})}</th><th>\
   const colorLegend = s.color && s.type !== 'heatmap'
     ? [`color: { legend: true, scheme: typeof ds.find((d) => d[${q(s.color)}] != null)?.[${q(s.color)}] === "number" ? ${q(s.scheme)} : "tableau10" }`] : []
   // Trục số hiển thị kiểu Việt Nam: 10.000 và 0,5
-  const vn = 'tickFormat: (d) => typeof d === "number" ? d.toLocaleString("vi-VN") : d instanceof Date ? d.toLocaleDateString("vi-VN") : d'
+  const vn = 'tickFormat: (d) => typeof d === "number" ? d.toLocaleString("en-US") : d instanceof Date ? d.toLocaleDateString("en-US") : d'
   const xNumeric = s.type === 'barh' || s.type === 'scatter' || s.type === 'histogram' || s.type === 'line' || s.type === 'area'
   const yNumeric = s.type !== 'barh' && s.type !== 'heatmap'
   // Trục X là nhóm chữ: nhãn dài thì xoay nghiêng cho khỏi chồng lên nhau
   const xCat = (s.type === 'bar' || s.type === 'box' || s.type === 'heatmap') && !!s.x
   const yCat = s.type === 'barh' || s.type === 'heatmap'
   const pre = [
-    yCat ? `const lechTrai = Math.min(220, 16 + 6.5 * (d3.max(ds, (d) => String(d[${q(s.y)}] ?? "").length) ?? 0))` : '',
+    yCat ? `const marginL = Math.min(220, 16 + 6.5 * (d3.max(ds, (d) => String(d[${q(s.y)}] ?? "").length) ?? 0))` : '',
     // Nhãn trục X quá dài so với chỗ trống thì xoay nghiêng
-    xCat ? `const nhanX = d3.max(ds, (d) => String(d[${q(s.x)}] ?? "").length) ?? 0
-const xoay = nhanX * 7.5 * new Set(ds.map((d) => d[${q(s.x)}])).size > width - ${yCat ? 'lechTrai - 20' : '80'}` : '',
-    s.type === 'line' || s.type === 'area' ? `const theoX = d3.sort(ds, (d) => d[${q(s.x)}])` : '',
-    s.facet ? `const soO = new Set(ds.map((d) => d[${q(s.facet)}])).size` : '',
+    xCat ? `const labelLen = d3.max(ds, (d) => String(d[${q(s.x)}] ?? "").length) ?? 0
+const rotate = labelLen * 7.5 * new Set(ds.map((d) => d[${q(s.x)}])).size > width - ${yCat ? 'marginL - 20' : '80'}` : '',
+    s.type === 'line' || s.type === 'area' ? `const sorted = d3.sort(ds, (d) => d[${q(s.x)}])` : '',
+    s.facet ? `const nFacets = new Set(ds.map((d) => d[${q(s.facet)}])).size` : '',
   ].filter(Boolean)
-  const xOpts = [s.xLabel ? `label: ${q(s.xLabel)}` : '', xNumeric ? vn : '', xCat ? 'tickRotate: xoay ? -35 : 0' : ''].filter(Boolean)
+  const xOpts = [s.xLabel ? `label: ${q(s.xLabel)}` : '', xNumeric ? vn : '', xCat ? 'tickRotate: rotate ? -35 : 0' : ''].filter(Boolean)
   const axes = [
     xOpts.length ? `x: { ${xOpts.join(', ')} }` : '',
     `y: { grid: true${s.yLabel ? `, label: ${q(s.yLabel)}` : ''}${yNumeric ? `, ${vn}` : ''} }`,
     s.facet ? 'fy: { label: null }' : '',
   ].filter(Boolean)
   const layout = [
-    s.facet ? 'height: Math.max(320, 120 * soO)' : 'height: 320',
-    xCat ? 'marginBottom: xoay ? Math.min(130, 24 + 4.2 * nhanX) : 30' : '',
-    xCat && !yCat ? 'marginLeft: xoay ? Math.max(50, Math.min(120, 5.2 * nhanX)) : 50' : '',
+    s.facet ? 'height: Math.max(320, 120 * nFacets)' : 'height: 320',
+    xCat ? 'marginBottom: rotate ? Math.min(130, 24 + 4.2 * labelLen) : 30' : '',
+    xCat && !yCat ? 'marginLeft: rotate ? Math.max(50, Math.min(120, 5.2 * labelLen)) : 50' : '',
     s.facet ? `marginRight: Math.min(200, 16 + 6.5 * d3.max(ds, (d) => String(d[${q(s.facet)}] ?? "").length))` : '',
   ].filter(Boolean)
   return `${head}
@@ -176,5 +176,5 @@ return Plot.plot({
 
 /** Các tham số (thanh trượt) mà loại hình này cần. */
 export function specParams(s: ChartSpec) {
-  return s.type === 'histogram' ? [{ name: 'so_cot', label: 'Số cột', min: 5, max: 80, step: 1, value: s.bins }] : []
+  return s.type === 'histogram' ? [{ name: 'so_cot', label: 'Bins', min: 5, max: 80, step: 1, value: s.bins }] : []
 }

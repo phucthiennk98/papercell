@@ -11,7 +11,7 @@ type Progress = { done: number; total: number; failed: number; firstError?: stri
 
 const WARN_COMBOS = 2000
 const MAX_COMBOS = 50000
-const dur = (s: number) => (s < 60 ? `${Math.round(s)} giây` : s < 3600 ? `${Math.floor(s / 60)} phút ${Math.round(s % 60)} giây` : `${(s / 3600).toFixed(1)} giờ`)
+const dur = (s: number) => (s < 60 ? `${Math.round(s)} s` : s < 3600 ? `${Math.floor(s / 60)} min ${Math.round(s % 60)} s` : `${(s / 3600).toFixed(1)} h`)
 
 /** Đọc luồng JSONL (mỗi dòng một đối tượng) từ server. */
 async function readJsonLines(res: Response, onLine: (o: any) => void) {
@@ -45,7 +45,7 @@ export function ScenarioTab({ fig, onUpdate }: { fig: FigureNode; onUpdate: (p: 
     const detect = (): Promise<PyInfo> => fetch('/api/python').then((r) => r.json())
     detect().catch(() => new Promise((ok) => setTimeout(ok, 1500)).then(detect))
       .then((j) => { setPy(j); if (!j.available) setEngine('pyodide') })
-      .catch(() => { setPy({ available: false, error: 'Không gọi được server Papercell (bản trên máy).' }); setEngine('pyodide') })
+      .catch(() => { setPy({ available: false, error: 'Could not reach the local Papercell server.' }); setEngine('pyodide') })
   }, [])
   useEffect(() => {
     if (!cache) { setStale(false); return }
@@ -54,8 +54,8 @@ export function ScenarioTab({ fig, onUpdate }: { fig: FigureNode; onUpdate: (p: 
   useEffect(() => { if (!prog) return; const t = setInterval(() => tick((x) => x + 1), 500); return () => clearInterval(t) }, [prog])
 
   const run = async () => {
-    if (!fig.python.trim()) { setMsg('Chưa có code Python gốc. Mở tab "Python gốc" để dán code, và gán kết quả vào biến ket_qua.'); return }
-    if (total > MAX_COMBOS) { setMsg(`Lưới có ${total.toLocaleString('vi-VN')} tổ hợp, quá giới hạn ${MAX_COMBOS.toLocaleString('vi-VN')}. Tăng bước tính để giảm số tổ hợp.`); return }
+    if (!fig.python.trim()) { setMsg('No original Python code yet. Open the "Original Python" tab, paste your code and assign the result to ket_qua.'); return }
+    if (total > MAX_COMBOS) { setMsg(`The grid has ${total.toLocaleString('en-US')} combinations, over the ${MAX_COMBOS.toLocaleString('en-US')} limit. Increase the steps to reduce it.`); return }
     setMsg('')
     const combos = Array.from({ length: total }, (_, i) => comboAt(grid, i))
     const payloadFiles = files.map((f) => ({ key: dataKey(f.name), kind: f.kind, content: f.content }))
@@ -72,15 +72,15 @@ export function ScenarioTab({ fig, onUpdate }: { fig: FigureNode; onUpdate: (p: 
       if (engine === 'local') {
         const ctl = new AbortController(); abort.current = ctl
         const res = await fetch('/api/python/grid', { method: 'POST', headers: { 'content-type': 'application/json' }, signal: ctl.signal, body: JSON.stringify({ code: fig.python, files: payloadFiles, combos }) })
-        if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `Lỗi ${res.status}`)
+        if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `Error ${res.status}`)
         let fatal = ''
         await readJsonLines(res, (o) => { if (o.fatal) fatal = o.fatal; else if ('i' in o) onItem(o) })
         if (fatal) throw new Error(fatal)
       } else {
         await kernel.runGrid(fig.python, combos, payloadFiles, onItem)
       }
-      if (p.done < total) throw new Error('Đã dừng giữa chừng.')
-      if (p.failed === total) throw new Error('Mọi tổ hợp đều lỗi: ' + (p.firstError ?? ''))
+      if (p.done < total) throw new Error('Stopped before finishing.')
+      if (p.failed === total) throw new Error('Every combination failed: ' + (p.firstError ?? ''))
       const { payload, bytes } = await encodeResults(results)
       const out: ScenarioCache = {
         grid, payload, bytes, count: total, failed: p.failed, engine,
@@ -88,7 +88,7 @@ export function ScenarioTab({ fig, onUpdate }: { fig: FigureNode; onUpdate: (p: 
       }
       onUpdate({ scenarios: out })
     } catch (e) {
-      setMsg((e as Error).name === 'AbortError' || (e as Error).message === 'Đã dừng.' ? 'Đã dừng. Kết quả cũ (nếu có) vẫn giữ nguyên.' : (e as Error).message)
+      setMsg((e as Error).name === 'AbortError' || (e as Error).message === 'Stopped.' ? 'Stopped. Previous results (if any) are kept.' : (e as Error).message)
     } finally { setProg(null); abort.current = null }
   }
   const stop = () => { abort.current?.abort(); if (engine === 'pyodide') kernel.cancel() }
@@ -98,50 +98,50 @@ export function ScenarioTab({ fig, onUpdate }: { fig: FigureNode; onUpdate: (p: 
 
   return (
     <div className="dlg-scen">
-      <p>Chạy <b>code Python gốc</b> cho <b>mọi tổ hợp tham số</b> một lần, ngay trên máy bạn. Kết quả (biến <code>ket_qua</code>) được nén vào bài. Khi xuất bản, người đọc kéo thanh trượt là app tra kết quả đã tính sẵn: <b>không cần Python, không cần server</b>.</p>
-      <p className="hint">Trong code JS, đọc kết quả bằng biến <code>ket_qua</code>. Nếu chưa tính sẵn, biến này là <code>undefined</code>.</p>
+      <p>Run the <b>original Python code</b> once for <b>every parameter combination</b>, on your computer. The results (variable <code>ket_qua</code>) are compressed into the document. When published, moving a slider looks up the precomputed result: <b>no Python, no server</b>.</p>
+      <p className="hint">In the JS code, read the result from <code>ket_qua</code>. It is <code>undefined</code> until precomputed.</p>
 
       <section>
-        <h3>Lưới tham số</h3>
+        <h3>Parameter grid</h3>
         {fig.params.length ? (
           <table>
-            <thead><tr><th>Tham số</th><th>Từ</th><th>Đến</th><th>Bước tính sẵn</th><th>Số giá trị</th></tr></thead>
+            <thead><tr><th>Parameter</th><th>From</th><th>To</th><th>Step</th><th>Values</th></tr></thead>
             <tbody>
               {fig.params.map((p, k) => (
                 <tr key={p.name}>
                   <td>{p.label} <code>{p.name}</code></td><td>{p.min}</td><td>{p.max}</td>
-                  <td><input type="number" step="any" min={p.step} value={steps[p.name]} disabled={!!prog} aria-label={'Bước tính sẵn của ' + p.label}
+                  <td><input type="number" step="any" min={p.step} value={steps[p.name]} disabled={!!prog} aria-label={'Precompute step for ' + p.label}
                     onChange={(e) => setSteps({ ...steps, [p.name]: +e.target.value })} /></td>
                   <td className="num">{grid[k].values.length.toLocaleString('vi-VN')}</td>
                 </tr>
               ))}
             </tbody>
           </table>
-        ) : <p className="hint">Hình này chưa có tham số: Python sẽ chạy đúng 1 lần. Thêm tham số ở tab "Tham số" để có thanh trượt.</p>}
+        ) : <p className="hint">This figure has no parameters: Python runs once. Add parameters in the "Parameters" tab to get sliders.</p>}
         <div className={'scen-total' + (total > WARN_COMBOS ? ' warn' : '')}>
-          Tổng cộng <b>{total.toLocaleString('vi-VN')}</b> tổ hợp{fig.params.length > 1 ? ` (= ${grid.map((g) => g.values.length).join(' × ')})` : ''}.
-          {total > WARN_COMBOS && ' Lưới khá lớn: có thể mất nhiều thời gian và làm file nặng. Tăng bước tính để giảm.'}
-          {cache && cache.count > 0 && ` Lần trước mất khoảng ${dur((cache.seconds / cache.count) * total)} cho lưới này.`}
+          Total <b>{total.toLocaleString('en-US')}</b> combinations{fig.params.length > 1 ? ` (= ${grid.map((g) => g.values.length).join(' × ')})` : ''}.
+          {total > WARN_COMBOS && ' Large grid: it may take a while and make the file heavy. Increase the steps to reduce it.'}
+          {cache && cache.count > 0 && ` Estimated about ${dur((cache.seconds / cache.count) * total)} based on the last run.`}
         </div>
       </section>
 
       <section>
-        <h3>Chạy bằng</h3>
+        <h3>Run with</h3>
         <div className="choice-grid">
           <button className={'choice' + (engine === 'local' ? ' on' : '')} disabled={!py?.available || !!prog} onClick={() => setEngine('local')} aria-pressed={engine === 'local'}>
-            <Cpu size={18} /><span><b>Python trên máy</b><br /><small>{py === null ? 'Đang dò…' : py.available ? `Python ${py.version} · pandas ${py.pandas} · nhanh, dùng mọi thư viện đã cài` : py.error}</small></span>
+            <Cpu size={18} /><span><b>Local Python</b><br /><small>{py === null ? 'Detecting…' : py.available ? `Python ${py.version} · pandas ${py.pandas} · fast, any installed library` : py.error}</small></span>
           </button>
           <button className={'choice' + (engine === 'pyodide' ? ' on' : '')} disabled={!!prog} onClick={() => setEngine('pyodide')} aria-pressed={engine === 'pyodide'}>
-            <Globe size={18} /><span><b>Python trong trình duyệt</b><br /><small>Pyodide · chạy ở mọi nơi, chậm hơn, chỉ có thư viện phổ biến</small></span>
+            <Globe size={18} /><span><b>Python in the browser</b><br /><small>Pyodide · runs anywhere, slower, common libraries only</small></span>
           </button>
         </div>
       </section>
 
       <div className="row">
         {prog
-          ? <button className="btn" onClick={stop}><Square size={14} />Dừng</button>
-          : <button className="btn primary" onClick={run}><Play size={14} />{cache ? 'Chạy lại' : 'Chạy'} {total.toLocaleString('vi-VN')} tổ hợp</button>}
-        {cache && !prog && <button className="btn" onClick={() => onUpdate({ scenarios: undefined })}><Trash2 size={14} />Xóa kết quả tính sẵn</button>}
+          ? <button className="btn" onClick={stop}><Square size={14} />Stop</button>
+          : <button className="btn primary" onClick={run}><Play size={14} />{cache ? 'Run again' : 'Run'} {total.toLocaleString('en-US')} combinations</button>}
+        {cache && !prog && <button className="btn" onClick={() => onUpdate({ scenarios: undefined })}><Trash2 size={14} />Delete precomputed results</button>}
       </div>
 
       {prog && (
@@ -149,9 +149,9 @@ export function ScenarioTab({ fig, onUpdate }: { fig: FigureNode; onUpdate: (p: 
           <div className="bar"><i style={{ width: `${(100 * prog.done) / prog.total}%` }} /></div>
           <div className="row">
             <Loader2 size={14} className="spin" />
-            <span><b>{prog.done.toLocaleString('vi-VN')}</b> / {prog.total.toLocaleString('vi-VN')} tổ hợp</span>
-            <span className="hint">đã chạy {dur(elapsed)}{prog.done > 0 ? ` · còn khoảng ${dur(eta)}` : ''}</span>
-            {prog.failed > 0 && <span className="pc-err">{prog.failed} lỗi</span>}
+            <span><b>{prog.done.toLocaleString('en-US')}</b> / {prog.total.toLocaleString('en-US')} combinations</span>
+            <span className="hint">elapsed {dur(elapsed)}{prog.done > 0 ? ` · about ${dur(eta)} left` : ''}</span>
+            {prog.failed > 0 && <span className="pc-err">{prog.failed} failed</span>}
           </div>
         </div>
       )}
@@ -161,14 +161,14 @@ export function ScenarioTab({ fig, onUpdate }: { fig: FigureNode; onUpdate: (p: 
         <div className={'verify-box ' + (stale ? 'bad' : 'ok')}>
           {stale ? <TriangleAlert size={18} /> : <CircleCheck size={18} />}
           <div>
-            <b>{stale ? 'Kết quả tính sẵn đã cũ' : 'Đã tính sẵn'}</b>
-            <p>{cache.count.toLocaleString('vi-VN')} tổ hợp{cache.failed ? ` (${cache.failed} lỗi)` : ''} · nén còn {formatBytes(cache.bytes)} · {cache.engine === 'local' ? 'Python trên máy' : 'Pyodide'} · mất {dur(cache.seconds)}</p>
-            {stale && <p>Code Python, dữ liệu hoặc lưới đã đổi sau lần tính trước. Bấm "Chạy lại" để cập nhật.</p>}
-            <small>Lần chạy: {new Date(cache.at).toLocaleString('vi-VN')} · dấu vân tay {cache.fingerprint}</small>
+            <b>{stale ? 'Precomputed results are out of date' : 'Precomputed'}</b>
+            <p>{cache.count.toLocaleString('en-US')} combinations{cache.failed ? ` (${cache.failed} failed)` : ''} · {formatBytes(cache.bytes)} compressed · {cache.engine === 'local' ? 'local Python' : 'Pyodide'} · took {dur(cache.seconds)}</p>
+            {stale && <p>The Python code, data or grid changed since the last run. Press "Run again" to update.</p>}
+            <small>Run at: {new Date(cache.at).toLocaleString('en-US')} · fingerprint {cache.fingerprint}</small>
           </div>
         </div>
       )}
-      {prog === null && msg === '' && cache?.failed ? <p className="hint">Tổ hợp lỗi sẽ không có kết quả (ket_qua = null).</p> : null}
+      {prog === null && msg === '' && cache?.failed ? <p className="hint">Failed combinations have no result (ket_qua = null).</p> : null}
     </div>
   )
 }

@@ -49,17 +49,17 @@ export type PapercellDoc = {
 }
 
 export const DISPLAY_LABEL: Record<FigureDisplay, string> = {
-  output: 'Chỉ hình',
-  both: 'Hình + code bên dưới',
-  code: 'Chỉ code',
-  hidden: 'Ẩn khi xuất bản',
+  output: 'Figure only',
+  both: 'Figure + code below',
+  code: 'Code only',
+  hidden: 'Hidden when published',
 }
 
 export const ACCESS_LABEL: Record<CodeAccess, string> = {
-  none: 'Không cho xem code',
-  js: 'Chỉ code JS',
-  python: 'Chỉ Python gốc',
-  both: 'Cả Python và JS',
+  none: 'No code visible',
+  js: 'JS code only',
+  python: 'Original Python only',
+  both: 'Python and JS',
 }
 
 export const newId = () => Math.random().toString(36).slice(2, 10)
@@ -69,7 +69,7 @@ export const STARTER_JS = `// Có sẵn: Plot, d3, data (các file dữ liệu),
 const ds = data[Object.keys(data)[0]] ?? []
 return Plot.plot({
   width,
-  marks: [Plot.text(["Thẻ hình mới: mở popup để viết code"], { frameAnchor: "middle" })],
+  marks: [Plot.text(["New figure: open it to write code"], { frameAnchor: "middle" })],
 })`
 
 export const newFigureNode = (): FigureNode => ({

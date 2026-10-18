@@ -9,7 +9,7 @@ export const BlockPlaceholderKit = [
       className:
         'before:absolute before:cursor-text before:text-muted-foreground/80 before:content-[attr(placeholder)]',
       placeholders: {
-        [KEYS.p]: 'Gõ / để chèn khối, Space để nhờ AI…',
+        [KEYS.p]: 'Type / for blocks, Space to ask AI…',
       },
       query: ({ path }) => path.length === 1,
     },

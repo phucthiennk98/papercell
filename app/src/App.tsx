@@ -56,47 +56,47 @@ export default function App() {
     <TooltipProvider>
       <div className="relative flex h-screen w-full overflow-hidden bg-background text-foreground">
         {sidebar && (
-          <aside className="flex w-64 shrink-0 flex-col border-r bg-muted/30 text-sm" aria-label="Thanh bên">
+          <aside className="flex w-64 shrink-0 flex-col border-r bg-muted/30 text-sm" aria-label="Sidebar">
             <div className="flex items-center justify-between px-3 pt-3 pb-2">
               <span className="flex items-center gap-2 font-semibold"><span className="grid size-6 place-items-center rounded-md bg-foreground text-background text-xs">▤</span>Papercell</span>
-              <button className="rounded-md p-1 text-muted-foreground hover:bg-accent" aria-label="Thu gọn thanh bên" onClick={() => setSidebar(false)}><PanelLeftClose className="size-4" /></button>
+              <button className="rounded-md p-1 text-muted-foreground hover:bg-accent" aria-label="Collapse sidebar" onClick={() => setSidebar(false)}><PanelLeftClose className="size-4" /></button>
             </div>
             <label className="mx-3 mb-2 flex items-center gap-2 rounded-md border bg-background px-2 py-1.5">
               <Search className="size-4 text-muted-foreground" />
-              <input className="w-full bg-transparent outline-none placeholder:text-muted-foreground" placeholder="Tìm bài viết" value={query} onChange={(e) => setQuery(e.target.value)} />
+              <input className="w-full bg-transparent outline-none placeholder:text-muted-foreground" placeholder="Search documents" value={query} onChange={(e) => setQuery(e.target.value)} />
             </label>
 
             <div className="flex items-center justify-between px-3 pt-2 pb-1 text-xs font-medium text-muted-foreground">
-              <span>Bài viết</span>
-              <button className="rounded-md p-1 hover:bg-accent" aria-label="Tạo bài mới" title="Tạo bài mới" onClick={() => create(emptyDoc())}><Plus className="size-4" /></button>
+              <span>Documents</span>
+              <button className="rounded-md p-1 hover:bg-accent" aria-label="New document" title="New document" onClick={() => create(emptyDoc())}><Plus className="size-4" /></button>
             </div>
             <nav className="max-h-[38%] overflow-y-auto px-2">
               {shown.map((d) => (
                 <div key={d.id} className={cn('group flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-accent', d.id === docId && 'bg-accent font-medium')}>
                   <FileText className="size-4 shrink-0 text-muted-foreground" />
                   <button className="min-w-0 flex-1 truncate text-left" onClick={() => setDocId(d.id)} title={d.title}>{d.title}</button>
-                  <button className="hidden rounded p-0.5 text-muted-foreground hover:text-destructive group-hover:block" aria-label={'Xóa ' + d.title}
-                    onClick={() => { if (confirm(`Xóa bài "${d.title}"?`)) remove(d.id) }}><Trash2 className="size-3.5" /></button>
+                  <button className="hidden rounded p-0.5 text-muted-foreground hover:text-destructive group-hover:block" aria-label={'Delete ' + d.title}
+                    onClick={() => { if (confirm(`Delete "${d.title}"?`)) remove(d.id) }}><Trash2 className="size-3.5" /></button>
                 </div>
               ))}
-              {!shown.length && <p className="px-2 py-1 text-muted-foreground">Không có bài nào khớp.</p>}
+              {!shown.length && <p className="px-2 py-1 text-muted-foreground">No matching documents.</p>}
             </nav>
 
-            <div className="flex items-center gap-1 px-3 pt-4 pb-1 text-xs font-medium text-muted-foreground"><ListTree className="size-3.5" />Mục lục</div>
+            <div className="flex items-center gap-1 px-3 pt-4 pb-1 text-xs font-medium text-muted-foreground"><ListTree className="size-3.5" />Outline</div>
             <nav className="min-h-0 flex-1 overflow-y-auto px-2 pb-2">
               {headings.map((h) => (
                 <button key={h.id} onClick={() => goTo(h.id)} className="block w-full truncate rounded-md py-1 pr-2 text-left text-muted-foreground hover:bg-accent hover:text-foreground"
-                  style={{ paddingLeft: 8 + (h.level - 1) * 12 }}>{h.text || '(trống)'}</button>
+                  style={{ paddingLeft: 8 + (h.level - 1) * 12 }}>{h.text || '(empty)'}</button>
               ))}
-              {!headings.length && <p className="px-2 text-muted-foreground">Thêm tiêu đề để có mục lục.</p>}
+              {!headings.length && <p className="px-2 text-muted-foreground">Add headings to get an outline.</p>}
             </nav>
 
             <div className="border-t p-2">
               <button className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left hover:bg-accent" onClick={() => create(makeSample())}>
-                <BookOpen className="size-4 text-muted-foreground" />Tạo bài mẫu
+                <BookOpen className="size-4 text-muted-foreground" />New sample document
               </button>
               <button className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left hover:bg-accent" onClick={() => create(makeGallery())}>
-                <ChartColumn className="size-4 text-muted-foreground" />Tạo bộ thử biểu đồ
+                <ChartColumn className="size-4 text-muted-foreground" />New chart gallery
               </button>
             </div>
           </aside>
@@ -163,7 +163,7 @@ function DocView({ docId, sidebar, onShowSidebar, onSaved, onHeadings, onEditor,
   const open = async (f?: File) => {
     if (!f) return
     try { const d = JSON.parse(await f.text()); if (d?.version !== 3 || !Array.isArray(d.content)) throw new Error(); onOpenFile(d) }
-    catch { alert('File này không phải tài liệu Papercell (phiên bản 3).') }
+    catch { alert('This file is not a Papercell document (version 3).') }
   }
 
   return (
@@ -173,21 +173,21 @@ function DocView({ docId, sidebar, onShowSidebar, onSaved, onHeadings, onEditor,
         <Plate editor={editor} readOnly={readOnly} onChange={({ value }) => { const s = scan(value); setFigs(s.figs); onHeadings(s.headings); persist() }}>
           <main className="flex min-w-0 flex-1 flex-col">
             <header className="flex h-12 shrink-0 items-center gap-2 border-b px-3 text-sm whitespace-nowrap">
-              {!sidebar && <button className="rounded-md p-1 text-muted-foreground hover:bg-accent" aria-label="Mở thanh bên" onClick={onShowSidebar}><PanelLeftOpen className="size-4" /></button>}
-              <span className="min-w-0 flex-1 truncate text-muted-foreground">{meta.title || 'Bài chưa đặt tên'}</span>
-              <div className="flex rounded-md border p-0.5" role="group" aria-label="Chế độ">
-                <button aria-pressed={!readOnly} aria-label="Soạn" title="Soạn" onClick={() => setReadOnly(false)} className={cn('flex items-center gap-1.5 rounded px-2.5 py-1', !readOnly && 'bg-foreground text-background')}><PenLine className="size-3.5" /><span className="hidden lg:inline">Soạn</span></button>
-                <button aria-pressed={readOnly} aria-label="Xem trước" title="Xem trước" onClick={() => setReadOnly(true)} className={cn('flex items-center gap-1.5 rounded px-2.5 py-1', readOnly && 'bg-foreground text-background')}><BookOpen className="size-3.5" /><span className="hidden lg:inline">Xem trước</span></button>
+              {!sidebar && <button className="rounded-md p-1 text-muted-foreground hover:bg-accent" aria-label="Open sidebar" onClick={onShowSidebar}><PanelLeftOpen className="size-4" /></button>}
+              <span className="min-w-0 flex-1 truncate text-muted-foreground">{meta.title || 'Untitled'}</span>
+              <div className="flex rounded-md border p-0.5" role="group" aria-label="Mode">
+                <button aria-pressed={!readOnly} aria-label="Edit" title="Edit" onClick={() => setReadOnly(false)} className={cn('flex items-center gap-1.5 rounded px-2.5 py-1', !readOnly && 'bg-foreground text-background')}><PenLine className="size-3.5" /><span className="hidden lg:inline">Edit</span></button>
+                <button aria-pressed={readOnly} aria-label="Preview" title="Preview" onClick={() => setReadOnly(true)} className={cn('flex items-center gap-1.5 rounded px-2.5 py-1', readOnly && 'bg-foreground text-background')}><BookOpen className="size-3.5" /><span className="hidden lg:inline">Preview</span></button>
               </div>
-              {!readOnly && <button className="flex items-center gap-1.5 rounded-md border px-2.5 py-1 hover:bg-accent" onClick={() => setDataOpen(true)}><Database className="size-3.5" /><span className="hidden lg:inline">Dữ liệu</span> ({files.length})</button>}
-              <button className={cn('flex items-center gap-1.5 rounded-md border px-2.5 py-1 hover:bg-accent', assistant && 'bg-accent')} aria-pressed={assistant} aria-label="Trợ lý AI" title="Trợ lý AI" onClick={onToggleAssistant}><Sparkles className="size-3.5" /><span className="hidden lg:inline">Trợ lý AI</span></button>
-              <button className="rounded-md p-1.5 hover:bg-accent" aria-label="Mở file" title="Mở file .papercell.json" onClick={() => fileRef.current?.click()}><FolderOpen className="size-4" /></button>
-              <button className="rounded-md p-1.5 hover:bg-accent" aria-label="Lưu file" title="Tải về file .papercell.json" onClick={download}><Save className="size-4" /></button>
-              <button className="flex items-center gap-1.5 rounded-md border px-2.5 py-1 hover:bg-accent" aria-label="Xuất HTML" title="Xuất một file HTML để chia sẻ: ai cũng mở được, không cần Python hay server" onClick={exportHtml}><FileDown className="size-3.5" /><span className="hidden lg:inline">Xuất HTML</span></button>
+              {!readOnly && <button className="flex items-center gap-1.5 rounded-md border px-2.5 py-1 hover:bg-accent" onClick={() => setDataOpen(true)}><Database className="size-3.5" /><span className="hidden lg:inline">Data</span> ({files.length})</button>}
+              <button className={cn('flex items-center gap-1.5 rounded-md border px-2.5 py-1 hover:bg-accent', assistant && 'bg-accent')} aria-pressed={assistant} aria-label="AI Assistant" title="AI Assistant" onClick={onToggleAssistant}><Sparkles className="size-3.5" /><span className="hidden lg:inline">AI Assistant</span></button>
+              <button className="rounded-md p-1.5 hover:bg-accent" aria-label="Open file" title="Open a .papercell.json file" onClick={() => fileRef.current?.click()}><FolderOpen className="size-4" /></button>
+              <button className="rounded-md p-1.5 hover:bg-accent" aria-label="Save file" title="Download as .papercell.json" onClick={download}><Save className="size-4" /></button>
+              <button className="flex items-center gap-1.5 rounded-md border px-2.5 py-1 hover:bg-accent" aria-label="Export HTML" title="Export one HTML file to share: opens anywhere, no Python or server needed" onClick={exportHtml}><FileDown className="size-3.5" /><span className="hidden lg:inline">Export HTML</span></button>
               <input ref={fileRef} type="file" accept=".json" hidden onChange={(e) => { open(e.target.files?.[0]); e.target.value = '' }} />
             </header>
             <EditorContainer className="min-h-0 flex-1">
-              <Editor variant="demo" placeholder="Gõ / để chèn khối, hoặc nhấn Space ở dòng trống để nhờ AI…" />
+              <Editor variant="demo" placeholder="Type / to insert a block, or press Space on an empty line to ask AI…" />
             </EditorContainer>
           </main>
           {dataOpen && <DataPanel onChange={setFiles} onClose={() => setDataOpen(false)} />}

@@ -9,10 +9,10 @@ import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url'
 maplibregl.setWorkerUrl(workerUrl)
 
 export const BASEMAPS = {
-  light: { label: 'Sáng', url: 'https://tiles.openfreemap.org/styles/positron' },
-  streets: { label: 'Đường phố', url: 'https://tiles.openfreemap.org/styles/liberty' },
-  bright: { label: 'Tươi', url: 'https://tiles.openfreemap.org/styles/bright' },
-  dark: { label: 'Tối', url: 'https://tiles.openfreemap.org/styles/dark' },
+  light: { label: 'Light', url: 'https://tiles.openfreemap.org/styles/positron' },
+  streets: { label: 'Streets', url: 'https://tiles.openfreemap.org/styles/liberty' },
+  bright: { label: 'Bright', url: 'https://tiles.openfreemap.org/styles/bright' },
+  dark: { label: 'Dark', url: 'https://tiles.openfreemap.org/styles/dark' },
 } as const
 export type Basemap = keyof typeof BASEMAPS
 
@@ -84,7 +84,7 @@ export function makeMap(o: MapOptions): HTMLElement {
   box.style.height = `${o.height ?? Math.max(260, Math.round(width * 0.62))}px`
   const fs = toFeatures(o)
   if (!fs.length) {
-    box.innerHTML = '<div class="pcm-empty">Không có điểm nào để vẽ. Chọn đúng cột vĩ độ/kinh độ, hoặc dùng file GeoJSON.</div>'
+    box.innerHTML = '<div class="pcm-empty">Nothing to draw. Pick the latitude/longitude columns, or use a GeoJSON file.</div>'
     return box
   }
   const legend = styleFeatures(fs, o)
@@ -153,9 +153,9 @@ export function makeMap(o: MapOptions): HTMLElement {
     if (!n) { n = document.createElement('div'); n.className = 'pcm-note'; box.append(n) }
     n.textContent = text
   }
-  const slow = setTimeout(() => { if (!map.isStyleLoaded()) note('Chưa tải được bản đồ nền từ OpenFreeMap. Kiểm tra kết nối mạng rồi tải lại trang.') }, 12000)
+  const slow = setTimeout(() => { if (!map.isStyleLoaded()) note('Could not load the basemap from OpenFreeMap. Check your connection and reload the page.') }, 12000)
   map.on('load', () => { clearTimeout(slow); box.querySelector('.pcm-note')?.remove() })
-  map.on('webglcontextlost', () => note('Trình duyệt đã tạm tắt bản đồ này vì mở quá nhiều bản đồ cùng lúc. Tải lại trang để xem.'))
+  map.on('webglcontextlost', () => note('The browser paused this map because too many maps are open. Reload the page to see it.'))
   const ro = new ResizeObserver(() => map.resize())
   ro.observe(box)
   ;(box as any).__pcCleanup = () => { clearTimeout(slow); ro.disconnect(); map.remove() }

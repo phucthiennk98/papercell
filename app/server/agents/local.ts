@@ -23,11 +23,11 @@ type AgentDef = {
 
 const json = (line: string) => { try { return JSON.parse(line) } catch { return null } }
 const short = (s: string, n = 90) => { const t = s.replace(/\s+/g, ' ').trim(); return t.length > n ? t.slice(0, n - 1) + '…' : t }
-const describeCommand = (cmd: string) => (/bai-viet\.md/.test(cmd) ? 'Đang đọc bai-viet.md' : `Đang chạy lệnh: ${short(cmd, 60)}`)
+const describeCommand = (cmd: string) => (/document\.md/.test(cmd) ? 'Reading document.md' : `Running: ${short(cmd, 60)}`)
 
 export const AGENTS: AgentDef[] = [
   {
-    id: 'claude', label: 'Claude Code', bin: 'claude', note: 'claude -p, chế độ plan (chỉ đọc)',
+    id: 'claude', label: 'Claude Code', bin: 'claude', note: 'claude -p, plan mode (read-only)',
     args: () => ['-p', '--output-format', 'text', '--permission-mode', 'plan'],
     makeParser: () => ({ line: (l) => [{ delta: l + '\n' }], end: () => [] }),
   },
@@ -42,17 +42,17 @@ export const AGENTS: AgentDef[] = [
         line: (l) => {
           const e = json(l); if (!e) return []
           const item = e.item ?? {}
-          if (e.type === 'turn.started') return [{ progress: 'Đang suy nghĩ…' }]
+          if (e.type === 'turn.started') return [{ progress: 'Thinking…' }]
           if (e.type === 'item.started' && item.type === 'command_execution') return [{ progress: describeCommand(String(item.command ?? '')) }]
-          if (e.type === 'item.completed' && item.type === 'reasoning') return [{ progress: 'Đang suy nghĩ…' }]
+          if (e.type === 'item.completed' && item.type === 'reasoning') return [{ progress: 'Thinking…' }]
           if (e.type === 'item.completed' && item.type === 'agent_message') {
             const out: Parsed[] = pending ? [{ progress: short(pending) }] : []
             pending = String(item.text ?? '')
             return out
           }
           if (e.type === 'turn.completed') return flush()
-          if (e.type === 'turn.failed') return [{ error: e.error?.message ?? 'Codex báo lỗi.' }]
-          if (e.type === 'error') return [{ error: e.message ?? 'Codex báo lỗi.' }]
+          if (e.type === 'turn.failed') return [{ error: e.error?.message ?? 'Codex reported an error.' }]
+          if (e.type === 'error') return [{ error: e.message ?? 'Codex reported an error.' }]
           return []
         },
         end: flush,
@@ -60,21 +60,21 @@ export const AGENTS: AgentDef[] = [
     },
   },
   {
-    id: 'agy', label: 'Antigravity', bin: 'agy', note: 'agy -p, chế độ plan', promptInArgs: true,
+    id: 'agy', label: 'Antigravity', bin: 'agy', note: 'agy -p, plan mode', promptInArgs: true,
     args: (prompt) => [`-p=${prompt}`, '--output-format', 'stream-json', '--mode', 'plan'],
     makeParser: () => ({
       line: (l) => {
         const e = json(l); if (!e) return []
         const s = e.step_update
-        if (e.event === 'init') return [{ progress: 'Đang khởi động Antigravity…' }]
+        if (e.event === 'init') return [{ progress: 'Starting Antigravity…' }]
         if (e.event === 'step_update' && s) {
           if (s.step_type === 'agent_response') return s.text_delta ? [{ delta: s.text_delta }] : []
           if (s.step_type !== 'user_input' && s.state === 'ACTIVE') {
             const t = String(s.step_type ?? '')
-            return [{ progress: /view|read|file/i.test(t) ? 'Đang đọc bai-viet.md' : /plan|think/i.test(t) ? 'Đang suy nghĩ…' : `Đang thực hiện: ${t.replace(/_/g, ' ')}` }]
+            return [{ progress: /view|read|file/i.test(t) ? 'Reading document.md' : /plan|think/i.test(t) ? 'Thinking…' : `Working: ${t.replace(/_/g, ' ')}` }]
           }
         }
-        if (e.event === 'result' && e.result?.status && e.result.status !== 'SUCCESS') return [{ error: e.result.error ?? `Antigravity kết thúc với trạng thái ${e.result.status}.` }]
+        if (e.event === 'result' && e.result?.status && e.result.status !== 'SUCCESS') return [{ error: e.result.error ?? `Antigravity finished with status ${e.result.status}.` }]
         return []
       },
       end: () => [],
@@ -156,9 +156,9 @@ export async function detectAgents(force = false): Promise<AgentInfo[]> {
   return list
 }
 
-const INSTRUCTIONS = `Bạn là trợ lý viết bài khoa học trong Papercell. Nội dung bài đang mở nằm trong file bai-viet.md ở thư mục làm việc hiện tại; hãy đọc file đó khi câu hỏi liên quan tới bài.
-Không sửa, không tạo file nào. Trả lời bằng ngôn ngữ của người dùng (mặc định tiếng Việt).
-Khi được nhờ viết hoặc sửa nội dung, chỉ trả về phần nội dung bằng Markdown để chèn thẳng vào bài, không kèm lời dẫn. Không bịa số liệu.`
+const INSTRUCTIONS = `You are the writing assistant in Papercell. The open document is in document.md in the current working directory; read it when the question is about the document.
+Do not edit or create any files. Reply in the language the user writes in.
+When asked to write or edit content, return only that content in Markdown so it can be inserted directly, with no preamble. Never invent data.`
 
 type Msg = { role: 'user' | 'assistant'; content: string }
 
@@ -166,15 +166,15 @@ type Msg = { role: 'user' | 'assistant'; content: string }
 export async function agentChat(agentId: string, messages: Msg[], doc: string, signal: AbortSignal, errorMark: string, progressMark: string): Promise<Response> {
   const def = AGENTS.find((a) => a.id === agentId)
   const bin = def && resolveBin(def.bin)
-  if (!def || !bin) return Response.json({ error: 'Không tìm thấy agent này trên máy chạy server.' }, { status: 404 })
-  if (def.promptInArgs && bin.shell) return Response.json({ error: `${def.label} cần chạy trực tiếp, không qua shell.` }, { status: 500 })
+  if (!def || !bin) return Response.json({ error: 'This agent was not found on the computer running the server.' }, { status: 404 })
+  if (def.promptInArgs && bin.shell) return Response.json({ error: `${def.label} must be run directly, not through a shell.` }, { status: 500 })
 
-  const history = messages.slice(0, -1).map((m) => `${m.role === 'user' ? 'Người dùng' : 'Trợ lý'}: ${m.content}`).join('\n\n')
+  const history = messages.slice(0, -1).map((m) => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`).join('\n\n')
   const question = messages[messages.length - 1]?.content ?? ''
-  const prompt = `${INSTRUCTIONS}\n\n${history ? `Hội thoại trước:\n${history}\n\n` : ''}Câu hỏi hiện tại:\n${question}`
+  const prompt = `${INSTRUCTIONS}\n\n${history ? `Earlier conversation:\n${history}\n\n` : ''}Current question:\n${question}`
 
   const dir = await mkdtemp(path.join(tmpdir(), 'papercell-agent-'))
-  await writeFile(path.join(dir, 'bai-viet.md'), doc || '(Bài đang trống.)', 'utf8')
+  await writeFile(path.join(dir, 'document.md'), doc || '(The document is empty.)', 'utf8')
 
   const enc = new TextEncoder()
   const stream = new ReadableStream<Uint8Array>({
@@ -187,14 +187,14 @@ export async function agentChat(agentId: string, messages: Msg[], doc: string, s
         if (p.progress) ctrl.enqueue(enc.encode(progressMark + p.progress + '\n'))
         if (p.error) lastError = p.error
       })
-      ctrl.enqueue(enc.encode(progressMark + `Đang mở ${def.label}…\n`))
+      ctrl.enqueue(enc.encode(progressMark + `Starting ${def.label}…\n`))
       try {
         const r = await run(bin.file, def.args(prompt), bin.shell, {
           cwd: dir, input: def.promptInArgs ? undefined : prompt, timeoutMs: 5 * 60_000, signal,
           onLine: (line) => emit(parser.line(line)),
         })
         emit(parser.end())
-        if (!sent && !signal.aborted) fail((lastError || r.stderr.trim().split('\n').slice(-3).join(' ') || `${def.label} không trả lời (mã thoát ${r.code}).`).slice(0, 500))
+        if (!sent && !signal.aborted) fail((lastError || r.stderr.trim().split('\n').slice(-3).join(' ') || `${def.label} did not answer (exit code ${r.code}).`).slice(0, 500))
       } catch (e) { if (!signal.aborted) fail((e as Error).message) }
       finally { ctrl.close(); rm(dir, { recursive: true, force: true }).catch(() => {}) }
     },

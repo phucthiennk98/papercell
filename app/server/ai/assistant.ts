@@ -2,11 +2,11 @@
 import { streamText } from 'ai'
 import { ConfigError, readConfig, resolveModel } from './provider'
 
-const SYSTEM = `Bạn là trợ lý viết bài khoa học trong Papercell, một trình soạn bài báo có hình vẽ bằng JS và code Python gốc của tác giả.
-Trả lời bằng ngôn ngữ người dùng đang dùng (mặc định tiếng Việt). Viết rõ ràng, đúng văn phong học thuật khi soạn nội dung bài.
-Khi người dùng nhờ viết hoặc sửa nội dung, trả về đúng phần nội dung bằng Markdown để có thể chèn thẳng vào bài, không kèm lời dẫn.
-Khi được hỏi về code, giải thích ngắn gọn và đưa code hoàn chỉnh.
-Không bịa số liệu hay tài liệu tham khảo; nếu bài chưa có dữ liệu thì nói rõ.`
+const SYSTEM = `You are the writing assistant in Papercell, an editor for scientific papers with figures drawn in JS and the author's original Python code.
+Reply in the language the user writes in. Write clearly, in an academic register when drafting document content.
+When asked to write or edit content, return only that content in Markdown so it can be inserted directly, with no preamble.
+When asked about code, explain briefly and give complete code.
+Never invent data or references; if the document has no data for something, say so.`
 
 type Msg = { role: 'user' | 'assistant'; content: string }
 
@@ -15,14 +15,14 @@ export async function assistantChat(req: Request) {
   const messages = (Array.isArray(body.messages) ? body.messages : []).filter(
     (m: Msg) => (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string' && m.content.trim(),
   ) as Msg[]
-  if (!messages.length) return Response.json({ error: 'Chưa có câu hỏi.' }, { status: 400 })
+  if (!messages.length) return Response.json({ error: 'No question was sent.' }, { status: 400 })
 
   let model
   try { model = resolveModel(readConfig(body)) }
   catch (e) { return Response.json({ error: (e as Error).message }, { status: e instanceof ConfigError ? 401 : 500 }) }
 
   const doc = typeof body.doc === 'string' ? body.doc.slice(0, 200_000) : ''
-  const system = doc ? `${SYSTEM}\n\nNội dung bài đang mở (Markdown):\n<bai_viet>\n${doc}\n</bai_viet>` : SYSTEM
+  const system = doc ? `${SYSTEM}\n\nThe open document (Markdown):\n<document>\n${doc}\n</document>` : SYSTEM
 
   const result = streamText({
     model,
@@ -32,7 +32,7 @@ export async function assistantChat(req: Request) {
     maxRetries: 1,
     abortSignal: req.signal,
     // Lỗi được gửi về giao diện (xem bên dưới), không in nguyên stack ra console
-    onError: ({ error }) => console.warn('[trợ lý]', describe(error)),
+    onError: ({ error }) => console.warn('[assistant]', describe(error)),
   })
 
   // Gửi chữ dạng stream; lỗi của nhà cung cấp được gửi kèm sau dấu ERROR_MARK để giao diện hiện rõ.
@@ -60,9 +60,9 @@ export function describe(e: unknown): string {
   // Lỗi sau nhiều lần thử lại: lấy lỗi cuối cùng
   const outer = e as { lastError?: unknown }
   const err = (outer?.lastError ?? e) as { message?: string; statusCode?: number; cause?: { message?: string; code?: string } }
-  if (/Cannot connect to API/i.test(err?.message ?? '')) return 'Không kết nối được tới địa chỉ server đã nhập.'
-  const cause = err?.cause?.code === 'ECONNREFUSED' || /ECONNREFUSED|fetch failed/.test(err?.message ?? '') ? 'Không kết nối được tới địa chỉ server đã nhập.' : ''
-  if (err?.statusCode === 401 || err?.statusCode === 403) return 'Nhà cung cấp từ chối key (401/403). Kiểm tra lại API key.'
-  if (err?.statusCode === 404) return 'Không tìm thấy model hoặc địa chỉ (404). Kiểm tra tên model và địa chỉ.'
+  if (/Cannot connect to API/i.test(err?.message ?? '')) return 'Could not connect to the server address you entered.'
+  const cause = err?.cause?.code === 'ECONNREFUSED' || /ECONNREFUSED|fetch failed/.test(err?.message ?? '') ? 'Could not connect to the server address you entered.' : ''
+  if (err?.statusCode === 401 || err?.statusCode === 403) return 'The provider rejected the key (401/403). Check your API key.'
+  if (err?.statusCode === 404) return 'Model or address not found (404). Check the model name and base URL.'
   return cause || err?.message || String(e)
 }

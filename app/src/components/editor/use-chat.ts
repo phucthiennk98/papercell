@@ -82,7 +82,7 @@ function createChatTransport({
 
       if (!res.ok) {
         const j = await res.json().catch(() => ({}));
-        const message = j.error || `Lỗi AI (${res.status})`;
+        const message = j.error || `AI error (${res.status})`;
         toast.error(message);
         throw new Error(message);
       }

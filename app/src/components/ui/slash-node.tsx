@@ -63,7 +63,7 @@ type Group = {
 const VN = (t: string) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').toLowerCase();
 
 const chartGroup: Group = {
-  group: 'Biểu đồ từ dữ liệu',
+  group: 'Charts from data',
   items: CHART_TYPES.map((c) => ({
     icon: <c.icon />,
     keywords: ['hinh', 'bieu do', 'chart', 'du lieu', c.type, VN(c.label)],
@@ -74,7 +74,7 @@ const chartGroup: Group = {
 };
 
 const figureGroup: Group = {
-  group: 'Mẫu hình có code',
+  group: 'Figure templates (code)',
   items: FIGURE_TEMPLATES.filter((t) => t.id !== 'data').map((t) => ({
     icon: <t.icon />,
     keywords: ['hinh', 'bieu do', 'chart', 'figure', ...t.keywords],

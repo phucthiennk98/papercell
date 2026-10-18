@@ -26,8 +26,8 @@ export const keyFor = (cfg: AIConfig) => cfg.apiKey || process.env[PROVIDERS[cfg
 export function resolveModel(cfg: AIConfig): LanguageModel {
   const info = PROVIDERS[cfg.provider]
   const apiKey = keyFor(cfg)
-  if (!apiKey && !info.keyOptional) throw new ConfigError(`Chưa có API key cho ${info.label}. Nhập key trong Trợ lý AI hoặc đặt biến môi trường ${info.envVar} cho server.`)
-  if (!cfg.model) throw new ConfigError('Chưa chọn model.')
+  if (!apiKey && !info.keyOptional) throw new ConfigError(`No API key for ${info.label}. Enter one in the AI Assistant or set ${info.envVar} on the server.`)
+  if (!cfg.model) throw new ConfigError('No model selected.')
   switch (cfg.provider) {
     case 'anthropic': return createAnthropic({ apiKey, baseURL: cfg.baseURL })(cfg.model)
     case 'openai': return createOpenAI({ apiKey, baseURL: cfg.baseURL })(cfg.model)

@@ -6,7 +6,7 @@ import type { DataFile } from '../editor/types'
 import { DataContext, dataKey } from './runtime'
 
 const size = (s: string) => { const b = new Blob([s]).size; return b > 1e6 ? (b / 1e6).toFixed(1) + ' MB' : Math.ceil(b / 1e3) + ' KB' }
-const TYPE_LABEL = { number: 'số', date: 'ngày', text: 'chữ', lat: 'vĩ độ', lon: 'kinh độ' } as const
+const TYPE_LABEL = { number: 'number', date: 'date', text: 'text', lat: 'latitude', lon: 'longitude' } as const
 
 /** Quản lý các file dữ liệu đính kèm bài viết, có xem trước. */
 export function DataPanel({ onChange, onClose }: { onChange: (files: DataFile[]) => void; onClose: () => void }) {
@@ -37,36 +37,36 @@ export function DataPanel({ onChange, onClose }: { onChange: (files: DataFile[])
 
   return createPortal(
     <div className="dlg-backdrop" onMouseDown={onClose}>
-      <div className="dlg dlg-small" role="dialog" aria-modal="true" aria-label="Dữ liệu của bài" onMouseDown={(e) => e.stopPropagation()}
+      <div className="dlg dlg-small" role="dialog" aria-modal="true" aria-label="Document data" onMouseDown={(e) => e.stopPropagation()}
         onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); add(e.dataTransfer.files) }}>
-        <header className="dlg-head"><span className="dlg-title">Dữ liệu của bài</span><button className="pc-icon-btn" aria-label="Đóng" onClick={onClose}><X size={17} /></button></header>
+        <header className="dlg-head"><span className="dlg-title">Document data</span><button className="pc-icon-btn" aria-label="Close" onClick={onClose}><X size={17} /></button></header>
         <div className="dlg-body data-panel">
-          <p className="hint">Nạp CSV, TXT, TSV, Excel (.xlsx), JSON, GeoJSON (hoặc kéo thả file vào đây). Code JS đọc bằng <code>data.tên</code>, Python gốc đọc bằng <code>data["tên"]</code>.</p>
+          <p className="hint">Load CSV, TXT, TSV, Excel (.xlsx), JSON or GeoJSON (or drop files here). JS code reads them as <code>data.name</code>, the original Python as <code>data["name"]</code>.</p>
           <table>
-            <thead><tr><th>Tên biến</th><th>File</th><th>Nội dung</th><th>Dung lượng</th><th /></tr></thead>
+            <thead><tr><th>Variable</th><th>File</th><th>Contents</th><th>Size</th><th /></tr></thead>
             <tbody>
               {files.map((f) => {
                 const v = data[dataKey(f.name)]
                 return (
                   <tr key={f.name} className={f.name === active ? 'is-active' : ''} onClick={() => setActive(f.name)} style={{ cursor: 'pointer' }}>
                     <td><code>{dataKey(f.name)}</code></td><td>{f.name}</td>
-                    <td>{isGeoJSON(v) ? `GeoJSON · ${asRows(v).length} đối tượng` : `${asRows(v).length.toLocaleString('vi-VN')} dòng`}</td>
+                    <td>{isGeoJSON(v) ? `GeoJSON · ${asRows(v).length} features` : `${asRows(v).length.toLocaleString('en-US')} rows`}</td>
                     <td>{size(f.content)}</td>
-                    <td><button className="pc-icon-btn" aria-label={'Xóa ' + f.name} onClick={(e) => { e.stopPropagation(); onChange(files.filter((x) => x !== f)) }}><Trash2 size={14} /></button></td>
+                    <td><button className="pc-icon-btn" aria-label={'Delete ' + f.name} onClick={(e) => { e.stopPropagation(); onChange(files.filter((x) => x !== f)) }}><Trash2 size={14} /></button></td>
                   </tr>
                 )
               })}
-              {!files.length && <tr><td colSpan={5} className="hint">Chưa có file nào. Thêm file để các hình dùng chung.</td></tr>}
+              {!files.length && <tr><td colSpan={5} className="hint">No files yet. Add files to share them across figures.</td></tr>}
             </tbody>
           </table>
           <div className="row">
-            <button className="btn primary" onClick={() => input.current?.click()} disabled={busy}>{busy ? <Loader2 size={14} className="spin" /> : <FileUp size={14} />} Thêm file</button>
+            <button className="btn primary" onClick={() => input.current?.click()} disabled={busy}>{busy ? <Loader2 size={14} className="spin" /> : <FileUp size={14} />} Add files</button>
             <input ref={input} type="file" multiple accept={ACCEPT} hidden onChange={(e) => { add(e.target.files); e.target.value = '' }} />
             {msg && <span className="pc-err">{msg}</span>}
           </div>
           {cur && cols.length > 0 && (
             <div className="data-preview">
-              <div className="hint">Xem trước <b>{cur.name}</b>: {cols.length} cột, 8 dòng đầu</div>
+              <div className="hint">Preview of <b>{cur.name}</b>: {cols.length} columns, first 8 rows</div>
               <div className="data-preview-scroll">
                 <table>
                   <thead><tr>{cols.map((c) => <th key={c.name}>{c.name}<span className="col-type">{TYPE_LABEL[c.type]}</span></th>)}</tr></thead>

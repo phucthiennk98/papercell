@@ -1,7 +1,7 @@
 // Lưu nhiều bài viết trong trình duyệt: một danh mục + mỗi bài một khóa riêng.
 import type { PapercellDoc } from '@/editor/types'
 import { makeSample } from '@/sample'
-import { makeGallery } from '@/gallery'
+import { GALLERY_TITLE, makeGallery } from '@/gallery'
 import { upgradeDoc } from '@/editor/upgrade'
 
 export type DocEntry = { id: string; title: string; updated: string }
@@ -27,7 +27,7 @@ export function loadDoc(id: string): PapercellDoc | null {
 export function saveDoc(id: string, doc: PapercellDoc) {
   write(KEY(id), doc)
   const idx = (read<DocEntry[]>(INDEX) ?? []).filter((e) => e.id !== id)
-  idx.push({ id, title: doc.meta.title || 'Bài chưa đặt tên', updated: new Date().toISOString() })
+  idx.push({ id, title: doc.meta.title || 'Untitled', updated: new Date().toISOString() })
   write(INDEX, idx)
 }
 
@@ -48,7 +48,7 @@ export function ensureFirstDoc(): string {
   // Bộ thử biểu đồ được thêm một lần cho mọi người dùng (kể cả người đã có bài).
   if (!read<boolean>(GALLERY)) { saveDoc(newDocId(), makeGallery()); write(GALLERY, true) }
   const docs = listDocs()
-  if (docs.length > 1 || docs.some((d) => d.title !== 'Bộ thử biểu đồ')) return docs[0].id
+  if (docs.length > 1 || docs.some((d) => d.title !== GALLERY_TITLE && d.title !== 'Bộ thử biểu đồ')) return docs[0].id
   const id = newDocId()
   saveDoc(id, makeSample())
   return id

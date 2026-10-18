@@ -53,11 +53,11 @@ for i, combo in enumerate(job["combos"]):
     try:
         exec(code, g)
         sys.stdout = out
-        res = {"i": i, "ok": True, "value": jsonable(g["ket_qua"])} if "ket_qua" in g else {"i": i, "ok": False, "error": "Code Python chưa gán biến ket_qua."}
+        res = {"i": i, "ok": True, "value": jsonable(g["ket_qua"])} if "ket_qua" in g else {"i": i, "ok": False, "error": "The Python code did not assign the variable ket_qua."}
     except BaseException as e:
         sys.stdout = out
         tb = [fr for fr in traceback.extract_tb(e.__traceback__) if fr.filename == "<python>"]
-        res = {"i": i, "ok": False, "error": "\n".join([f"Dòng {fr.lineno}: {fr.line}" if fr.line else f"Dòng {fr.lineno}" for fr in tb] + [f"{type(e).__name__}: {e}"])}
+        res = {"i": i, "ok": False, "error": "\n".join([f"Line {fr.lineno}: {fr.line}" if fr.line else f"Line {fr.lineno}" for fr in tb] + [f"{type(e).__name__}: {e}"])}
     finally:
         plt = sys.modules.get("matplotlib.pyplot")
         if plt is not None:
@@ -75,7 +75,7 @@ let cached: { at: number; info: { available: boolean; version?: string; pandas?:
 export async function detectPython() {
   if (cached && Date.now() - cached.at < 60_000) return cached.info
   const bin = pythonBin()
-  let info: { available: boolean; version?: string; pandas?: string; error?: string } = { available: false, error: 'Không tìm thấy Python trên máy.' }
+  let info: { available: boolean; version?: string; pandas?: string; error?: string } = { available: false, error: 'Python was not found on this computer.' }
   if (bin && !bin.shell) {
     const r = await new Promise<string>((resolve) => {
       const c = spawn(bin.file, ['-c', 'import sys, pandas; print(sys.version.split()[0], pandas.__version__)'], { windowsHide: true })
@@ -83,7 +83,7 @@ export async function detectPython() {
       c.on('error', () => resolve('')); c.on('close', () => resolve(s.trim()))
     })
     const m = /^(\d+\.\d+\.\d+)\s+(\S+)$/.exec(r)
-    info = m ? { available: true, version: m[1], pandas: m[2] } : { available: false, error: /pandas/i.test(r) ? 'Python có trên máy nhưng chưa cài pandas (pip install pandas).' : 'Không chạy được Python trên máy.' }
+    info = m ? { available: true, version: m[1], pandas: m[2] } : { available: false, error: /pandas/i.test(r) ? 'Python is installed but pandas is missing (pip install pandas).' : 'Could not run Python on this computer.' }
   }
   cached = { at: Date.now(), info }
   return info
@@ -94,7 +94,7 @@ type Job = { code: string; files: { key: string; kind: string; content: string }
 /** Chạy lưới; trả về luồng JSONL: {"ready":…} rồi mỗi dòng một tổ hợp {"i","ok","value"|"error"}. */
 export async function runGrid(job: Job, signal: AbortSignal): Promise<Response> {
   const bin = pythonBin()
-  if (!bin || bin.shell) return Response.json({ error: 'Không tìm thấy Python trên máy.' }, { status: 404 })
+  if (!bin || bin.shell) return Response.json({ error: 'Python was not found on this computer.' }, { status: 404 })
   const dir = await mkdtemp(path.join(tmpdir(), 'papercell-grid-'))
   const files = await Promise.all(job.files.map(async (f, i) => {
     const p = path.join(dir, `data_${i}.${f.kind === 'csv' ? 'csv' : 'json'}`)
@@ -114,7 +114,7 @@ export async function runGrid(job: Job, signal: AbortSignal): Promise<Response> 
       child.stdout.on('data', (d: Buffer) => ctrl.enqueue(new Uint8Array(d)))
       child.stderr.on('data', (d: Buffer) => { stderr += d.toString('utf8') })
       child.on('close', (code) => {
-        if (code && !signal.aborted) ctrl.enqueue(enc.encode(JSON.stringify({ fatal: stderr.trim().split('\n').slice(-6).join('\n') || `Python thoát với mã ${code}.` }) + '\n'))
+        if (code && !signal.aborted) ctrl.enqueue(enc.encode(JSON.stringify({ fatal: stderr.trim().split('\n').slice(-6).join('\n') || `Python exited with code ${code}.` }) + '\n'))
         ctrl.close()
         rm(dir, { recursive: true, force: true }).catch(() => {})
       })

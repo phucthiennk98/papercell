@@ -28,14 +28,14 @@ export function FigureToolbarButton(props: DropdownMenuProps) {
   return (
     <DropdownMenu open={open} onOpenChange={setOpen} modal={false} {...props}>
       <DropdownMenuTrigger asChild>
-        <ToolbarButton pressed={open} tooltip="Thêm hình (biểu đồ, bản đồ, bảng)" aria-label="Thêm hình" isDropdown>
+        <ToolbarButton pressed={open} tooltip="Add a figure (chart, map, table)" aria-label="Add figure" isDropdown>
           <ChartColumnIcon />
-          <span className="ml-1 hidden xl:inline">Hình</span>
+          <span className="ml-1 hidden xl:inline">Figure</span>
         </ToolbarButton>
       </DropdownMenuTrigger>
 
       <DropdownMenuContent className="max-h-[min(80vh,640px)] w-[380px] overflow-y-auto" align="start">
-        <DropdownMenuLabel className="text-xs text-muted-foreground">Từ dữ liệu của bài: chọn loại rồi chọn cột, không cần code</DropdownMenuLabel>
+        <DropdownMenuLabel className="text-xs text-muted-foreground">From the document's data: pick a type, then columns, no code</DropdownMenuLabel>
         <div className="grid grid-cols-4 gap-1 px-1 pb-1">
           {CHART_TYPES.map((c) => (
             <DropdownMenuItem
@@ -52,7 +52,7 @@ export function FigureToolbarButton(props: DropdownMenuProps) {
           ))}
         </div>
         <DropdownMenuSeparator />
-        <DropdownMenuLabel className="text-xs text-muted-foreground">Mẫu có code sẵn (dữ liệu minh họa, có thanh trượt)</DropdownMenuLabel>
+        <DropdownMenuLabel className="text-xs text-muted-foreground">Code templates (sample data, with sliders)</DropdownMenuLabel>
         {FIGURE_TEMPLATES.filter((t) => t.id !== 'data').map((t) => (
           <DropdownMenuItem
             key={t.id}

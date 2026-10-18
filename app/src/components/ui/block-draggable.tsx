@@ -152,7 +152,7 @@ function Draggable(props: PlateElementProps) {
                     variant="ghost"
                     className="absolute left-0 h-6 w-4.5 p-0 text-muted-foreground"
                     style={{ top: `${dragButtonTop + 3}px` }}
-                    aria-label="Chèn khối bên dưới"
+                    aria-label="Insert block below"
                     data-plate-prevent-deselect
                     onMouseDown={(e) => e.preventDefault()}
                     onClick={() => openInsertMenu(editor, element)}
@@ -160,7 +160,7 @@ function Draggable(props: PlateElementProps) {
                     <Plus />
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent>Chèn khối: chữ, hình, bảng, công thức…</TooltipContent>
+                <TooltipContent>Insert a block: text, figure, table, equation…</TooltipContent>
               </Tooltip>
               <Button
                 ref={handleRef}
@@ -357,7 +357,7 @@ const DragHandle = React.memo(function DragHandle({
           <GripVertical className="text-muted-foreground" />
         </div>
       </TooltipTrigger>
-      <TooltipContent>Kéo để di chuyển · bấm để chọn khối</TooltipContent>
+      <TooltipContent>Drag to move · click to select</TooltipContent>
     </Tooltip>
   );
 });

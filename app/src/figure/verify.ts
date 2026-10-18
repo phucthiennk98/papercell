@@ -22,23 +22,23 @@ const close = (a: unknown, b: unknown) => {
 
 export async function verifyFigure(fig: FigureNode, files: DataFile[]): Promise<VerifyResult> {
   const at = new Date().toISOString()
-  if (!fig.python.trim()) return { ok: false, message: 'Chưa có code Python gốc để đối chiếu.', at }
+  if (!fig.python.trim()) return { ok: false, message: 'No original Python code to compare with.', at }
   const js = await runFigure(fig.js, fig.params, parseData(files), 600)
-  if (js.error) return { ok: false, message: 'Code JS lỗi: ' + js.error, at }
-  if (js.exposed === undefined) return { ok: false, message: 'Code JS chưa gọi expose(giá_trị) để đưa ra kết quả so sánh.', at }
+  if (js.error) return { ok: false, message: 'JS code error: ' + js.error, at }
+  if (js.exposed === undefined) return { ok: false, message: 'The JS code does not call expose(value) to publish a result to compare.', at }
 
   const params = Object.fromEntries(fig.params.map((p) => [p.name, p.value]))
   let py
   try { py = await kernel.verify(fig.python, params, files.map((f) => ({ key: dataKey(f.name), kind: f.kind, content: f.content }))) }
-  catch (e) { return { ok: false, message: 'Không chạy được Python: ' + (e as Error).message, at } }
-  if (py.error) return { ok: false, message: 'Code Python lỗi: ' + py.error, at }
+  catch (e) { return { ok: false, message: 'Could not run Python: ' + (e as Error).message, at } }
+  if (py.error) return { ok: false, message: 'Python code error: ' + py.error, at }
 
   const a = flatten(py.value), b = flatten(js.exposed)
   const mapB = new Map(b)
   const missing = a.filter(([p]) => !mapB.has(p)).length
   const extra = b.length - (a.length - missing)
   const wrong = a.filter(([p, v]) => mapB.has(p) && !close(v, mapB.get(p)))
-  if (!missing && !extra && !wrong.length) return { ok: true, message: `Khớp ${a.length}/${a.length} giá trị (tham số hiện tại).`, at }
-  const first = wrong[0] ? ` Ví dụ ${wrong[0][0] || 'giá trị'}: Python = ${String(wrong[0][1])}, JS = ${String(mapB.get(wrong[0][0]))}.` : ''
-  return { ok: false, message: `Không khớp: ${wrong.length} giá trị khác, ${missing} thiếu, ${Math.max(0, extra)} thừa.${first}`, at }
+  if (!missing && !extra && !wrong.length) return { ok: true, message: `Match: ${a.length}/${a.length} values (current parameters).`, at }
+  const first = wrong[0] ? ` Example ${wrong[0][0] || 'value'}: Python = ${String(wrong[0][1])}, JS = ${String(mapB.get(wrong[0][0]))}.` : ''
+  return { ok: false, message: `No match: ${wrong.length} different, ${missing} missing, ${Math.max(0, extra)} extra.${first}`, at }
 }
