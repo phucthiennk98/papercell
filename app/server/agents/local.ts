@@ -3,7 +3,7 @@
 import { spawn } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
+import { homedir, tmpdir } from 'node:os'
 import path from 'node:path'
 
 /** Một mẩu đầu ra đã hiểu: chữ của câu trả lời, dòng trạng thái tiến độ, hoặc lỗi. */
@@ -83,9 +83,20 @@ export const AGENTS: AgentDef[] = [
 ]
 
 // ---- Tìm file chạy trên PATH (kể cả .cmd/.exe trên Windows) ----
+/** Nơi cài đặt quen thuộc của từng agent, phòng khi thư mục đó không nằm trong PATH. */
+function knownDirs(name: string): string[] {
+  const home = homedir(), env = process.env
+  const dirs: Record<string, string[]> = {
+    claude: [path.join(home, '.local', 'bin'), path.join(home, '.claude', 'local'), path.join(home, '.claude', 'local', 'node_modules', '.bin')],
+    codex: [env.APPDATA ? path.join(env.APPDATA, 'npm') : '', path.join(home, '.local', 'bin'), path.join(home, '.npm-global', 'bin')],
+    agy: [env.LOCALAPPDATA ? path.join(env.LOCALAPPDATA, 'agy', 'bin') : '', path.join(home, '.local', 'bin')],
+  }
+  return (dirs[name] ?? []).filter(Boolean)
+}
+
 function resolveBin(name: string): { file: string; shell: boolean } | null {
   const exts = process.platform === 'win32' ? (process.env.PATHEXT ?? '.EXE;.CMD;.BAT').split(';').map((e) => e.toLowerCase()) : ['']
-  for (const dir of (process.env.PATH ?? '').split(path.delimiter)) {
+  for (const dir of [...(process.env.PATH ?? '').split(path.delimiter), ...knownDirs(name)]) {
     if (!dir) continue
     for (const ext of process.platform === 'win32' ? ['.exe', ...exts.filter((e) => e !== '.exe')] : exts) {
       const file = path.join(dir, name + ext)
