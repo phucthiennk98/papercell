@@ -2,10 +2,9 @@ import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'reac
 import type { Path, SlateEditor, TElement } from 'platejs'
 import { useEditorRef } from 'platejs/react'
 import {
-  Columns2, Columns3, Heading1, Heading2, Heading3, Minus, Pilcrow, Quote, SlidersHorizontal, Sigma, SquareCode, type LucideIcon,
+  ChartColumn, Columns2, Columns3, Heading1, Heading2, Heading3, Minus, Pilcrow, Quote, Sigma, type LucideIcon,
 } from 'lucide-react'
-import { paramValues } from './run'
-import { newEquationNode, newId, newParamNode, newPythonNode } from './types'
+import { newEquationNode, newFigureNode, newId } from './types'
 
 type Item = { key: string; label: string; hint: string; icon: LucideIcon; words: string; make: (editor: SlateEditor) => TElement }
 
@@ -15,16 +14,13 @@ const columns = (widths: string[]) => () => ({
   children: widths.map((width) => ({ type: 'column', id: newId(), width, children: [{ type: 'p', children: [{ text: '' }] }] })),
 }) as unknown as TElement
 
-const uniqueParam = (editor: SlateEditor) => { const taken = paramValues(editor); let i = 1; while (`tham_so_${i}` in taken) i++; return `tham_so_${i}` }
-
 export const ITEMS: Item[] = [
   { key: 'p', label: 'Đoạn văn', hint: 'Văn bản thường', icon: Pilcrow, words: 'doan van text p', make: text('p') },
   { key: 'h1', label: 'Tiêu đề 1', hint: 'Mục lớn', icon: Heading1, words: 'tieu de heading h1', make: text('h1') },
   { key: 'h2', label: 'Tiêu đề 2', hint: 'Mục vừa', icon: Heading2, words: 'tieu de heading h2', make: text('h2') },
   { key: 'h3', label: 'Tiêu đề 3', hint: 'Mục nhỏ', icon: Heading3, words: 'tieu de heading h3', make: text('h3') },
   { key: 'quote', label: 'Trích dẫn', hint: 'Đoạn trích', icon: Quote, words: 'trich dan quote', make: text('blockquote') },
-  { key: 'python', label: 'Ô Python', hint: 'Code, hình, bảng', icon: SquareCode, words: 'python code o hinh bang', make: () => newPythonNode('# Viết code Python, nhấn Shift+Enter để chạy\n') as unknown as TElement },
-  { key: 'param', label: 'Tham số', hint: 'Thanh trượt điều chỉnh hình', icon: SlidersHorizontal, words: 'tham so slider thanh truot param', make: (e) => newParamNode(uniqueParam(e)) as unknown as TElement },
+  { key: 'figure', label: 'Hình (JS)', hint: 'Biểu đồ, bản đồ, bảng có thanh trượt', icon: ChartColumn, words: 'hinh bieu do chart figure js plot ban do bang', make: () => newFigureNode() as unknown as TElement },
   { key: 'equation', label: 'Công thức', hint: 'Công thức toán TeX', icon: Sigma, words: 'cong thuc toan equation math tex', make: () => newEquationNode() as unknown as TElement },
   { key: 'col2', label: '2 cột', hint: 'Chia đôi trang', icon: Columns2, words: 'cot columns 2 hai', make: columns(['50%', '50%']) },
   { key: 'col3', label: '3 cột', hint: 'Chia ba trang', icon: Columns3, words: 'cot columns 3 ba', make: columns(['33.33%', '33.33%', '33.34%']) },
@@ -96,7 +92,7 @@ export function SlashMenu() {
   return (
     <div className="slash-backdrop" onMouseDown={close}>
       <div className="slash" style={{ left: Math.min(s.x, innerWidth - 300), top: Math.min(s.y, innerHeight - 380) }} onMouseDown={(e) => e.stopPropagation()} role="dialog" aria-label="Chèn khối">
-        <input ref={input} value={q} placeholder="Tìm khối: python, cột, công thức…" aria-label="Tìm loại khối"
+        <input ref={input} value={q} placeholder="Tìm khối: hình, cột, công thức…" aria-label="Tìm loại khối"
           onChange={(e) => { setQ(e.target.value); setActive(0) }}
           onKeyDown={(e) => {
             if (e.key === 'ArrowDown') { e.preventDefault(); setActive((a) => Math.min(items.length - 1, a + 1)) }

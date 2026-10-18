@@ -5,8 +5,8 @@ import { setAlign, type Alignment } from '@platejs/basic-styles'
 import { indent, outdent } from '@platejs/indent'
 import { setColumns, toggleColumnGroup } from '@platejs/layout'
 import {
-  Bold, Code, Columns2, Columns3, Italic, ListIndentDecrease, ListIndentIncrease, Minus, RectangleHorizontal, Sigma,
-  SlidersHorizontal, SquareCode, Subscript, Superscript, TextAlignCenter, TextAlignEnd, TextAlignJustify, TextAlignStart, Underline,
+  Bold, ChartColumn, Code, Columns2, Columns3, Italic, ListIndentDecrease, ListIndentIncrease, Minus, RectangleHorizontal, Sigma,
+  Subscript, Superscript, TextAlignCenter, TextAlignEnd, TextAlignJustify, TextAlignStart, Underline,
   type LucideIcon,
 } from 'lucide-react'
 import { ITEMS } from './SlashMenu'
@@ -18,7 +18,7 @@ const MARKS: [string, LucideIcon, string][] = [
 ]
 const ALIGNS: [Alignment, LucideIcon, string][] = [['left', TextAlignStart, 'Căn trái'], ['center', TextAlignCenter, 'Căn giữa'], ['right', TextAlignEnd, 'Căn phải'], ['justify', TextAlignJustify, 'Căn đều hai bên']]
 const COLUMNS: [LucideIcon, string, string[]][] = [[RectangleHorizontal, '1 cột (gộp cột)', ['100%']], [Columns2, '2 cột', ['50%', '50%']], [Columns3, '3 cột', ['33.33%', '33.33%', '33.34%']]]
-const INSERTS: [string, LucideIcon, string][] = [['python', SquareCode, 'Chèn ô Python'], ['param', SlidersHorizontal, 'Chèn tham số (thanh trượt)'], ['equation', Sigma, 'Chèn công thức'], ['hr', Minus, 'Chèn đường kẻ']]
+const INSERTS: [string, LucideIcon, string][] = [['figure', ChartColumn, 'Chèn hình (JS)'], ['equation', Sigma, 'Chèn công thức'], ['hr', Minus, 'Chèn đường kẻ']]
 
 function Btn({ on, tip, onAct, children }: { on?: boolean; tip: string; onAct: () => void; children: ReactNode }) {
   return <button type="button" className={'tb' + (on ? ' on' : '')} data-tip={tip} aria-label={tip} aria-pressed={on} onMouseDown={(e) => { e.preventDefault(); onAct() }}>{children}</button>

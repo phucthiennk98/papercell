@@ -11,8 +11,7 @@ import { EquationPlugin } from '@platejs/math/react'
 import { TrailingBlockPlugin, type TElement } from 'platejs'
 import { BlockDraggable } from './BlockDraggable'
 import { EquationElement } from './EquationBlock'
-import { ParamElement } from './ParamBlock'
-import { PythonCellElement } from './PythonCell'
+import { FigureElement } from '../figure/FigureElement'
 
 const TEXT_BLOCKS = ['p', 'h1', 'h2', 'h3', 'blockquote']
 
@@ -68,14 +67,9 @@ function HrElement(props: PlateElementProps) {
   return <PlateElement {...props}><div contentEditable={false}><hr className="pc-hr" /></div>{props.children}</PlateElement>
 }
 
-export const PythonPlugin = createPlatePlugin({
-  key: 'python',
-  node: { isElement: true, isVoid: true, component: PythonCellElement },
-})
-
-export const ParamPlugin = createPlatePlugin({
-  key: 'param',
-  node: { isElement: true, isVoid: true, component: ParamElement },
+export const FigurePlugin = createPlatePlugin({
+  key: 'figure',
+  node: { isElement: true, isVoid: true, component: FigureElement },
 })
 
 export const plugins = [
@@ -95,8 +89,7 @@ export const plugins = [
   IndentPlugin.configure({ inject: { targetPlugins: TEXT_BLOCKS } }),
   ColumnPlugin.withComponent(ColumnGroupElement),
   ColumnItemPlugin.withComponent(ColumnElement),
-  PythonPlugin,
-  ParamPlugin,
+  FigurePlugin,
   EquationPlugin.withComponent(EquationElement),
   TrailingBlockPlugin,
   DndPlugin.configure({ options: { enableScroller: true }, render: { aboveNodes: BlockDraggable } }),

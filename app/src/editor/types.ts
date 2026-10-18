@@ -1,59 +1,67 @@
-import type { CellOutput } from '../python/kernel'
+/** Cách thẻ hình hiện trong bài. */
+export type FigureDisplay = 'output' | 'both' | 'code' | 'hidden'
+/** Người đọc được xem code nào trong popup. */
+export type CodeAccess = 'none' | 'js' | 'python' | 'both'
 
-export type CellDisplay = 'both' | 'output' | 'code' | 'hidden'
+export type FigureParam = { name: string; label: string; min: number; max: number; step: number; value: number; unit?: string }
 
-export type PythonNode = {
-  type: 'python'
+export type VerifyResult = { ok: boolean; message: string; at: string }
+
+export type FigureNode = {
+  type: 'figure'
   id: string
-  code: string
-  display: CellDisplay
-  caption?: string
-  outputs?: CellOutput[]
-  stdout?: string
-  stderr?: string
-  error?: string | null
-  execCount?: number
-  children: [{ text: '' }]
-}
-
-export type ParamNode = {
-  type: 'param'
-  id: string
-  name: string
-  label: string
-  min: number
-  max: number
-  step: number
-  value: number
-  unit?: string
+  caption: string
+  /** Code JS vẽ hình: có sẵn Plot, d3, data, width, expose() và mỗi tham số là một biến. */
+  js: string
+  /** Code Python gốc của nhà nghiên cứu, chỉ để đối chiếu và kiểm chứng. */
+  python: string
+  params: FigureParam[]
+  display: FigureDisplay
+  codeAccess: CodeAccess
+  verify?: VerifyResult
   children: [{ text: '' }]
 }
 
 export type EquationNode = { type: 'equation'; id: string; texExpression: string; children: [{ text: '' }] }
 
+export type DataFile = { name: string; kind: 'csv' | 'json'; content: string }
+
 export type DocMeta = { title: string; authors: string; date: string }
 
 export type PapercellDoc = {
-  version: 1
+  version: 3
   meta: DocMeta
+  data: DataFile[]
   content: any[]
 }
 
-export const DISPLAY_LABEL: Record<CellDisplay, string> = {
-  both: 'Code + kết quả',
-  output: 'Chỉ kết quả',
+export const DISPLAY_LABEL: Record<FigureDisplay, string> = {
+  output: 'Chỉ hình',
+  both: 'Hình + code bên dưới',
   code: 'Chỉ code',
   hidden: 'Ẩn khi xuất bản',
 }
 
+export const ACCESS_LABEL: Record<CodeAccess, string> = {
+  none: 'Không cho xem code',
+  js: 'Chỉ code JS',
+  python: 'Chỉ Python gốc',
+  both: 'Cả Python và JS',
+}
+
 export const newId = () => Math.random().toString(36).slice(2, 10)
 
-export const newPythonNode = (code = ''): PythonNode => ({
-  type: 'python', id: newId(), code, display: 'both', caption: '', children: [{ text: '' }],
-})
+export const STARTER_JS = `// Có sẵn: Plot, d3, data (các file dữ liệu), width, expose(giá_trị)
+// Mỗi tham số là một biến cùng tên. Trả về một hình (Plot.plot) hoặc chuỗi HTML.
+const ds = data[Object.keys(data)[0]] ?? []
+return Plot.plot({
+  width,
+  marks: [Plot.text(["Thẻ hình mới: mở popup để viết code"], { frameAnchor: "middle" })],
+})`
 
-export const newParamNode = (name: string): ParamNode => ({
-  type: 'param', id: newId(), name, label: 'Tham số mới', min: 0, max: 10, step: 1, value: 5, unit: '', children: [{ text: '' }],
+export const newFigureNode = (): FigureNode => ({
+  type: 'figure', id: newId(), caption: '', js: STARTER_JS, python: '', params: [],
+  display: 'output', codeAccess: 'both', children: [{ text: '' }],
 })
 
 export const newEquationNode = (tex = 'E = mc^2'): EquationNode => ({ type: 'equation', id: newId(), texExpression: tex, children: [{ text: '' }] })
