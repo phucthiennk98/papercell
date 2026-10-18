@@ -2,6 +2,7 @@
 import type { PapercellDoc } from '@/editor/types'
 import { makeSample } from '@/sample'
 import { makeGallery } from '@/gallery'
+import { upgradeDoc } from '@/editor/upgrade'
 
 export type DocEntry = { id: string; title: string; updated: string }
 
@@ -20,7 +21,7 @@ export function listDocs(): DocEntry[] {
 
 export function loadDoc(id: string): PapercellDoc | null {
   const d = read<PapercellDoc>(KEY(id))
-  return d?.version === 3 && Array.isArray(d.content) ? d : null
+  return d?.version === 3 && Array.isArray(d.content) ? upgradeDoc(d) : null
 }
 
 export function saveDoc(id: string, doc: PapercellDoc) {

@@ -19,6 +19,7 @@ export function DesignTab({ fig, onUpdate }: { fig: FigureNode; onUpdate: (p: Pa
   const pick = (type: ChartType) => (type === 'map-regions' ? keys.find((k) => isGeoJSON(data[k])) : keys.find((k) => !isGeoJSON(data[k]))) ?? keys[0] ?? ''
   const [spec, setSpec] = useState<ChartSpec>(() => fig.spec ? { ...fig.spec, data: fig.spec.data || pick(fig.spec.type) } : defaultSpec(pick('bar')))
   const [busy, setBusy] = useState(false)
+  const [touched, setTouched] = useState(false)
   const [msg, setMsg] = useState('')
   const input = useRef<HTMLInputElement>(null)
 
@@ -26,11 +27,15 @@ export function DesignTab({ fig, onUpdate }: { fig: FigureNode; onUpdate: (p: Pa
   const columns = useMemo(() => describeColumns(asRows(raw)), [raw])
   const geo = isGeoJSON(raw)
   const info = typeInfo(spec.type)
+  // Hình viết code tay (không tạo bằng Thiết kế) hoặc code đã sửa tay: Thiết kế chỉ xem trước, không ghi đè
+  const detached = !!fig.specDetached || (!fig.spec && fig.js.trim() !== '')
   const js = codegen(spec)
   const params = mergeParams(fig.params, specParams(spec))
 
   // Tự điền cột vĩ độ/kinh độ cho bản đồ và lưu lựa chọn dữ liệu tự động ở trên
   useEffect(() => {
+    // Chỉ cho hình tạo bằng Thiết kế; hình viết code tay không bao giờ bị ghi đè khi chỉ mở tab
+    if (!fig.spec || detached) return
     if (!spec.data || (fig.spec?.data === spec.data && !(info.map && spec.type !== 'map-regions' && !spec.lat))) return
     const next = { ...spec }
     if (info.map) {
@@ -41,9 +46,16 @@ export function DesignTab({ fig, onUpdate }: { fig: FigureNode; onUpdate: (p: Pa
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const apply = (next: ChartSpec, force = false) => {
-    setSpec(next)
-    if (fig.specDetached && !force) { onUpdate({ spec: next }); return }
-    onUpdate({ spec: next, js: codegen(next), params: mergeParams(fig.params, specParams(next)), specDetached: false })
+    setSpec(next); setTouched(true)
+    if (detached && !force) { if (fig.spec) onUpdate({ spec: next }); return }
+    // Ghi đè code viết tay: giữ bản sao để còn quay lại
+    const backup = detached ? { codeBackup: { js: fig.js, params: fig.params, spec: fig.spec, specDetached: fig.specDetached } } : {}
+    onUpdate({ spec: next, js: codegen(next), params: mergeParams(fig.params, specParams(next)), specDetached: false, ...backup })
+  }
+  const restore = () => {
+    const b = fig.codeBackup; if (!b) return
+    onUpdate({ js: b.js, params: b.params, spec: b.spec, specDetached: b.specDetached, codeBackup: undefined })
+    if (b.spec) setSpec(b.spec)
   }
   const set = (patch: Partial<ChartSpec>) => apply({ ...spec, ...patch })
 
@@ -159,19 +171,28 @@ export function DesignTab({ fig, onUpdate }: { fig: FigureNode; onUpdate: (p: Pa
           )}
         </section>
 
-        {fig.specDetached && (
+        {detached && (
           <div className="detached">
             <TriangleAlert size={16} />
             <div>
-              <b>Code JS đã được sửa tay.</b> Thay đổi ở đây chưa áp vào hình.
-              <button className="btn" onClick={() => apply(spec, true)}>Dùng thiết kế này (ghi đè code)</button>
+              <b>{fig.spec ? 'Code JS đã được sửa tay.' : 'Hình này viết bằng code.'}</b> Chọn ở đây chỉ để xem trước, chưa áp vào hình.
+              <button className="btn" onClick={() => apply(spec, true)}>Dùng thiết kế này (thay code, vẫn quay lại được)</button>
+            </div>
+          </div>
+        )}
+        {fig.codeBackup && !detached && (
+          <div className="detached">
+            <TriangleAlert size={16} />
+            <div>
+              Code viết tay trước đó đã được thay bằng thiết kế này.
+              <button className="btn" onClick={restore}>Quay lại code cũ</button>
             </div>
           </div>
         )}
       </div>
       <div className="dlg-preview">
         <p className="hint">Xem trước</p>
-        <FigureView js={fig.specDetached ? fig.js : js} params={params} />
+        <FigureView js={detached && !touched ? fig.js : js} params={detached && !touched ? fig.params : params} scenarios={fig.scenarios} />
       </div>
     </div>
   )

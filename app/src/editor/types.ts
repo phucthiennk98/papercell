@@ -26,6 +26,8 @@ export type FigureNode = {
   spec?: ChartSpec
   /** Người dùng đã sửa code tay nên Thiết kế không ghi đè code nữa. */
   specDetached?: boolean
+  /** Code trước khi bị thiết kế thay thế, để nút "Quay lại code cũ" dùng. */
+  codeBackup?: { js: string; params: FigureParam[]; spec?: ChartSpec; specDetached?: boolean }
   /** Kết quả Python đã tính sẵn cho mọi tổ hợp tham số (để xuất bản không cần Python). */
   scenarios?: ScenarioCache
   /** Mở popup ở tab Thiết kế ngay khi vừa chèn. */

@@ -112,7 +112,8 @@ return \`<table class="fig-table"><thead><tr><th>\${pc.esc(${q(s.x)})}</th><th>\
       const mark = s.type === 'line' ? 'lineY' : 'areaY'
       const key = s.type === 'line' ? 'stroke' : 'fill'
       const opts = join(`x: ${q(s.x)}`, `y: ${q(s.y)}`, s.color ? `${key}: ${q(s.color)}` : `${key}: "#2a78d6"`, facet, 'tip: true')
-      marks = s.agg === 'none' ? `Plot.${mark}(ds, { ${opts} })` : `Plot.${mark}(ds, Plot.groupX({ y: ${q(agg === 'count' ? 'count' : agg)} }, { ${opts} }))`
+      // Đường nối điểm theo thứ tự dữ liệu: sắp theo trục X trước, nếu không sẽ thành hình zíc zắc
+      marks = s.agg === 'none' ? `Plot.${mark}(theoX, { ${opts} })` : `Plot.${mark}(theoX, Plot.groupX({ y: ${q(agg === 'count' ? 'count' : agg)} }, { ${opts} }))`
       if (s.type === 'area') marks += ',\n    Plot.ruleY([0])'
       break
     }
@@ -147,6 +148,7 @@ return \`<table class="fig-table"><thead><tr><th>\${pc.esc(${q(s.x)})}</th><th>\
     // Nhãn trục X quá dài so với chỗ trống thì xoay nghiêng
     xCat ? `const nhanX = d3.max(ds, (d) => String(d[${q(s.x)}] ?? "").length) ?? 0
 const xoay = nhanX * 7.5 * new Set(ds.map((d) => d[${q(s.x)}])).size > width - ${yCat ? 'lechTrai - 20' : '80'}` : '',
+    s.type === 'line' || s.type === 'area' ? `const theoX = d3.sort(ds, (d) => d[${q(s.x)}])` : '',
     s.facet ? `const soO = new Set(ds.map((d) => d[${q(s.facet)}])).size` : '',
   ].filter(Boolean)
   const xOpts = [s.xLabel ? `label: ${q(s.xLabel)}` : '', xNumeric ? vn : '', xCat ? 'tickRotate: xoay ? -35 : 0' : ''].filter(Boolean)
