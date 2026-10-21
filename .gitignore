@@ -23,3 +23,6 @@ __pycache__/
 
 # Cấu hình cục bộ của công cụ
 .claude/
+
+# Báo cáo tạm của các agent worker
+.agent-reports/

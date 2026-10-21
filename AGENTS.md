@@ -12,6 +12,9 @@ Chỉ **Claude** nhận yêu cầu từ người dùng và quyết định việ
 
 ## Dự án
 
+**Trước khi làm bất kỳ việc gì, đọc [`docs/CODEBASE.md`](docs/CODEBASE.md)** (bản đồ mã nguồn: kiến trúc, luồng dữ liệu, cách mở rộng, bẫy đã biết). Việc nào đổi kiến trúc thì cập nhật luôn file đó trong cùng việc.
+
+
 **Papercell**: trình soạn bài báo khoa học kiểu Lark Docs. Hình vẽ bằng JS (Observable Plot / D3, bản đồ MapLibre), có code Python gốc để kiểm chứng và tính sẵn, xuất ra một file HTML mở được ở mọi nơi.
 
 - `app/`: toàn bộ ứng dụng (React 19 + Vite 8 + TypeScript, editor Plate v53, Tailwind v4 + shadcn).
@@ -47,9 +50,12 @@ Cả ba phải qua, không có lỗi. Brief có yêu cầu kiểm tra riêng th�
 ## Quy trình
 
 1. **Claude** nhận yêu cầu, xem code liên quan, chia thành các việc độc lập. Mỗi việc chỉ đụng một nhóm file, hai worker không bao giờ sửa cùng một file cùng lúc.
-2. **Claude** viết brief (mẫu bên dưới) và giao:
-   - Codex: `codex exec -s workspace-write -C "D:/Workspace/projects/project_01" "<brief>"`
-   - Antigravity: `agy -p "<brief>" --mode accept-edits`
+2. **Claude** viết brief (mẫu bên dưới) và giao **qua Orca**, để người dùng theo dõi mỗi worker trong một tab:
+   - Tạo Run: `orca orchestration run-create --objective "<mục tiêu>" --json`
+   - Giao việc: `orca orchestration worker-start --run <run_id> --spec "<brief>" --task-title "<tên ngắn>" --worktree "path:D:/Workspace/projects/project_01" --agent codex|antigravity --json`
+   - Chờ kết quả: `orca orchestration check --run <run_id> --wait --types "worker_done,escalation,question" --json`; xử lý xong thì `--ack <delivery_id>` và `worker-release --dispatch <dispatch_id>`.
+   - Worker ghi báo cáo vào `.agent-reports/<tên>.md` (bị git bỏ qua) và gửi `worker_done` kèm `--report-path`.
+   - Dự phòng khi Orca không chạy: `codex exec -s workspace-write -C "D:/Workspace/projects/project_01" "<brief>"` hoặc `agy -p "<brief>" --mode accept-edits`.
 3. **Worker** làm đúng brief, chạy kiểm tra, trả báo cáo (mẫu bên dưới). **Không commit.**
 4. **Claude** đọc `git diff`, chạy lại kiểm tra, thử trên trình duyệt nếu là thay đổi giao diện, sửa nốt chỗ ghép nối. Thiếu thì giao lại cho worker kèm nhận xét cụ thể.
 5. **Claude** commit (thông điệp tiếng Việt, mô tả cái gì đổi và vì sao) và báo cáo cho người dùng.
