@@ -21,6 +21,7 @@ import { z } from 'zod';
 
 import { BaseEditorKit } from '@/components/editor/editor-base-kit';
 import { readConfig, resolveModel } from '../provider';
+import { editorAgentCommand, editorAgentError, prepareEditorAgent, type EditorAgentRunner } from '../editor-agent';
 import { markdownJoinerTransform } from '@/lib/markdown-joiner-transform';
 
 import {
@@ -31,9 +32,22 @@ import {
   getGeneratePrompt,
 } from './prompt';
 
-export async function POST(req: Request) {
+export async function POST(req: Request, allowLocalAgent = false, runner?: EditorAgentRunner) {
   const body = await req.json();
   const { ctx, messages: messagesRaw } = body;
+
+  if (body.aiMode === 'agent') {
+    try {
+      const complete = prepareEditorAgent(body, allowLocalAgent, req.signal, runner);
+      if (!ctx || !Array.isArray(ctx.children)) return Response.json({ error: 'Missing editor context.' }, { status: 400 });
+      const editor = createSlateEditor({
+        plugins: BaseEditorKit,
+        selection: ctx.selection,
+        value: structuredClone(ctx.children),
+      });
+      return editorAgentCommand(editor, messagesRaw, ctx.toolName, complete, req.signal);
+    } catch (error) { return editorAgentError(error); }
+  }
 
   let llm: LanguageModel;
   try {

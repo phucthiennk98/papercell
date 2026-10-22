@@ -2,11 +2,14 @@
 
 import { generateText } from 'ai';
 import { readConfig, resolveModel } from '../provider';
+import { editorAgentCopilot, type EditorAgentRunner } from '../editor-agent';
 
 
-export async function POST(req: Request) {
+export async function POST(req: Request, allowLocalAgent = false, runner?: EditorAgentRunner) {
   const body = await req.json();
   const { instructions, prompt, system } = body;
+
+  if (body.aiMode === 'agent') return editorAgentCopilot(body, allowLocalAgent, req.signal, runner);
 
   let model;
   try {
@@ -24,7 +27,7 @@ export async function POST(req: Request) {
       prompt,
     });
 
-    return Response.json(result);
+    return Response.json({ text: result.text });
   } catch (error) {
     if (error instanceof Error && error.name === 'AbortError') {
       return Response.json(null, { status: 408 });

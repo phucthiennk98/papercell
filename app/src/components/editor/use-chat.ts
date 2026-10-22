@@ -20,6 +20,7 @@ import { type TNode, KEYS, nanoid, NodeApi, TextApi } from 'platejs';
 import { type PlateEditor, useEditorRef, usePluginOption } from 'platejs/react';
 
 import { aiChatPlugin } from '@/components/editor/plugins/ai-kit';
+import { fetchWithAIConfig } from '@/ai/request-config';
 
 import { discussionPlugin } from './plugins/discussion-kit';
 import { withAIBatch } from '@platejs/ai';
@@ -64,7 +65,6 @@ function createChatTransport({
 }) {
   return new DefaultChatTransport({
     api,
-    // Mock the API response. Remove it when you implement the route /api/ai/command
     fetch: (async (input, init) => {
       const bodyOptions = editor.getOptions(aiChatPlugin).chatOptions?.body;
 
@@ -75,7 +75,7 @@ function createChatTransport({
         ...bodyOptions,
       };
 
-      const res = await fetch(input, {
+      const res = await fetchWithAIConfig(input, {
         ...init,
         body: JSON.stringify(body),
       });

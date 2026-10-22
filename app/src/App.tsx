@@ -8,6 +8,7 @@ import { CopilotPlugin } from '@platejs/ai/react'
 import { aiChatPlugin } from '@/components/editor/plugins/ai-kit'
 import { AssistantPanel } from '@/ai/AssistantPanel'
 import { aiStore } from '@/ai/store'
+import { fetchWithAIConfig, withAIRequestConfig } from '@/ai/request-config'
 import { Editor, EditorContainer } from '@/components/ui/editor'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { deleteDoc, emptyDoc, ensureFirstDoc, listDocs, loadDoc, newDocId, saveDoc, type DocEntry } from '@/docs/store'
@@ -142,11 +143,10 @@ function DocView({ docId, sidebar, onShowSidebar, onSaved, onHeadings, onEditor,
   // Menu AI trong bài của Plate dùng chung cài đặt với sidebar Trợ lý AI.
   useEffect(() => {
     const sync = () => {
-      const aiConfig = aiStore.get().config
       const chat = editor.getOption(aiChatPlugin, 'chatOptions') ?? {}
-      editor.setOption(aiChatPlugin, 'chatOptions', { ...chat, body: { ...(chat as any).body, aiConfig } })
+      editor.setOption(aiChatPlugin, 'chatOptions', { ...chat, body: withAIRequestConfig(chat.body) })
       const comp = editor.getOption(CopilotPlugin, 'completeOptions') ?? {}
-      editor.setOption(CopilotPlugin, 'completeOptions', { ...comp, body: { ...(comp as any).body, aiConfig } })
+      editor.setOption(CopilotPlugin, 'completeOptions', { ...comp, body: withAIRequestConfig(comp.body), fetch: fetchWithAIConfig })
     }
     sync()
     return aiStore.subscribe(sync)

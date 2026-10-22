@@ -49,6 +49,8 @@ export async function askAI({ messages, doc, signal, onUpdate }: AskOptions): Pr
     content = s.content
     onUpdate?.({ content, progress: s.progress })
   }
-  if (!content.trim()) throw new Error('No answer received. Check the model and API key in the AI Assistant settings.')
+  if (!content.trim()) throw new Error(mode === 'agent'
+    ? 'No answer received. Check the Local agent selection and model in the AI Assistant settings.'
+    : 'No answer received. Check the model and API key in the AI Assistant settings.')
   return content
 }

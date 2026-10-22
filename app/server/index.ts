@@ -13,18 +13,19 @@ import { listAgentModels } from './agents/models'
 import { closeSession, createSession, interrupt, listSessions, runTurn, SessionError } from './agents/session'
 import { detectPython, runGrid } from './python/grid'
 import { listModels, readConfig, serverKeys } from './ai/provider'
+import { isLocalAgentAddress } from './ai/editor-agent'
 
 const app = new Hono()
 
 app.get('/api/health', (c) => c.json({ ok: true }))
-app.post('/api/ai/command', (c) => aiCommand(c.req.raw))
-app.post('/api/ai/copilot', (c) => aiCopilot(c.req.raw))
+app.post('/api/ai/command', (c) => aiCommand(c.req.raw, isLocal(c)))
+app.post('/api/ai/copilot', (c) => aiCopilot(c.req.raw, isLocal(c)))
 app.post('/api/assistant/chat', (c) => assistantChat(c.req.raw))
 // Agent trên máy: chỉ cho phép yêu cầu từ chính máy này (trừ khi bật PAPERCELL_ALLOW_REMOTE_AGENTS=1)
 const isLocal = (c: Parameters<typeof getConnInfo>[0]) => {
   if (process.env.PAPERCELL_ALLOW_REMOTE_AGENTS === '1') return true
   const ip = getConnInfo(c).remote.address ?? ''
-  return ip === '127.0.0.1' || ip === '::1' || ip === '::ffff:127.0.0.1'
+  return isLocalAgentAddress(ip)
 }
 app.get('/api/agents', async (c) => {
   if (!isLocal(c)) return c.json({ agents: [], inDocker: existsSync('/.dockerenv'), note: existsSync('/.dockerenv')

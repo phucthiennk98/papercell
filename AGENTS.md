@@ -29,7 +29,8 @@ Only **Claude** receives user requests and decides what to do and who does it. W
 ## Mandatory conventions
 
 - **The UI must use English only** (buttons, menus, messages, errors). Article content may use any language.
-- Code comments: Vietnamese or English, concise, matching the tone of the file being edited.
+- All new filenames, content, comments, documentation, and commit messages must use English. Article content may use any language; existing comments do not need translation.
+- Code comments must be concise and match the tone of the file being edited.
 - New code must match its surroundings: naming, line length, comment density.
 - Edit strings containing escapes (`\n`, regex) with file editing tools, not shell heredocs (which have repeatedly damaged code).
 - Do not install additional libraries unless the brief permits it.
@@ -58,7 +59,7 @@ All three must pass without errors. Also perform any additional checks required 
    - Fallback when Orca is unavailable: `codex exec -s workspace-write -C "D:/Workspace/projects/project_01" "<brief>"` or `agy -p "<brief>" --mode accept-edits`.
 3. **Workers** follow the brief, run checks, and return a report (template below). **Do not commit.**
 4. **Claude** reads `git diff`, reruns checks, tests UI changes in the browser, and finishes any integration fixes. If anything is missing, send it back to the worker with specific feedback.
-5. **Claude** commits (with a Vietnamese message describing what changed and why) and reports to the user.
+5. **Claude** commits (with an English message describing what changed and why) and reports to the user.
 
 ### Brief template (Claude → worker)
 
