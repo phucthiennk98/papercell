@@ -128,6 +128,17 @@ Mục lục
 - **Menu AI trong bài của Plate không đi qua Local Agent**: Các lệnh AI trực tiếp trong trình soạn thảo (`Space`, `Ctrl+J`, ghost text Copilot) gọi `/api/ai/command` và `/api/ai/copilot` bằng Vercel AI SDK (`resolveModel`), nên luôn cần API key (trên trình duyệt hoặc biến môi trường server) ngay cả khi sidebar `AssistantPanel` đang chọn chế độ `Local agent`.
 - **Thứ tự build `dist/viewer.html`**: `scripts/inline-viewer.mjs` ghi kết quả thẳng vào `dist/viewer.html` và kiểm tra `existsSync('dist')`, nên luôn phải chạy `vite build` trước `npm run build:viewer`.
 
+### 8. Agent trên máy — phiên chạy lâu dài (chat nhiều lượt, chọn model)
+
+Bên cạnh chế độ hỏi một lần (`/api/agents/chat`, `agentChat` trong `local.ts`), có thêm phiên giữ một tiến trình CLI suốt cuộc trò chuyện (như tab chat của Orca): agent nhớ ngữ cảnh giữa các lượt, chọn được model và effort.
+
+- **Hợp đồng chung `app/server/agents/drivers/types.ts`**: interface `AgentDriver` (`start`/`send`/`interrupt`/`close`/`alive`), các sự kiện `AgentEvent` (`text`/`step`/`tool`/`done`/`error`), kiểu `DriverOptions` (`model`, `effort`, `cwd`), `AgentModel`. **Đừng sửa file này nếu chưa xem hết nơi dùng.**
+- **Driver mỗi CLI** (`drivers/claude.ts`, `drivers/codex.ts`, `drivers/agy.ts`, đăng ký ở `drivers/index.ts`): mỗi driver giữ một tiến trình theo giao thức riêng. Codex dùng `codex app-server` (JSON-RPC, một thread/phiên); Claude và agy dùng `--input-format stream-json --output-format stream-json`. `interrupt()`: Claude và Codex ngắt tại chỗ, giữ ngữ cảnh; **agy phải giết tiến trình rồi tự khởi động lại ở lượt sau nên mất ngữ cảnh** (giới hạn của agy stream-json).
+- **Model `app/server/agents/models.ts`** (`listAgentModels`): hỏi danh sách model từ chính CLI (agy `agy models`; codex `model/list`; claude control_request `initialize`), cache 5 phút, không bao giờ throw (lỗi → `{ models: [], warning }`). Tham khảo `D:/Workspace/agent-proxy/catalog.py`.
+- **Quản lý phiên `app/server/agents/session.ts`**: `createSession`/`runTurn`/`interrupt`/`closeSession`/`listSessions`. Mỗi phiên có thư mục tạm riêng; ghi `document.md` trước mỗi lượt; chèn chỉ dẫn (`INSTRUCTIONS`) vào lượt đầu; một lượt mỗi lúc (bận → 409); tiến trình chết → tự tạo lại driver + phát step "Restarted…"; tối đa 4 phiên, bỏ không 20 phút tự đóng; đóng hết driver khi server thoát.
+- **Route `app/server/index.ts`** (đều kiểm tra `isLocal`): `GET /api/agents/models`, `GET/POST /api/agents/sessions`, `POST /api/agents/sessions/:id/turn` (stream NDJSON `AgentEvent`), `POST …/:id/interrupt`, `DELETE …/:id`. `/api/agents/chat` nhận thêm `model`/`effort`.
+- **Giao diện `app/src/ai/`**: `agent-session.ts` (client gọi các route trên), `store.ts` (lưu model/effort theo từng agent), `AssistantPanel.tsx` (chọn model/effort, chat theo phiên, hiện bước, Stop, New chat), `ask.ts` (ô nhờ AI dưới trình soạn code gửi kèm model/effort). **Thêm loại tham số/agent/model phải sửa đồng bộ các file này.**
+
 ---
 
 ## Phần B. Thẻ hình, Design, tính sẵn Python, xuất HTML, editor

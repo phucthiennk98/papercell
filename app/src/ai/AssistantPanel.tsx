@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils'
 import { PROVIDERS, defaultConfig, type ProviderId } from './config'
 import { aiStore, useAI } from './store'
 import { parseStream } from './ask'
+import { AgentSessionError, closeSession, createSession, fetchAgentModels, interruptSession, runTurn, type AgentModel, type AgentSession } from './agent-session'
 
 type AgentInfo = { id: string; label: string; available: boolean; version?: string; note: string }
 
@@ -22,6 +23,9 @@ type Msg = {
   by?: string
   startedAt?: number
   ms?: number
+  steps?: { name: string; detail?: string }[]
+  notice?: string
+  failure?: string
 }
 
 /** Model hay viết công thức bằng \( \) và \[ \]; đổi sang $ và $$ để Markdown không nuốt dấu \ và để vẽ bằng KaTeX. */
@@ -55,7 +59,8 @@ function docAsMarkdown(editor: PlateEditor) {
 }
 
 export function AssistantPanel({ editor, onClose }: { editor: PlateEditor | null; onClose: () => void }) {
-  const { config, remember, mode, agent } = useAI()
+  const { config, remember, mode, agent, agentSettings } = useAI()
+  const { model: agentModel, effort: agentEffort } = agentSettings[agent] ?? {}
   const info = PROVIDERS[config.provider]
   const [serverKeys, setServerKeys] = useState<Record<string, boolean>>({})
   const [agents, setAgents] = useState<AgentInfo[] | null>(null)
@@ -69,13 +74,20 @@ export function AssistantPanel({ editor, onClose }: { editor: PlateEditor | null
   const [models, setModels] = useState<string[]>([])
   const [modelsMsg, setModelsMsg] = useState('')
   const [loadingModels, setLoadingModels] = useState(false)
+  const [localModels, setLocalModels] = useState<AgentModel[]>([])
+  const [localModelsMsg, setLocalModelsMsg] = useState('')
+  const [loadingLocalModels, setLoadingLocalModels] = useState(false)
+  const [sessionNote, setSessionNote] = useState('')
+  const modelRequest = useRef(0)
+  const session = useRef<AgentSession | null>(null)
+  const generation = useRef(0)
+  const selectedModel = localModels.find((m) => agentModel ? m.id === agentModel : m.isDefault)
   const [messages, setMessages] = useState<Msg[]>([])
   const [input, setInput] = useState('')
   const [busy, setBusy] = useState(false)
   const [copied, setCopied] = useState<number | null>(null)
   const abort = useRef<AbortController | null>(null)
   const list = useRef<HTMLDivElement>(null)
-  const latest = useRef<Msg[]>([]); latest.current = messages
   // Đồng hồ đếm giây khi đang chờ trả lời
   const [now, setNow] = useState(Date.now())
   useEffect(() => { if (!busy) return; const t = setInterval(() => setNow(Date.now()), 500); return () => clearInterval(t) }, [busy])
@@ -94,6 +106,48 @@ export function AssistantPanel({ editor, onClose }: { editor: PlateEditor | null
   useEffect(() => { list.current?.scrollTo({ top: list.current.scrollHeight }) }, [messages])
   useEffect(() => { setModels([]); setModelsMsg('') }, [config.provider])
 
+  const discardSession = () => {
+    generation.current++
+    abort.current?.abort(); abort.current = null
+    const old = session.current; session.current = null
+    if (old) void closeSession(old.id).catch(() => {})
+  }
+  useEffect(() => {
+    setBusy(false)
+    if (mode === 'agent') setSessionNote(`New session with ${agentModel || 'CLI default'}`)
+    return discardSession
+  }, [mode, agent, agentModel, agentEffort])
+
+  const loadLocalModels = async (refresh = false) => {
+    const request = ++modelRequest.current
+    setLoadingLocalModels(true); setLocalModelsMsg('')
+    try {
+      const result = await fetchAgentModels(agent, refresh)
+      if (request !== modelRequest.current) return
+      setLocalModels(result.models); setLocalModelsMsg(result.warning ?? '')
+    } catch (e) {
+      if (request === modelRequest.current) setLocalModelsMsg((e as Error).message)
+    } finally { if (request === modelRequest.current) setLoadingLocalModels(false) }
+  }
+  useEffect(() => {
+    setLocalModels([]); setLocalModelsMsg('')
+    if (mode === 'agent' && agent) void loadLocalModels()
+    return () => { modelRequest.current++ }
+  }, [mode, agent])
+
+  const stop = () => {
+    abort.current?.abort()
+    if (session.current) void interruptSession(session.current.id).catch(() => {})
+    else if (mode === 'agent') {
+      // Session creation can still be waiting for the CLI handshake; close a late result.
+      generation.current++; abort.current = null; setBusy(false)
+      setMessages((m) => m.length ? [...m.slice(0, -1), { ...m[m.length - 1], content: m[m.length - 1].content || STOPPED, progress: '' }] : m)
+    }
+  }
+  const newChat = () => {
+    discardSession(); setBusy(false); setMessages([]); setSessionNote('')
+  }
+
   const refreshModels = async () => {
     setLoadingModels(true); setModelsMsg('')
     try {
@@ -105,20 +159,64 @@ export function AssistantPanel({ editor, onClose }: { editor: PlateEditor | null
   }
 
   const send = async (text: string) => {
-    const q = text.trim(); if (!q || busy) return
+    const q = text.trim(); if (!q || busy || abort.current) return
     if (!ready) { setSettings(true); return }
     const next: Msg[] = [...messages.filter((m) => !m.error), { role: 'user', content: q }]
-    const by = mode === 'agent' ? (current?.label ?? 'Agent') : config.model
+    const by = mode === 'agent' ? `${current?.label ?? 'Agent'} · ${agentModel || 'CLI default'}` : config.model
     const startedAt = Date.now()
-    const update = (patch: Partial<Msg>) => setMessages((m) => [...m.slice(0, -1), { ...m[m.length - 1], ...patch }])
+    const ctl = new AbortController(); abort.current = ctl
+    const turnGeneration = generation.current
+    let received = ''
+    const update = (patch: Partial<Msg>) => {
+      if (abort.current !== ctl || turnGeneration !== generation.current) return
+      if (patch.content !== undefined) received = patch.content
+      setMessages((m) => [...m.slice(0, -1), { ...m[m.length - 1], ...patch }])
+    }
     setMessages([...next, { role: 'assistant', content: '', by, startedAt, progress: mode === 'agent' ? `Starting ${by}…` : 'Sending…' }])
     setInput(''); setBusy(true); setSettings(false)
-    const ctl = new AbortController(); abort.current = ctl
     try {
       const doc = editor ? docAsMarkdown(editor) : ''
-      const r = await fetch(mode === 'agent' ? '/api/agents/chat' : '/api/assistant/chat', {
+      if (mode === 'agent') {
+        for (let attempt = 0; attempt < 2; attempt++) {
+          let content = ''
+          const steps: NonNullable<Msg['steps']> = []
+          try {
+            if (!session.current) {
+              update({ progress: `Starting ${current?.label ?? 'agent'}…` })
+              const created = await createSession({ agent, model: agentModel, effort: agentEffort })
+              if (turnGeneration !== generation.current) {
+                void closeSession(created.id).catch(() => {})
+                throw new DOMException('Stopped', 'AbortError')
+              }
+              session.current = created
+            }
+            ctl.signal.throwIfAborted()
+            await runTurn(session.current.id, { text: q, doc }, {
+              signal: ctl.signal,
+              onEvent: (event) => {
+                if (event.type === 'text') { content += event.delta; update({ content, progress: '' }) }
+                else if (event.type === 'step') update({ progress: event.text })
+                else if (event.type === 'tool') { steps.push({ name: event.name, detail: event.detail }); update({ steps: [...steps] }) }
+                else if (event.type === 'done') update({ by: `${current?.label ?? 'Agent'} · ${event.model || agentModel || 'CLI default'}`, progress: '', ms: Date.now() - startedAt })
+              },
+            })
+            break
+          } catch (e) {
+            if (ctl.signal.aborted || turnGeneration !== generation.current) throw e
+            const lost = e instanceof AgentSessionError && (e.status === 404 || e.fatal)
+            if (lost) {
+              const old = session.current; session.current = null
+              if (old) void closeSession(old.id).catch(() => {})
+            }
+            if (!lost || attempt > 0) throw e
+            update({ content: '', steps: [], notice: 'Session restarted, earlier context is lost', progress: 'Restarting session…' })
+          }
+        }
+        return
+      }
+      const r = await fetch('/api/assistant/chat', {
         method: 'POST', headers: { 'content-type': 'application/json' }, signal: ctl.signal,
-        body: JSON.stringify(mode === 'agent' ? { agent, messages: next, doc } : { aiConfig: config, messages: next, doc }),
+        body: JSON.stringify({ aiConfig: config, messages: next, doc }),
       })
       if (!r.ok || !r.body) { const j = await r.json().catch(() => ({})); throw new Error(j.error || `Error ${r.status}`) }
       const reader = r.body.pipeThrough(new TextDecoderStream()).getReader()
@@ -134,16 +232,11 @@ export function AssistantPanel({ editor, onClose }: { editor: PlateEditor | null
       if (!content.trim()) throw new Error('No answer received. Check the model and API key.')
       update({ progress: '', ms: Date.now() - startedAt })
     } catch (e) {
-      if ((e as Error).name === 'AbortError') update({ progress: '', ms: Date.now() - startedAt, content: messagesContentOrStopped() })
+      if (ctl.signal.aborted || (e as Error).name === 'AbortError') update({ progress: '', ms: Date.now() - startedAt, content: received.trim() ? received : STOPPED })
+      else if (mode === 'agent') update({ failure: (e as Error).message, progress: '', ms: Date.now() - startedAt })
       else update({ content: (e as Error).message, error: true, progress: '' })
-    } finally { setBusy(false); abort.current = null }
+    } finally { if (abort.current === ctl) { setBusy(false); abort.current = null } }
   }
-  // Khi người dùng bấm Dừng: giữ phần đã nhận, nếu chưa có gì thì ghi chú đã dừng.
-  const messagesContentOrStopped = () => {
-    const last = latest.current[latest.current.length - 1]
-    return last?.content?.trim() ? last.content : STOPPED
-  }
-
   const insert = (md: string) => {
     if (!editor) return
     const nodes = (editor.api as any).markdown.deserialize(normalizeMath(md))
@@ -158,11 +251,12 @@ export function AssistantPanel({ editor, onClose }: { editor: PlateEditor | null
     <aside className="flex w-[360px] max-w-full shrink-0 flex-col border-l bg-muted/20 text-sm max-[900px]:absolute max-[900px]:inset-y-0 max-[900px]:right-0 max-[900px]:z-40 max-[900px]:bg-background max-[900px]:shadow-2xl" aria-label="AI Assistant">
       <div className="flex h-12 items-center justify-between border-b px-3">
         <span className="flex items-center gap-2 font-semibold"><Sparkles className="size-4" />AI Assistant</span>
-        <button className="rounded-md p-1 text-muted-foreground hover:bg-accent" aria-label="Close assistant" onClick={onClose}><X className="size-4" /></button>
+        <button className="rounded-md p-1 text-muted-foreground hover:bg-accent" aria-label="Close assistant" onClick={() => { discardSession(); onClose() }}><X className="size-4" /></button>
       </div>
 
       <div className="flex items-center justify-between gap-2 border-b px-3 py-2 text-xs text-muted-foreground">
-        <span className="min-w-0 truncate">{mode === 'agent' ? (current ? `${current.label} · local` : 'No local agent selected') : `${info.label} · ${config.model || 'no model selected'}`}</span>
+        <span className="min-w-0 flex-1 truncate">{mode === 'agent' ? (current ? `${current.label} · ${agentModel || 'CLI default'}` : 'No local agent selected') : `${info.label} · ${config.model || 'no model selected'}`}</span>
+        {mode === 'agent' && <button className="shrink-0 rounded-md border px-2 py-1 hover:bg-accent" onClick={newChat}>New chat</button>}
         <button className={cn('rounded-md p-1 hover:bg-accent', settings && 'bg-accent text-foreground')} aria-label="Provider settings" aria-expanded={settings} onClick={() => setSettings(!settings)}><Settings2 className="size-4" /></button>
       </div>
 
@@ -199,10 +293,34 @@ export function AssistantPanel({ editor, onClose }: { editor: PlateEditor | null
               ))}
             </div>
           )}
+          {agent && (
+            <div className="space-y-2">
+              <label className="grid grid-cols-[60px_1fr] items-center gap-2">Model
+                <select className={field} value={agentModel ?? ''} onChange={(e) => aiStore.setAgentSettings(agent, { model: e.target.value || undefined, effort: undefined })}>
+                  <option value="">CLI default</option>
+                  {agentModel && !localModels.some((m) => m.id === agentModel) && <option value={agentModel}>{agentModel}</option>}
+                  {localModels.map((m) => <option key={m.id} value={m.id}>{m.label || m.id}{m.isDefault ? ' (default)' : ''}</option>)}
+                </select>
+              </label>
+              <button className="flex items-center gap-1 rounded-md border px-2 py-1 text-xs hover:bg-accent disabled:opacity-50" disabled={loadingLocalModels} onClick={() => loadLocalModels(true)}>
+                {loadingLocalModels ? <Loader2 className="size-3.5 animate-spin" /> : <RefreshCw className="size-3.5" />}Rescan models
+              </button>
+              {!!selectedModel?.efforts?.length && (
+                <label className="grid grid-cols-[60px_1fr] items-center gap-2">Effort
+                  <select className={field} value={agentEffort ?? ''} onChange={(e) => aiStore.setAgentSettings(agent, { effort: e.target.value || undefined })}>
+                    <option value="">CLI default</option>
+                    {agentEffort && !selectedModel.efforts.includes(agentEffort) && <option value={agentEffort}>{agentEffort}</option>}
+                    {selectedModel.efforts.map((effort) => <option key={effort} value={effort}>{effort}</option>)}
+                  </select>
+                </label>
+              )}
+              {localModelsMsg && <p className="text-xs text-amber-600" role="status">{localModelsMsg}</p>}
+            </div>
+          )}
           <div className="space-y-1 text-xs text-muted-foreground">
             {agentNote && <p className="text-amber-600">{agentNote}</p>}
             <p>Uses the account already signed in to the agent; no key needed.</p>
-            <p>The agent runs on this computer in read-only mode, in a temporary folder holding the document (<code>document.md</code>); the folder is deleted after it answers.</p>
+            <p>The agent runs in read-only mode and remembers this chat until you start a new chat or close the assistant. Each message includes the current document.</p>
             {agents && !agents.some((a) => a.available) && <p className="text-amber-600">No agents found. Install Claude Code, Codex or Antigravity, then click Rescan.</p>}
           </div>
         </div>
@@ -248,6 +366,7 @@ export function AssistantPanel({ editor, onClose }: { editor: PlateEditor | null
       )}
 
       <div ref={list} className="min-h-0 flex-1 space-y-3 overflow-y-auto px-3 py-3">
+        {mode === 'agent' && sessionNote && <p className="text-xs text-muted-foreground" role="status">{sessionNote}</p>}
         {!messages.length && (
           <div className="space-y-3">
             <p className="text-muted-foreground">Ask about the document, or have it write, edit or summarize. The assistant reads the document to answer; click <b>Insert</b> to put an answer at the cursor.</p>
@@ -262,6 +381,7 @@ export function AssistantPanel({ editor, onClose }: { editor: PlateEditor | null
           if (m.error) return <div key={i} className="chat-in rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-red-700">{m.content}</div>
           return (
             <div key={i} className="chat-in space-y-2">
+              {m.notice && <p className="text-xs text-amber-600" role="status">{m.notice}</p>}
               {live && (
                 <div className="flex items-center gap-2 text-xs text-muted-foreground" role="status" aria-live="polite">
                   <Loader2 className="size-3.5 shrink-0 animate-spin" />
@@ -274,10 +394,21 @@ export function AssistantPanel({ editor, onClose }: { editor: PlateEditor | null
                   <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}>{normalizeMath(m.content)}</ReactMarkdown>
                 </div>
               )}
-              {!live && m.content && m.content !== STOPPED && (
+              {!!m.steps?.length && (
+                <details className="rounded-md border px-2 py-1 text-xs text-muted-foreground">
+                  <summary className="cursor-pointer">{m.steps.length} {m.steps.length === 1 ? 'step' : 'steps'}</summary>
+                  <ol className="mt-1 space-y-1 pl-3">
+                    {m.steps.map((step, j) => <li key={j} className="whitespace-pre-wrap break-words"><span className="font-medium">{step.name}</span>{step.detail && <span> · {step.detail}</span>}</li>)}
+                  </ol>
+                </details>
+              )}
+              {m.failure && <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-red-700" role="alert">{m.failure}</div>}
+              {!live && (m.content || m.ms !== undefined) && m.content !== STOPPED && (
                 <div className="flex items-center gap-1.5 text-xs">
-                  <button className="flex items-center gap-1 rounded-md border px-2 py-1 hover:bg-accent" onClick={() => insert(m.content)}><TextCursorInput className="size-3.5" />Insert</button>
-                  <button className="flex items-center gap-1 rounded-md border px-2 py-1 hover:bg-accent" onClick={() => copy(i, m.content)}>{copied === i ? <Check className="size-3.5" /> : <ClipboardCopy className="size-3.5" />}{copied === i ? 'Copied' : 'Copy'}</button>
+                  {m.content && <>
+                    <button className="flex items-center gap-1 rounded-md border px-2 py-1 hover:bg-accent" onClick={() => insert(m.content)}><TextCursorInput className="size-3.5" />Insert</button>
+                    <button className="flex items-center gap-1 rounded-md border px-2 py-1 hover:bg-accent" onClick={() => copy(i, m.content)}>{copied === i ? <Check className="size-3.5" /> : <ClipboardCopy className="size-3.5" />}{copied === i ? 'Copied' : 'Copy'}</button>
+                  </>}
                   {m.ms !== undefined && <span className="ml-auto text-muted-foreground">{m.by} · {seconds(m.ms)}</span>}
                 </div>
               )}
@@ -293,7 +424,7 @@ export function AssistantPanel({ editor, onClose }: { editor: PlateEditor | null
           onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); send(input) } }} />
         <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
           <span>Enter to send, Shift+Enter for a new line</span>
-          {busy ? <button className="flex items-center gap-1 rounded-md border px-3 py-1.5 text-foreground hover:bg-accent" onClick={() => abort.current?.abort()}><Square className="size-3.5" />Stop</button>
+          {busy ? <button className="flex items-center gap-1 rounded-md border px-3 py-1.5 text-foreground hover:bg-accent" onClick={stop}><Square className="size-3.5" />Stop</button>
             : <button className="rounded-md bg-foreground px-4 py-1.5 font-medium text-background disabled:opacity-40" disabled={!input.trim()} onClick={() => send(input)}>Send</button>}
         </div>
       </div>

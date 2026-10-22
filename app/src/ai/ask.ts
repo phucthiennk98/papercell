@@ -32,11 +32,11 @@ export type AskOptions = {
 
 /** Send a conversation and stream the reply; resolves with the full answer text. */
 export async function askAI({ messages, doc, signal, onUpdate }: AskOptions): Promise<string> {
-  const { mode, agent, config } = aiStore.get()
+  const { mode, agent, config, agentSettings } = aiStore.get()
   if (mode === 'agent' && !agent) throw new Error('No local agent selected. Open the AI Assistant panel to set one up.')
   const r = await fetch(mode === 'agent' ? '/api/agents/chat' : '/api/assistant/chat', {
     method: 'POST', headers: { 'content-type': 'application/json' }, signal,
-    body: JSON.stringify(mode === 'agent' ? { agent, messages, doc } : { aiConfig: config, messages, doc }),
+    body: JSON.stringify(mode === 'agent' ? { agent, ...agentSettings[agent], messages, doc } : { aiConfig: config, messages, doc }),
   })
   if (!r.ok || !r.body) { const j = await r.json().catch(() => ({})); throw new Error(j.error || `Error ${r.status}`) }
   const reader = r.body.pipeThrough(new TextDecoderStream()).getReader()

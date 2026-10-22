@@ -10,12 +10,14 @@ import path from 'node:path'
 type Parsed = { delta?: string; progress?: string; error?: string }
 type Parser = { line: (l: string) => Parsed[]; end: () => Parsed[] }
 
+type ChatOptions = { model?: string; effort?: string }
+
 type AgentDef = {
   id: string
   label: string
   bin: string
   /** Tham số chạy; nếu promptInArgs thì câu hỏi nằm trong tham số (cần file chạy trực tiếp, không qua shell). */
-  args: (prompt: string) => string[]
+  args: (prompt: string, opts?: ChatOptions) => string[]
   promptInArgs?: boolean
   makeParser: () => Parser
   note: string
@@ -28,12 +30,14 @@ const describeCommand = (cmd: string) => (/document\.md/.test(cmd) ? 'Reading do
 export const AGENTS: AgentDef[] = [
   {
     id: 'claude', label: 'Claude Code', bin: 'claude', note: 'claude -p, plan mode (read-only)',
-    args: () => ['-p', '--output-format', 'text', '--permission-mode', 'plan'],
+    args: (_, opts) => ['-p', '--output-format', 'text', '--permission-mode', 'plan', ...(opts?.model ? ['--model', opts.model] : [])],
     makeParser: () => ({ line: (l) => [{ delta: l + '\n' }], end: () => [] }),
   },
   {
     id: 'codex', label: 'Codex', bin: 'codex', note: 'codex exec, sandbox read-only',
-    args: () => ['exec', '--json', '-s', 'read-only', '--skip-git-repo-check', '--ephemeral', '-'],
+    args: (_, opts) => ['exec', '--json', '-s', 'read-only', '--skip-git-repo-check', '--ephemeral',
+      ...(opts?.model ? ['--model', opts.model] : []),
+      ...(opts?.effort ? ['-c', `model_reasoning_effort=${JSON.stringify(opts.effort)}`] : []), '-'],
     makeParser: () => {
       // Codex gửi nhiều agent_message; chỉ cái cuối là câu trả lời, các cái trước là lời dẫn tiến độ.
       let pending: string | null = null
@@ -61,7 +65,8 @@ export const AGENTS: AgentDef[] = [
   },
   {
     id: 'agy', label: 'Antigravity', bin: 'agy', note: 'agy -p, plan mode', promptInArgs: true,
-    args: (prompt) => [`-p=${prompt}`, '--output-format', 'stream-json', '--mode', 'plan'],
+    args: (prompt, opts) => [`-p=${prompt}`, '--output-format', 'stream-json', '--mode', 'plan',
+      ...(opts?.model ? ['--model', opts.model] : []), ...(opts?.effort ? ['--effort', opts.effort] : [])],
     makeParser: () => ({
       line: (l) => {
         const e = json(l); if (!e) return []
@@ -115,7 +120,7 @@ export function stopTree(child: ChildProcess) {
 
 function run(file: string, args: string[], shell: boolean, opts: { cwd?: string; input?: string; timeoutMs: number; signal?: AbortSignal; onLine?: (l: string) => void }) {
   return new Promise<{ code: number | null; stdout: string; stderr: string }>((resolve, reject) => {
-    // Qua shell chỉ khi bắt buộc (.cmd); khi đó tham số là hằng số, không chứa nội dung người dùng.
+    // Qua shell chỉ khi bắt buộc (.cmd); tham số là cờ cố định hoặc model/effort đã kiểm tra.
     const child = spawn(shell ? `"${file}"` : file, args, { cwd: opts.cwd, shell, windowsHide: true, env: process.env })
     let stdout = '', stderr = '', buf = ''
     // Tắt cả cây tiến trình: trên Windows, agent chạy qua cmd nên kill() chỉ tắt lớp vỏ ngoài.
@@ -163,11 +168,15 @@ When asked to write or edit content, return only that content in Markdown so it 
 type Msg = { role: 'user' | 'assistant'; content: string }
 
 /** Chạy một agent cục bộ, trả về stream chữ; lỗi được gửi sau errorMark. */
-export async function agentChat(agentId: string, messages: Msg[], doc: string, signal: AbortSignal, errorMark: string, progressMark: string): Promise<Response> {
+export async function agentChat(agentId: string, messages: Msg[], doc: string, signal: AbortSignal, errorMark: string, progressMark: string, opts: ChatOptions = {}): Promise<Response> {
   const def = AGENTS.find((a) => a.id === agentId)
   const bin = def && resolveBin(def.bin)
   if (!def || !bin) return Response.json({ error: 'This agent was not found on the computer running the server.' }, { status: 404 })
   if (def.promptInArgs && bin.shell) return Response.json({ error: `${def.label} must be run directly, not through a shell.` }, { status: 500 })
+  // Model/effort can reach a Windows .cmd wrapper; accept only CLI identifiers.
+  if ([opts.model, opts.effort].some((v) => v !== undefined && !/^[a-zA-Z0-9][a-zA-Z0-9._:/-]{0,199}$/.test(v))) {
+    return Response.json({ error: 'Invalid model or reasoning effort.' }, { status: 400 })
+  }
 
   const history = messages.slice(0, -1).map((m) => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`).join('\n\n')
   const question = messages[messages.length - 1]?.content ?? ''
@@ -189,7 +198,7 @@ export async function agentChat(agentId: string, messages: Msg[], doc: string, s
       })
       ctrl.enqueue(enc.encode(progressMark + `Starting ${def.label}…\n`))
       try {
-        const r = await run(bin.file, def.args(prompt), bin.shell, {
+        const r = await run(bin.file, def.args(prompt, opts), bin.shell, {
           cwd: dir, input: def.promptInArgs ? undefined : prompt, timeoutMs: 5 * 60_000, signal,
           onLine: (line) => emit(parser.line(line)),
         })
