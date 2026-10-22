@@ -1,43 +1,43 @@
-# AGENTS.md — Cách các agent làm việc trong dự án Papercell
+# AGENTS.md — How agents work on the Papercell project
 
-## Vai trò
+## Roles
 
-| Agent | Vai trò | Được làm | Không được làm |
+| Agent | Role | May do | Must not do |
 |---|---|---|---|
-| **Claude (Claude Code)** | **Điều phối** | Nói chuyện với người dùng, hiểu yêu cầu, chia việc, viết brief cho từng việc, giao cho Codex / Antigravity, đọc lại diff, kiểm tra trên trình duyệt, build, commit, báo cáo cho người dùng | Tự viết phần lớn code. Claude chỉ sửa trực tiếp khi việc quá nhỏ (vài dòng) hoặc khi phải ghép/sửa lỗi sau khi worker làm xong |
-| **Codex** | **Thực thi** | Nhận một brief từ Claude, sửa đúng các file được giao, chạy kiểm tra, trả báo cáo | Commit, push, đổi nhánh, sửa file ngoài phạm vi brief, tự mở rộng yêu cầu |
-| **Antigravity (agy)** | **Thực thi** | Như Codex | Như Codex |
+| **Claude (Claude Code)** | **Coordinator** | Talk to the user, understand requirements, break down work, write a brief for each task, assign it to Codex / Antigravity, review diffs, check in the browser, build, commit, report to the user | Write most of the code directly. Claude only edits directly when a task is tiny (a few lines) or when integration/fixes are needed after a worker finishes |
+| **Codex** | **Worker** | Receive a brief from Claude, edit only assigned files, run checks, return a report | Commit, push, switch branches, edit files outside the brief's scope, expand requirements independently |
+| **Antigravity (agy)** | **Worker** | Same as Codex | Same as Codex |
 
-Chỉ **Claude** nhận yêu cầu từ người dùng và quyết định việc gì làm, ai làm. Worker (Codex, Antigravity) chỉ nhận việc từ Claude.
+Only **Claude** receives user requests and decides what to do and who does it. Workers (Codex, Antigravity) only receive tasks from Claude.
 
-## Dự án
+## Project
 
-**Trước khi làm bất kỳ việc gì, đọc [`docs/CODEBASE.md`](docs/CODEBASE.md)** (bản đồ mã nguồn: kiến trúc, luồng dữ liệu, cách mở rộng, bẫy đã biết). Việc nào đổi kiến trúc thì cập nhật luôn file đó trong cùng việc.
+**Before doing anything, read [`docs/CODEBASE.md`](docs/CODEBASE.md)** (codebase map: architecture, data flow, extension points, known gotchas). Any task that changes the architecture must update that file as part of the same task.
 
 
-**Papercell**: trình soạn bài báo khoa học kiểu Lark Docs. Hình vẽ bằng JS (Observable Plot / D3, bản đồ MapLibre), có code Python gốc để kiểm chứng và tính sẵn, xuất ra một file HTML mở được ở mọi nơi.
+**Papercell**: a Lark Docs-style editor for scientific articles. Figures use JS (Observable Plot / D3, MapLibre maps), with original Python code for verification and precomputation, and export to a single HTML file that can be opened anywhere.
 
-- `app/`: toàn bộ ứng dụng (React 19 + Vite 8 + TypeScript, editor Plate v53, Tailwind v4 + shadcn).
-  - `src/figure/`: thẻ hình: runtime, tab Design (`builder.ts`, `DesignTab.tsx`), popup (`FigureDialog.tsx`), trình soạn code (`CodeEditor.tsx`), bản đồ (`map.ts`), tính sẵn (`scenarios.ts`, `ScenarioTab.tsx`), mẫu hình (`templates.ts`, `control-templates.ts`).
-  - `src/components/`: component của Plate (kéo về bằng shadcn, đã chỉnh).
-  - `src/editor/`: kiểu dữ liệu tài liệu (`types.ts`), nâng cấp tài liệu cũ (`upgrade.ts`), kéo thả tạo cột (`side-drop.ts`).
-  - `src/ai/`: Trợ lý AI, skill hướng dẫn viết code hình (`skills/*.md`).
-  - `src/viewer/`: trang đọc dùng khi xuất HTML.
-  - `server/`: server Hono (AI, agent trên máy, Python trên máy).
-- `chay-tren-may.bat` / `.sh`: build và chạy trên máy (cổng 8780). `docker-compose.yml`: bản Docker (cổng 8765).
+- `app/`: the entire application (React 19 + Vite 8 + TypeScript, Plate v53 editor, Tailwind v4 + shadcn).
+  - `src/figure/`: figure cards: runtime, Design tab (`builder.ts`, `DesignTab.tsx`), popup (`FigureDialog.tsx`), code editor (`CodeEditor.tsx`), maps (`map.ts`), precomputation (`scenarios.ts`, `ScenarioTab.tsx`), figure templates (`templates.ts`, `control-templates.ts`).
+  - `src/components/`: Plate components (imported via shadcn and modified).
+  - `src/editor/`: document data types (`types.ts`), legacy document upgrades (`upgrade.ts`), drag-and-drop column creation (`side-drop.ts`).
+  - `src/ai/`: AI Assistant, skills for writing figure code (`skills/*.md`).
+  - `src/viewer/`: reading page used for HTML exports.
+  - `server/`: Hono server (AI, local agents, local Python).
+- `run-local.bat` / `.sh`: build and run locally (port 8780). `docker-compose.yml`: Docker deployment (port 8765).
 
-## Quy ước bắt buộc
+## Mandatory conventions
 
-- **Giao diện chỉ dùng tiếng Anh** (nút, menu, thông báo, lỗi). Nội dung bài viết thì ngôn ngữ nào cũng được.
-- Comment trong code: tiếng Việt hoặc tiếng Anh, viết ngắn, theo giọng của file đang sửa.
-- Code mới phải giống code xung quanh: cách đặt tên, độ dài dòng, mật độ comment.
-- Chuỗi có ký tự thoát (`\n`, regex) thì sửa bằng công cụ sửa file, không chèn qua heredoc của shell (đã nhiều lần làm hỏng code).
-- Không cài thêm thư viện nếu brief không cho phép.
-- Không chạy server ở cổng **8780** hoặc **8765** (người dùng tự bật/tắt). Cần thử thì dùng cổng khác hoặc build tĩnh.
+- **The UI must use English only** (buttons, menus, messages, errors). Article content may use any language.
+- Code comments: Vietnamese or English, concise, matching the tone of the file being edited.
+- New code must match its surroundings: naming, line length, comment density.
+- Edit strings containing escapes (`\n`, regex) with file editing tools, not shell heredocs (which have repeatedly damaged code).
+- Do not install additional libraries unless the brief permits it.
+- Do not run servers on ports **8780** or **8765** (the user starts/stops those). Use another port or a static build for testing.
 
-## Kiểm tra trước khi báo xong (worker)
+## Checks before reporting completion (workers)
 
-Chạy trong thư mục `app/`:
+Run in the `app/` directory:
 
 ```bash
 npx tsc -b
@@ -45,44 +45,44 @@ npx vite build
 npm run build:viewer
 ```
 
-Cả ba phải qua, không có lỗi. Brief có yêu cầu kiểm tra riêng thì làm thêm phần đó.
+All three must pass without errors. Also perform any additional checks required by the brief.
 
-## Quy trình
+## Workflow
 
-1. **Claude** nhận yêu cầu, xem code liên quan, chia thành các việc độc lập. Mỗi việc chỉ đụng một nhóm file, hai worker không bao giờ sửa cùng một file cùng lúc.
-2. **Claude** viết brief (mẫu bên dưới) và giao **qua Orca**, để người dùng theo dõi mỗi worker trong một tab:
-   - Tạo Run: `orca orchestration run-create --objective "<mục tiêu>" --json`
-   - Giao việc: `orca orchestration worker-start --run <run_id> --spec "<brief>" --task-title "<tên ngắn>" --worktree "path:D:/Workspace/projects/project_01" --agent codex|antigravity --json`
-   - Chờ kết quả: `orca orchestration check --run <run_id> --wait --types "worker_done,escalation,question" --json`; xử lý xong thì `--ack <delivery_id>` và `worker-release --dispatch <dispatch_id>`.
-   - Worker ghi báo cáo vào `.agent-reports/<tên>.md` (bị git bỏ qua) và gửi `worker_done` kèm `--report-path`.
-   - Dự phòng khi Orca không chạy: `codex exec -s workspace-write -C "D:/Workspace/projects/project_01" "<brief>"` hoặc `agy -p "<brief>" --mode accept-edits`.
-3. **Worker** làm đúng brief, chạy kiểm tra, trả báo cáo (mẫu bên dưới). **Không commit.**
-4. **Claude** đọc `git diff`, chạy lại kiểm tra, thử trên trình duyệt nếu là thay đổi giao diện, sửa nốt chỗ ghép nối. Thiếu thì giao lại cho worker kèm nhận xét cụ thể.
-5. **Claude** commit (thông điệp tiếng Việt, mô tả cái gì đổi và vì sao) và báo cáo cho người dùng.
+1. **Claude** receives the request, reviews relevant code, and splits it into independent tasks. Each task touches one group of files; two workers must never edit the same file at the same time.
+2. **Claude** writes a brief (template below) and assigns it **through Orca**, so the user can follow each worker in its own tab:
+   - Create a Run: `orca orchestration run-create --objective "<objective>" --json`
+   - Assign work: `orca orchestration worker-start --run <run_id> --spec "<brief>" --task-title "<short title>" --worktree "path:D:/Workspace/projects/project_01" --agent codex|antigravity --json`
+   - Wait for results: `orca orchestration check --run <run_id> --wait --types "worker_done,escalation,question" --json`; after processing, use `--ack <delivery_id>` and `worker-release --dispatch <dispatch_id>`.
+   - Workers write reports to `.agent-reports/<name>.md` (ignored by Git) and send `worker_done` with `--report-path`.
+   - Fallback when Orca is unavailable: `codex exec -s workspace-write -C "D:/Workspace/projects/project_01" "<brief>"` or `agy -p "<brief>" --mode accept-edits`.
+3. **Workers** follow the brief, run checks, and return a report (template below). **Do not commit.**
+4. **Claude** reads `git diff`, reruns checks, tests UI changes in the browser, and finishes any integration fixes. If anything is missing, send it back to the worker with specific feedback.
+5. **Claude** commits (with a Vietnamese message describing what changed and why) and reports to the user.
 
-### Mẫu brief (Claude → worker)
-
-```
-VIỆC: <một câu, kết quả mong muốn>
-BỐI CẢNH: <vì sao cần, người dùng đã nói gì>
-FILE ĐƯỢC SỬA: <danh sách file; ngoài danh sách này thì không đụng>
-CHI TIẾT:
-- <yêu cầu 1>
-- <yêu cầu 2>
-XONG KHI: <điều kiện kiểm tra được, ví dụ "tsc + vite build qua; mẫu X hiện dropdown Y">
-KHÔNG LÀM: <những gì ngoài phạm vi>
-```
-
-### Mẫu báo cáo (worker → Claude)
+### Brief template (Claude → worker)
 
 ```
-ĐÃ LÀM: <tóm tắt từng thay đổi, theo file>
-KIỂM TRA: <lệnh đã chạy và kết quả, nguyên văn nếu có lỗi>
-CHƯA LÀM / VƯỚNG: <phần chưa xong, lý do, câu hỏi cho Claude>
+TASK: <one sentence describing the desired outcome>
+CONTEXT: <why this is needed, what the user said>
+FILES ALLOWED TO EDIT: <file list; do not touch anything outside it>
+DETAILS:
+- <requirement 1>
+- <requirement 2>
+DONE WHEN: <verifiable criteria, e.g. "tsc + vite build pass; template X shows dropdown Y">
+DO NOT DO: <what is out of scope>
 ```
 
-## Ghi chú cho worker
+### Report template (worker → Claude)
 
-- Brief không rõ thì ghi câu hỏi vào phần "CHƯA LÀM / VƯỚNG" rồi dừng, không đoán.
-- Phát hiện lỗi ngoài phạm vi thì ghi vào báo cáo, không tự sửa.
-- Không xóa file, không đổi tên file, không chạy lệnh git làm thay đổi lịch sử (commit, reset, checkout, rebase, push).
+```
+DONE: <summary of changes by file>
+CHECKS: <commands run and results, verbatim if there are errors>
+UNFINISHED / BLOCKED: <remaining work, reasons, questions for Claude>
+```
+
+## Notes for workers
+
+- If the brief is unclear, record questions under "UNFINISHED / BLOCKED" and stop; do not guess.
+- Report bugs found outside the scope; do not fix them independently.
+- Do not delete or rename files, or run Git commands that change history (commit, reset, checkout, rebase, push).

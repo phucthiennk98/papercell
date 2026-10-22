@@ -28,7 +28,7 @@ const isLocal = (c: Parameters<typeof getConnInfo>[0]) => {
 }
 app.get('/api/agents', async (c) => {
   if (!isLocal(c)) return c.json({ agents: [], inDocker: existsSync('/.dockerenv'), note: existsSync('/.dockerenv')
-    ? 'You are using the Docker build, and the container cannot see agents installed on your computer. Double-click chay-tren-may.bat in the project folder, then open http://localhost:8780.'
+    ? 'You are using the Docker build, and the container cannot see agents installed on your computer. Double-click run-local.bat in the project folder, then open http://localhost:8780.'
     : 'Local agents only work when Papercell is opened on the computer running the server.' })
   return c.json({ agents: await detectAgents(c.req.query('refresh') === '1') })
 })

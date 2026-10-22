@@ -1,46 +1,46 @@
 # Papercell
 
-Trình soạn bài báo khoa học kiểu Lark Docs. Hình trong bài vẽ bằng JS, có thanh trượt tham số, kèm code Python gốc để đối chiếu và kiểm chứng. Có trợ lý AI dùng API key hoặc dùng agent đã cài trên máy.
+A Lark Docs-style editor for scientific articles. Article figures are drawn with JS, include parameter sliders, and come with the original Python code for comparison and verification. The AI assistant can use an API key or an agent installed on your machine.
 
-Thiết kế chi tiết: [docs/DESIGN.md](docs/DESIGN.md).
+Detailed design: [docs/DESIGN.md](docs/DESIGN.md).
 
-## Cách chạy
+## Running the app
 
-### 1. Docker: dễ nhất, dùng AI bằng API key
+### 1. Docker: the easiest option, with AI via an API key
 
 ```bash
 docker compose up -d --build
 ```
 
-Mở http://localhost:8765. Đổi cổng: copy `.env.example` thành `.env` rồi sửa `PORT`.
+Open http://localhost:8765. To change the port, copy `.env.example` to `.env` and edit `PORT`.
 
-Muốn server có sẵn key để không phải nhập trong app, thêm biến môi trường vào `docker-compose.yml`, ví dụ `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GOOGLE_GENERATIVE_AI_API_KEY`, `AI_GATEWAY_API_KEY`.
+To provide keys on the server so you do not need to enter them in the app, add environment variables to `docker-compose.yml`, such as `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GOOGLE_GENERATIVE_AI_API_KEY`, `AI_GATEWAY_API_KEY`.
 
-### 2. Chạy thẳng trên máy: dùng được agent đã cài (Claude Code, Codex, Antigravity)
+### 2. Run directly on your machine: use installed agents (Claude Code, Codex, Antigravity)
 
-Windows: bấm đúp **`chay-tren-may.bat`**. macOS/Linux: chạy `./chay-tren-may.sh`. Script tự cài thư viện (lần đầu), build, rồi mở http://localhost:8780. Trong **Trợ lý AI → Agent trên máy**, app tự dò các agent có trên máy và dùng tài khoản đã đăng nhập sẵn của agent đó. Agent chạy ở chế độ chỉ đọc trong một thư mục tạm chứa nội dung bài.
+Windows: double-click **`run-local.bat`**. macOS/Linux: run `./run-local.sh`. The script installs dependencies automatically (on the first run), builds the app, then opens http://localhost:8780. Under **AI Assistant → Local agent**, the app detects agents on your machine and uses the account already signed in to that agent. The agent runs in read-only mode in a temporary directory containing the article.
 
-Chế độ này không chạy trong Docker, vì container không thấy các chương trình cài trên máy. Vì lý do an toàn, server chỉ cho gọi agent từ chính máy đó (127.0.0.1).
+This mode does not work in Docker because the container cannot see programs installed on the host. For safety, the server only allows agent calls from the same machine (127.0.0.1).
 
-## Phát triển
+## Development
 
 ```bash
 cd app
 npm install
-npm run dev:server   # server API ở cổng 8787 (tự build lại khi sửa)
-npm run dev          # giao diện ở cổng 5173
+npm run dev:server   # API server on port 8787 (rebuilds automatically on changes)
+npm run dev          # UI on port 5173
 ```
 
-## Cấu trúc
+## Structure
 
-| Thư mục | Nội dung |
+| Directory | Contents |
 |---|---|
-| `app/src/components/` | Bộ giao diện editor của Plate (kéo về qua shadcn, đã tùy biến) |
-| `app/src/figure/` | Thẻ hình JS: vẽ, popup, quyền xem code, kiểm chứng Python ↔ JS, dữ liệu |
-| `app/src/ai/` | Sidebar Trợ lý AI và cài đặt nhà cung cấp |
-| `app/src/docs/` | Lưu nhiều bài trong trình duyệt |
-| `app/server/` | Server Hono: route AI, agent trên máy, phát giao diện |
+| `app/src/components/` | Plate editor UI components (imported via shadcn and customized) |
+| `app/src/figure/` | JS figure cards: rendering, popup, code access, Python ↔ JS verification, data |
+| `app/src/ai/` | AI Assistant sidebar and provider settings |
+| `app/src/docs/` | Storage for multiple articles in the browser |
+| `app/server/` | Hono server: AI routes, local agents, UI serving |
 
-## Giấy phép
+## License
 
 MIT

@@ -1,325 +1,325 @@
-# Bản đồ mã nguồn Papercell
+# Papercell codebase map
 
-Tài liệu cho các agent (và người) cần hiểu dự án trước khi sửa code. Mọi đường dẫn tính từ gốc dự án.
-Được gộp từ hai báo cáo đọc code (Antigravity: server, AI, khung ứng dụng, build; Codex: hình và editor)
-và đã được Claude đối chiếu ngẫu nhiên với code ngày 2026-10-21. **Khi đổi kiến trúc, cập nhật file này.**
+Documentation for agents (and people) who need to understand the project before editing code. All paths are relative to the project root.
+Merged from two code review reports (Antigravity: server, AI, app shell, build; Codex: figures and editor)
+and spot-checked against the code by Claude on 2026-10-21. **Update this file when changing the architecture.**
 
-Mục lục
-- Phần A. Khung ứng dụng, server, AI, tùy biến Plate, build
-- Phần B. Thẻ hình, Design, tính sẵn Python, xuất HTML, editor
-- Phần C. Rủi ro đã biết chưa xử lý
+Contents
+- Part A. App shell, server, AI, Plate customization, build
+- Part B. Figure cards, Design, Python precomputation, HTML export, editor
+- Part C. Known unresolved risks
 
 ---
 
-## Phần A. Khung ứng dụng, server, AI, tùy biến Plate, build
+## Part A. App shell, server, AI, Plate customization, build
 
-### 1. Khung ứng dụng và Lưu trữ tài liệu
+### 1. App shell and document storage
 
-- **Điểm vào (`app/src/main.tsx`)**: Nạp CSS của KaTeX (`katex.min.css`), Tailwind (`index.css`), và CSS hình vẽ (`figure/papercell.css`, `figure/figure.css`), sau đó render `<App />`.
-- **Khung chính (`app/src/App.tsx`)**:
-  - Quản lý trạng thái cấp ứng dụng: `docId` hiện tại (khởi tạo qua `ensureFirstDoc()`), danh sách `docs` (`listDocs()`), ẩn/hiện thanh bên trái (`sidebar`), từ khóa tìm bài (`query`), mục lục (`headings`), tham chiếu `editor`, và trạng thái đóng/mở `AssistantPanel` (lưu ở `localStorage['papercell.assistant']`; tự thu gọn `sidebar` nếu màn hình `< 1280px`).
-  - **Sidebar trái**: Ô tìm kiếm bài viết theo tiêu đề, danh sách tài liệu (tạo bài trống `emptyDoc()`, xóa bài `deleteDoc()`), cây mục lục (`Outline` nhảy tới khối qua `editor.api.toDOMNode`), và 2 nút tạo nhanh bài mẫu (`makeSample()`, `makeGallery()`).
-  - **`DocView`**: Khởi tạo trình soạn thảo bằng `usePlateEditor({ plugins: PapercellKit, value: initial.content })` (gán `window.__editor = editor` ở bản dev). Tự động lưu sau 400ms (`persist`) khi đổi `meta`, `files` hoặc nội dung bài (`onChange`). Đồng bộ chế độ đọc/soạn (`readOnly`) với `location.hash` (`#read` / `#edit`).
-  - **Ba React Context bọc quanh `<Plate>`**:
-    1. `MetaContext` (`app/src/editor/DocHeader.tsx`): cung cấp `{ meta, setMeta }` (tiêu đề, tác giả, ngày) cho `DocHeader` và nút xuất file.
-    2. `DataContext` (`app/src/figure/runtime.ts`): cung cấp `{ files, data: parseData(files), setFiles }` cho các thẻ hình, bảng dữ liệu (`DataPanel`) và gợi ý code.
-    3. `FigureNumbers` (`app/src/figure/FigureElement.tsx`): cung cấp bảng ánh xạ số thứ tự hình (`scan(value).figs`) để đánh số tự động.
-  - **Đồng bộ cấu hình AI vào Plate**: `useEffect` trong `DocView` đăng ký `aiStore.subscribe` để bơm `aiConfig` vào `chatOptions.body` của `aiChatPlugin` và `completeOptions.body` của `CopilotPlugin`.
-- **Lưu trữ `localStorage` (`app/src/docs/store.ts`)**:
-  - Danh mục bài viết lưu tại khóa `papercell.index.v1` (`DocEntry[]` gồm `{ id, title, updated }`), sắp xếp mới nhất lên đầu.
-  - Nội dung từng bài lưu riêng tại `papercell.doc.<id>` (định dạng `PapercellDoc` `version: 3`). Khi đọc qua `loadDoc(id)`, dữ liệu được đi qua `upgradeDoc(d)` (`app/src/editor/upgrade.ts`) để tương thích ngược.
-  - `ensureFirstDoc()`: Lần đầu mở sẽ tự tạo bộ thử biểu đồ (`papercell.gallery.v1`) và bài mẫu (`makeSample()`).
-- **Bộ plugin Plate (`app/src/editor/papercell-kit.tsx`, `app/src/components/editor/editor-kit.tsx`)**:
-  - `EditorKit` tập hợp toàn bộ plugin chuẩn: `CopilotKit`, `AIKit`, các khối văn bản/bảng/cột/toán/code (`BasicBlocksKit`, `TableKit`, `ColumnKit`, `MathKit`, `CodeBlockKit`…), kéo thả (`DndKit`), menu `/` (`SlashKit`), xuất nhập (`DocxKit`, `MarkdownKit`) và thanh công cụ (`FixedToolbarKit`, `FloatingToolbarKit`).
-  - `PapercellKit = [...EditorKit, FigurePlugin, DocHeaderPlugin]`: bổ sung khối void `FigurePlugin` (`key: 'figure'`, render `FigureElement`) và `DocHeaderPlugin` (`key: 'docHeader'`, render `DocHeader` ở vị trí `beforeEditable`).
+- **Entry point (`app/src/main.tsx`)**: Loads KaTeX CSS (`katex.min.css`), Tailwind (`index.css`), and figure CSS (`figure/papercell.css`, `figure/figure.css`), then renders `<App />`.
+- **Main shell (`app/src/App.tsx`)**:
+  - Manages application-level state: current `docId` (initialized via `ensureFirstDoc()`), the `docs` list (`listDocs()`), left sidebar visibility (`sidebar`), article search query (`query`), table of contents (`headings`), the `editor` reference, and whether `AssistantPanel` is open (stored in `localStorage['papercell.assistant']`; automatically collapses `sidebar` when the screen is `< 1280px`).
+  - **Left sidebar**: Article search by title, document list (create a blank article with `emptyDoc()`, delete with `deleteDoc()`), table-of-contents tree (`Outline` jumps to blocks via `editor.api.toDOMNode`), and 2 buttons to quickly create sample articles (`makeSample()`, `makeGallery()`).
+  - **`DocView`**: Initializes the editor with `usePlateEditor({ plugins: PapercellKit, value: initial.content })` (assigns `window.__editor = editor` in dev). Autosaves after 400ms (`persist`) when `meta`, `files`, or article content (`onChange`) changes. Synchronizes reading/editing mode (`readOnly`) with `location.hash` (`#read` / `#edit`).
+  - **Three React Contexts wrap `<Plate>`**:
+    1. `MetaContext` (`app/src/editor/DocHeader.tsx`): provides `{ meta, setMeta }` (title, authors, date) to `DocHeader` and the export button.
+    2. `DataContext` (`app/src/figure/runtime.ts`): provides `{ files, data: parseData(files), setFiles }` to figure cards, the data panel (`DataPanel`), and code suggestions.
+    3. `FigureNumbers` (`app/src/figure/FigureElement.tsx`): provides a figure number mapping (`scan(value).figs`) for automatic numbering.
+  - **Synchronizing AI configuration into Plate**: `useEffect` in `DocView` registers `aiStore.subscribe` to inject `aiConfig` into `aiChatPlugin`'s `chatOptions.body` and `CopilotPlugin`'s `completeOptions.body`.
+- **`localStorage` storage (`app/src/docs/store.ts`)**:
+  - The article index is stored under `papercell.index.v1` (`DocEntry[]` containing `{ id, title, updated }`), newest first.
+  - Each article's content is stored separately at `papercell.doc.<id>` (`PapercellDoc` format, `version: 3`). When read via `loadDoc(id)`, data passes through `upgradeDoc(d)` (`app/src/editor/upgrade.ts`) for backward compatibility.
+  - `ensureFirstDoc()`: On first opening, automatically creates the chart test gallery (`papercell.gallery.v1`) and sample article (`makeSample()`).
+- **Plate plugin kit (`app/src/editor/papercell-kit.tsx`, `app/src/components/editor/editor-kit.tsx`)**:
+  - `EditorKit` collects all standard plugins: `CopilotKit`, `AIKit`, text/table/column/math/code blocks (`BasicBlocksKit`, `TableKit`, `ColumnKit`, `MathKit`, `CodeBlockKit`…), drag-and-drop (`DndKit`), the `/` menu (`SlashKit`), import/export (`DocxKit`, `MarkdownKit`), and toolbars (`FixedToolbarKit`, `FloatingToolbarKit`).
+  - `PapercellKit = [...EditorKit, FigurePlugin, DocHeaderPlugin]`: adds the void block `FigurePlugin` (`key: 'figure'`, renders `FigureElement`) and `DocHeaderPlugin` (`key: 'docHeader'`, renders `DocHeader` at `beforeEditable`).
 
-### 2. Server Hono, AI SDK, Agent cục bộ và Python cục bộ
+### 2. Hono server, AI SDK, local agents, and local Python
 
-- **Các route chính (`app/server/index.ts`)**:
-  - Chạy trên Hono (`@hono/node-server`), cổng mặc định `PORT ?? 8787`. Khi `NODE_ENV === 'production'`, phục vụ file tĩnh từ `./dist` và fallback SPA về `./dist/index.html`.
-  - `GET /api/health`: trả `{ ok: true }` (dùng cho Docker healthcheck).
-  - `POST /api/ai/command` (`app/server/ai/command/route.ts`): phục vụ menu AI trong bài của Plate (`aiChatPlugin`). Tạo `SlateEditor` với `BaseEditorKit`, tự chọn công cụ (`generate`, `edit`, `comment`) hoặc sửa bảng (`table`) qua `streamText` + `createUIMessageStream`.
-  - `POST /api/ai/copilot` (`app/server/ai/copilot/route.ts`): gợi ý hoàn thành câu (`GhostText`, tối đa 50 token) cho `CopilotPlugin`.
-  - `POST /api/assistant/chat` (`app/server/ai/assistant.ts`): phục vụ chat ở sidebar phải.
-  - `GET /api/ai/status` & `POST /api/ai/models`: báo nhà cung cấp nào đã có sẵn biến môi trường trên server (`serverKeys()`) và lấy danh sách model trực tiếp từ API nhà cung cấp (`listModels()`).
-  - **Kiểm tra `isLocal(c)`**: Chỉ cho phép địa chỉ `127.0.0.1`, `::1`, `::ffff:127.0.0.1` (hoặc khi bật `PAPERCELL_ALLOW_REMOTE_AGENTS=1`) gọi vào `/api/agents`, `/api/agents/chat`, `/api/python`, `/api/python/grid`.
-- **Cấu hình AI & Stream (`app/server/ai/provider.ts`, `app/server/ai/assistant.ts`)**:
-  - `readConfig(body)` đọc `body.aiConfig` (hoặc kiểu cũ `apiKey` + `model` của Plate). `keyFor(cfg)` ưu tiên `cfg.apiKey` do người dùng nhập, nếu trống thì lấy biến môi trường trên server (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GOOGLE_GENERATIVE_AI_API_KEY`, `AI_GATEWAY_API_KEY`, `COMPATIBLE_API_KEY`).
-  - `resolveModel(cfg)` tạo `LanguageModel` của Vercel AI SDK (`createAnthropic`, `createOpenAI`, `createGoogleGenerativeAI`, `createGateway`, `createOpenAICompatible`). Ném `ConfigError` (HTTP 401) nếu thiếu key.
-  - `assistantChat` cắt ngữ cảnh `doc` tối đa `200_000` ký tự, gọi `streamText` và phát luồng `text/plain`. Các thông báo tiến độ và lỗi giữa chừng được nhúng trực tiếp vào luồng qua hai dấu hiệu: `PROGRESS_MARK = '\u0000P:'` (kết thúc bằng `\n`) và `ERROR_MARK = '\u0000ERR:'`. Hàm `describe(e)` dịch các mã lỗi 401/403, 404, `ECONNREFUSED` sang thông báo tiếng Anh dễ hiểu.
-- **Agent trên máy (`app/server/agents/local.ts`)**:
-  - Hỗ trợ 3 CLI agent trong mảng `AGENTS`:
-    1. `claude` (Claude Code): `claude -p --output-format text --permission-mode plan` (nhận prompt qua `stdin`).
-    2. `codex` (Codex): `codex exec --json -s read-only --skip-git-repo-check --ephemeral -` (nhận prompt qua `stdin`, lọc JSONL chỉ lấy `agent_message` cuối cùng làm câu trả lời, các bước trước đẩy vào `progress`).
-    3. `agy` (Antigravity): `agy -p=<prompt> --output-format stream-json --mode plan` (`promptInArgs: true`, đọc `step_update` từ luồng JSON).
-  - `resolveBin(name)` tìm file chạy trong `PATH` và các thư mục cài đặt quen thuộc `knownDirs(name)` (ưu tiên `.exe` trước `.cmd`/`.bat` trên Windows). `detectAgents(force)` chạy `<bin> --version` và lưu cache 60 giây.
-  - `agentChat`: Tạo thư mục tạm `papercell-agent-*` trong `tmpdir()`, ghi nội dung bài (tối đa `500_000` ký tự) vào `document.md`, chạy agent ở chế độ chỉ đọc/plan với `cwd` là thư mục tạm (timeout 5 phút), phát luồng kèm `PROGRESS_MARK` / `ERROR_MARK`, và xóa thư mục tạm trong khối `finally`.
-  - `stopTree(child)`: Trên Windows, agent chạy qua `.cmd` tạo tiến trình con nên `child.kill()` chỉ tắt vỏ ngoài; phải gọi `taskkill /pid <pid> /T /F` để dừng toàn bộ cây tiến trình khi hủy hoặc hết giờ.
-- **Python trên máy (`app/server/python/grid.ts`)**:
-  - `pythonBin()` tìm `python`, `py`, hoặc `python3` (bỏ qua nếu `bin.shell === true`). `detectPython()` kiểm tra thực thi được `import sys, pandas` và lưu cache 60 giây.
-  - `runGrid(job, signal)`: Tạo thư mục tạm `papercell-grid-*`, ghi các bảng dữ liệu ra `data_<i>.csv|json` và script `runner.py` (hằng `RUNNER`), truyền `{ code, files, combos }` qua `stdin`.
-  - Script `RUNNER` đọc sẵn dữ liệu bằng `pandas`, biên dịch code một lần (`compile(job["code"], "<python>", "exec")`), rồi lặp qua từng tổ hợp tham số `combos`: tạo bản sao độc lập của `data` (`v.copy()` / `copy.deepcopy`), thực thi `exec(code, g)`, thu giá trị biến `ket_qua` (chuyển DataFrame/Series/numpy/NaN sang JSON hợp lệ qua `jsonable()`), đóng các hình matplotlib và in từng dòng JSONL (`application/x-ndjson`) về trình duyệt.
+- **Main routes (`app/server/index.ts`)**:
+  - Runs on Hono (`@hono/node-server`), default port `PORT ?? 8787`. When `NODE_ENV === 'production'`, serves static files from `./dist` with an SPA fallback to `./dist/index.html`.
+  - `GET /api/health`: returns `{ ok: true }` (used for the Docker healthcheck).
+  - `POST /api/ai/command` (`app/server/ai/command/route.ts`): serves Plate's in-article AI menu (`aiChatPlugin`). Creates a `SlateEditor` with `BaseEditorKit`, automatically selects a tool (`generate`, `edit`, `comment`) or edits tables (`table`) via `streamText` + `createUIMessageStream`.
+  - `POST /api/ai/copilot` (`app/server/ai/copilot/route.ts`): sentence completion suggestions (`GhostText`, up to 50 tokens) for `CopilotPlugin`.
+  - `POST /api/assistant/chat` (`app/server/ai/assistant.ts`): serves chat in the right sidebar.
+  - `GET /api/ai/status` & `POST /api/ai/models`: report which providers already have environment variables on the server (`serverKeys()`) and fetch model lists directly from provider APIs (`listModels()`).
+  - **`isLocal(c)` check**: Only allows addresses `127.0.0.1`, `::1`, `::ffff:127.0.0.1` (or when `PAPERCELL_ALLOW_REMOTE_AGENTS=1` is enabled) to call `/api/agents`, `/api/agents/chat`, `/api/python`, `/api/python/grid`.
+- **AI configuration & streaming (`app/server/ai/provider.ts`, `app/server/ai/assistant.ts`)**:
+  - `readConfig(body)` reads `body.aiConfig` (or Plate's legacy `apiKey` + `model` format). `keyFor(cfg)` prioritizes the user-entered `cfg.apiKey`; if empty, it uses server environment variables (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GOOGLE_GENERATIVE_AI_API_KEY`, `AI_GATEWAY_API_KEY`, `COMPATIBLE_API_KEY`).
+  - `resolveModel(cfg)` creates a Vercel AI SDK `LanguageModel` (`createAnthropic`, `createOpenAI`, `createGoogleGenerativeAI`, `createGateway`, `createOpenAICompatible`). Throws `ConfigError` (HTTP 401) if the key is missing.
+  - `assistantChat` truncates the `doc` context to at most `200_000` characters, calls `streamText`, and streams `text/plain`. Progress messages and mid-stream errors are embedded directly in the stream using two markers: `PROGRESS_MARK = '\u0000P:'` (terminated by `\n`) and `ERROR_MARK = '\u0000ERR:'`. The `describe(e)` function translates error codes 401/403, 404, `ECONNREFUSED` into clear English messages.
+- **Local agents (`app/server/agents/local.ts`)**:
+  - Supports 3 CLI agents in the `AGENTS` array:
+    1. `claude` (Claude Code): `claude -p --output-format text --permission-mode plan` (receives the prompt via `stdin`).
+    2. `codex` (Codex): `codex exec --json -s read-only --skip-git-repo-check --ephemeral -` (receives the prompt via `stdin`, filters JSONL to use only the final `agent_message` as the answer, forwards earlier steps to `progress`).
+    3. `agy` (Antigravity): `agy -p=<prompt> --output-format stream-json --mode plan` (`promptInArgs: true`, reads `step_update` from the JSON stream).
+  - `resolveBin(name)` finds executables in `PATH` and common installation directories `knownDirs(name)` (prefers `.exe` over `.cmd`/`.bat` on Windows). `detectAgents(force)` runs `<bin> --version` and caches results for 60 seconds.
+  - `agentChat`: Creates a temporary `papercell-agent-*` directory in `tmpdir()`, writes the article content (up to `500_000` characters) to `document.md`, runs the agent in read-only/plan mode with the temporary directory as `cwd` (5-minute timeout), streams with `PROGRESS_MARK` / `ERROR_MARK`, and removes the temporary directory in `finally`.
+  - `stopTree(child)`: On Windows, agents run via `.cmd` create child processes, so `child.kill()` only stops the outer shell; call `taskkill /pid <pid> /T /F` to stop the entire process tree on cancellation or timeout.
+- **Local Python (`app/server/python/grid.ts`)**:
+  - `pythonBin()` finds `python`, `py`, or `python3` (skips if `bin.shell === true`). `detectPython()` checks that `import sys, pandas` can execute and caches results for 60 seconds.
+  - `runGrid(job, signal)`: Creates a temporary `papercell-grid-*` directory, writes data tables to `data_<i>.csv|json` and the `runner.py` script (the `RUNNER` constant), passes `{ code, files, combos }` via `stdin`.
+  - The `RUNNER` script preloads data with `pandas`, compiles code once (`compile(job["code"], "<python>", "exec")`), then iterates over parameter combinations `combos`: creates an independent copy of `data` (`v.copy()` / `copy.deepcopy`), executes `exec(code, g)`, collects the `ket_qua` variable (converts DataFrame/Series/numpy/NaN to valid JSON via `jsonable()`), closes matplotlib figures, and prints JSONL lines (`application/x-ndjson`) back to the browser.
 
-### 3. Trợ lý AI phía trình duyệt và Ô nhờ AI trong CodeEditor
+### 3. Browser-side AI Assistant and the AI prompt field in CodeEditor
 
-- **Cấu hình & Store (`app/src/ai/config.ts`, `app/src/ai/store.ts`)**:
-  - Định nghĩa 5 `ProviderId`: `'anthropic' | 'openai' | 'google' | 'gateway' | 'compatible'` trong hằng `PROVIDERS`.
-  - `aiStore` (kèm hook `useAI` qua `useSyncExternalStore`) lưu cấu hình vào `localStorage` (`papercell.ai.config`, `papercell.ai.mode`, `papercell.ai.agent`, `papercell.ai.remember`). Riêng API key (`papercell.ai.key`) chỉ lưu ở `sessionStorage` theo mặc định và chỉ sang `localStorage` khi người dùng bật `remember`.
-- **Hàm gọi AI dùng chung (`app/src/ai/ask.ts`)**:
-  - `parseStream(raw)` tách phần chữ trả lời (`content`), dòng trạng thái (`PROGRESS_MARK`) và lỗi (`ERROR_MARK`) từ luồng dữ liệu thô.
-  - `askAI({ messages, doc, signal, onUpdate })` kiểm tra `aiStore.get()`: nếu `mode === 'agent'` thì gửi tới `/api/agents/chat`, ngược lại gửi tới `/api/assistant/chat`, tự giải mã stream và trả về toàn bộ văn bản khi hoàn tất.
-- **Sidebar Trợ lý AI (`app/src/ai/AssistantPanel.tsx`)**:
-  - Cho phép chuyển đổi giữa 2 chế độ `API key` và `Local agent`, quét lại agent (`/api/agents?refresh=1`), tải danh sách model (`/api/ai/models`).
-  - Hàm `docAsMarkdown(editor)` tuần tự hóa toàn bộ bài đang mở sang Markdown (riêng khối `figure` được chuyển thành `[Figure: <caption>]` kèm khối code `js`) để gửi làm ngữ cảnh.
-  - Hiển thị câu trả lời bằng `ReactMarkdown` + `remarkGfm` + `remarkMath` + `rehypeKatex` (hàm `normalizeMath` đổi `\[ \]` và `\( \)` sang `$$` và `$`). Nút **Insert** (`insert(md)`) giải mã Markdown thành node của Plate và chèn ngay dưới khối hiện tại.
-- **Trình soạn code & CodeAssist (`app/src/figure/CodeEditor.tsx`, `app/src/ai/skills/*.md`)**:
-  - `CodeEditor`: bọc CodeMirror 6 hỗ trợ `js` và `python`, giữ nguyên vị trí con trỏ khi nhận code mới từ bên ngoài (chỉ dispatch phần diff). Nguồn gợi ý tự động (`jsSource`, `pySource`) đọc `useCodeHints(params)` để gợi ý hàm của `Plot`, `d3`, `pc`, `pd`, `np`, tên bảng trong `data`, tên cột và tên tham số.
-  - `CodeAssist`: Ô nhập lệnh nhờ AI viết/sửa code hình. Tự động đính kèm skill tương ứng (`src/ai/skills/figure-js.md` hoặc `figure-python.md` được nạp qua `?raw`), danh sách bảng/cột, tham số hiện tại, code hiện tại và code của ngôn ngữ kia để đối chiếu (`contextBlock`).
-  - **Cú pháp `@mention`**: Gõ `@` trong `CodeAssist` sẽ mở menu chọn `@<dataset>` hoặc `@<dataset>.<column>` (`updateMenu`, `parseMentions`). Hàm `profile()` dùng `describeColumns` và `d3` để tóm tắt kiểu dữ liệu, khoảng giá trị (`min`, `max`, `mean` cho số; khoảng ngày cho `date`; 12 giá trị phổ biến nhất cho chữ) và gửi kèm vào prompt.
-  - Khi `askAI` trả về, `extractCode` tách khối code đầu tiên trong cặp ` ``` ` và gọi `onApply(got.code)` để cập nhật vào `CodeEditor` như một bước hoàn tác được (`Ctrl+Z`).
+- **Configuration & store (`app/src/ai/config.ts`, `app/src/ai/store.ts`)**:
+  - Defines 5 `ProviderId` values: `'anthropic' | 'openai' | 'google' | 'gateway' | 'compatible'` in the `PROVIDERS` constant.
+  - `aiStore` (with the `useAI` hook via `useSyncExternalStore`) stores configuration in `localStorage` (`papercell.ai.config`, `papercell.ai.mode`, `papercell.ai.agent`, `papercell.ai.remember`). The API key (`papercell.ai.key`) is stored only in `sessionStorage` by default, and moves to `localStorage` only when the user enables `remember`.
+- **Shared AI call function (`app/src/ai/ask.ts`)**:
+  - `parseStream(raw)` separates answer text (`content`), status lines (`PROGRESS_MARK`), and errors (`ERROR_MARK`) from the raw stream.
+  - `askAI({ messages, doc, signal, onUpdate })` checks `aiStore.get()`: if `mode === 'agent'`, sends to `/api/agents/chat`; otherwise sends to `/api/assistant/chat`, decodes the stream, and returns the full text on completion.
+- **AI Assistant sidebar (`app/src/ai/AssistantPanel.tsx`)**:
+  - Allows switching between 2 modes, `API key` and `Local agent`, rescanning agents (`/api/agents?refresh=1`), and loading model lists (`/api/ai/models`).
+  - `docAsMarkdown(editor)` serializes the entire open article to Markdown (`figure` blocks become `[Figure: <caption>]` with a `js` code block) to send as context.
+  - Displays answers with `ReactMarkdown` + `remarkGfm` + `remarkMath` + `rehypeKatex` (`normalizeMath` converts `\[ \]` and `\( \)` to `$$` and `$`). The **Insert** button (`insert(md)`) deserializes Markdown into Plate nodes and inserts them immediately below the current block.
+- **Code editor & CodeAssist (`app/src/figure/CodeEditor.tsx`, `app/src/ai/skills/*.md`)**:
+  - `CodeEditor`: wraps CodeMirror 6 with `js` and `python` support, preserving cursor position when receiving external code changes (dispatches only the diff). Autocomplete sources (`jsSource`, `pySource`) read `useCodeHints(params)` to suggest functions from `Plot`, `d3`, `pc`, `pd`, `np`, table names in `data`, column names, and parameter names.
+  - `CodeAssist`: A prompt field for asking AI to write/edit figure code. Automatically attaches the relevant skill (`src/ai/skills/figure-js.md` or `figure-python.md`, loaded via `?raw`), table/column lists, current parameters, current code, and the other language's code for comparison (`contextBlock`).
+  - **`@mention` syntax**: Typing `@` in `CodeAssist` opens a menu to select `@<dataset>` or `@<dataset>.<column>` (`updateMenu`, `parseMentions`). `profile()` uses `describeColumns` and `d3` to summarize data types and ranges (`min`, `max`, `mean` for numbers; date ranges for `date`; the 12 most common values for text) and attaches this to the prompt.
+  - When `askAI` returns, `extractCode` extracts the first code block inside ` ``` ` and calls `onApply(got.code)` to update `CodeEditor` as an undoable step (`Ctrl+Z`).
 
-### 4. Các chỉnh sửa trên Component của Plate
+### 4. Plate component customizations
 
-- **`app/src/components/ui/dropdown-menu.tsx`**: Ở `DropdownMenuContent`, đã bỏ lớp ép độ rộng bằng nút bấm (`w-(--radix-dropdown-menu-trigger-width)`), chỉ giữ `min-w-32` để các menu thả xuống (như menu Figure, Export, Turn into) tự mở rộng vừa khít nội dung.
+- **`app/src/components/ui/dropdown-menu.tsx`**: In `DropdownMenuContent`, removed the class forcing the menu to match the trigger width (`w-(--radix-dropdown-menu-trigger-width)`), keeping only `min-w-32` so dropdowns (such as Figure, Export, Turn into) expand to fit their content.
 - **`app/src/components/ui/block-draggable.tsx` & `app/src/editor/side-drop.ts`**:
-  - **Vạch chèn kiểu Lark (`InsertGap`)**: Nằm ở mép trên mỗi khối (ngoài bảng); khi rê chuột vào khoảng trống giữa hai khối sẽ hiện đường kẻ ngang kèm nút `+` để chèn nhanh một đoạn văn trống (rất cần giữa hai hình, bảng hoặc nhóm cột liền nhau).
-  - **Nút `+` cạnh tay cầm kéo (`openInsertMenu`)**: Bấm nút `+` ở lề trái khối sẽ nhảy vào dòng trống hiện tại (hoặc tạo dòng mới ngay bên dưới) rồi tự gõ `/` để bật menu chèn khối.
-  - **Thả cạnh bên tạo cột (`side-drop.ts`)**: Trong `onDragOver` của khối trong cùng, `sideOf(clientX, rect)` kiểm tra con trỏ có nằm ở vùng biên trái/phải (`20%` chiều rộng khối, tối đa `90px`) không. Nếu hợp lệ (`canDropSide`, tối đa `MAX_COLUMNS = 4`), hiện vạch dọc màu thương hiệu và khi thả chuột thì `dropToSide(editor, ids, side.id, side.side)` gom hai khối vào `column_group` (hoặc thêm cột mới vào nhóm sẵn có) rồi gọi `equalize()` chia đều độ rộng `%`.
-- **`app/src/components/ui/column-node.tsx`**: Thêm thanh kéo dọc `.col-resize-handle` ở ranh giới giữa hai cột (`!readOnly && !isLast`). Hàm `startResize` cập nhật trực tiếp `style.width` của hai cột liền kề khi kéo chuột (giữ mỗi cột `>= 10%`) và khi nhả chuột mới gọi `editor.tf.setNodes` bên trong `editor.tf.withoutNormalizing` để chỉ tạo đúng một bước hoàn tác (undo).
-- **Menu Figure, Menu `/` và Xuất HTML**:
-  - `app/src/components/ui/figure-toolbar-button.tsx`: Nút `FigureToolbarButton` (đặt trên `FixedToolbarButtons` tại `app/src/components/ui/fixed-toolbar-buttons.tsx`) hiển thị lưới 4 cột các loại biểu đồ từ dữ liệu (`CHART_TYPES` → `insertChart`) và danh sách mẫu code có sẵn (`FIGURE_TEMPLATES` → `insertFigure`, tách riêng nhóm có điều khiển người đọc `controls-*`).
-  - `app/src/components/ui/slash-node.tsx`: Bổ sung 2 nhóm `Charts from data` (`chartGroup`) và `Figure templates (code)` (`figureGroup`) ngay dưới mục AI trong `SlashInputElement`, kèm hàm `VN()` chuẩn hóa tiếng Việt không dấu để tìm nhanh bằng cả tiếng Việt lẫn tiếng Anh.
-  - `app/src/components/ui/export-toolbar-button.tsx`: Thay thế hành vi xuất HTML tĩnh mặc định của Plate bằng `exportDocHtml({ meta, files, content: editor.children })` (lấy `meta` từ `MetaContext` và `files` từ `DataContext`) để tạo file HTML tự chạy đầy đủ biểu đồ và thanh trượt.
+  - **Lark-style insertion line (`InsertGap`)**: At the top edge of each block (outside tables); hovering in the gap between two blocks shows a horizontal line with a `+` button to quickly insert an empty paragraph (particularly useful between consecutive figures, tables, or column groups).
+  - **`+` button next to the drag handle (`openInsertMenu`)**: Clicking `+` in a block's left margin moves to the current blank line (or creates one immediately below), then automatically types `/` to open the block insertion menu.
+  - **Side drops create columns (`side-drop.ts`)**: In the innermost block's `onDragOver`, `sideOf(clientX, rect)` checks whether the cursor is in the left/right edge zone (`20%` of block width, up to `90px`). If valid (`canDropSide`, at most `MAX_COLUMNS = 4`), shows a vertical brand-colored line; on drop, `dropToSide(editor, ids, side.id, side.side)` groups the two blocks into a `column_group` (or adds a column to an existing group), then calls `equalize()` to distribute `%` widths equally.
+- **`app/src/components/ui/column-node.tsx`**: Adds a vertical `.col-resize-handle` at the boundary between two columns (`!readOnly && !isLast`). `startResize` directly updates `style.width` on the two adjacent columns while dragging (keeping each column `>= 10%`), and only calls `editor.tf.setNodes` inside `editor.tf.withoutNormalizing` on release to create exactly one undo step.
+- **Figure menu, `/` menu, and HTML export**:
+  - `app/src/components/ui/figure-toolbar-button.tsx`: `FigureToolbarButton` (on `FixedToolbarButtons` in `app/src/components/ui/fixed-toolbar-buttons.tsx`) displays a 4-column grid of chart types from data (`CHART_TYPES` → `insertChart`) and a list of code templates (`FIGURE_TEMPLATES` → `insertFigure`, with a separate `controls-*` group for reader controls).
+  - `app/src/components/ui/slash-node.tsx`: Adds 2 groups, `Charts from data` (`chartGroup`) and `Figure templates (code)` (`figureGroup`), immediately below AI in `SlashInputElement`, plus `VN()` to normalize Vietnamese by removing diacritics for quick searching in both Vietnamese and English.
+  - `app/src/components/ui/export-toolbar-button.tsx`: Replaces Plate's default static HTML export with `exportDocHtml({ meta, files, content: editor.children })` (gets `meta` from `MetaContext` and `files` from `DataContext`) to generate a self-running HTML file complete with charts and sliders.
 
-### 5. Build, Đóng gói Viewer và Chạy ứng dụng
+### 5. Build, viewer bundling, and running the app
 
-- **Các script trong `app/package.json`**:
-  - `npm run dev`: chạy Vite dev server ở cổng `5173` (`app/vite.config.ts`), cấu hình proxy chuyển mọi request `/api` sang `http://localhost:8787`.
-  - `npm run dev:server`: chạy `node scripts/server.mjs --watch` để biên dịch và tự khởi động lại server API ở cổng `8787` khi sửa code.
-  - `npm run build`: chạy tuần tự `tsc -b && vite build && npm run build:viewer && node scripts/server.mjs`.
-  - `npm run build:viewer`: chạy `vite build -c vite.viewer.config.ts && node scripts/inline-viewer.mjs`.
-  - `npm start`: chạy `node server-dist/index.mjs`.
-- **Đóng gói server bằng esbuild (`app/scripts/server.mjs`)**: Bundle `server/index.ts` thành một file ESM `server-dist/index.mjs` (`platform: 'node'`, `target: 'node22'`). Đặt `loader: { '.css': 'empty' }` để bỏ qua các file CSS do `BaseEditorKit` của Plate kéo theo, và chèn banner `createRequire(import.meta.url)` cho các gói CommonJS.
-- **Đóng gói trang đọc một file (`app/vite.viewer.config.ts`, `app/scripts/inline-viewer.mjs`)**:
-  - `vite.viewer.config.ts` build `viewer.html` vào `dist-viewer/` thành một chunk duy nhất (`inlineDynamicImports: true`), đồng thời alias `python/kernel` sang `src/viewer/kernel-stub.ts` và worker của MapLibre sang `src/viewer/maplibre-worker.ts`.
-  - `inline-viewer.mjs` đọc JS và CSS từ `dist-viewer/`, lọc bỏ các font `woff`/`truetype` trùng lặp của KaTeX (chỉ giữ `woff2`), nén `gzipSync` mức 9 rồi mã hóa base64 nhúng vào `<script id="pc-css">` và `<script id="pc-js">`. Khi mở file, đoạn script khởi động dùng `DecompressionStream('gzip')` của trình duyệt để giải nén và nạp trang đọc (giảm kích thước file khoảng 3 lần), cuối cùng ghi ra `dist/viewer.html` (giữ nguyên placeholder `>__PC_DOC__<` để `exportDocHtml` điền JSON bài viết vào).
-- **Docker (`Dockerfile`, `docker-compose.yml`) và Chạy trên máy (`chay-tren-may.bat`, `chay-tren-may.sh`)**:
-  - **Docker**: Multi-stage build trên `node:22-alpine`, chạy `npm run build`, copy `dist/` và `server-dist/` sang image chạy thật với `NODE_ENV=production PORT=8787`. `docker-compose.yml` ánh xạ cổng `${PORT:-8765}:8787` (mở tại `http://localhost:8765`).
-  - **Chạy trên máy**: `chay-tren-may.bat` (Windows) và `chay-tren-may.sh` (macOS/Linux) kiểm tra Node.js, tự cài `npm install` nếu chưa có `node_modules`, chạy `npm run build`, rồi đặt `PORT=8780 NODE_ENV=production` và chạy `node server-dist/index.mjs` (mở tại `http://localhost:8780`).
+- **Scripts in `app/package.json`**:
+  - `npm run dev`: runs the Vite dev server on port `5173` (`app/vite.config.ts`), with a proxy forwarding all `/api` requests to `http://localhost:8787`.
+  - `npm run dev:server`: runs `node scripts/server.mjs --watch` to compile and automatically restart the API server on port `8787` when code changes.
+  - `npm run build`: runs `tsc -b && vite build && npm run build:viewer && node scripts/server.mjs` sequentially.
+  - `npm run build:viewer`: runs `vite build -c vite.viewer.config.ts && node scripts/inline-viewer.mjs`.
+  - `npm start`: runs `node server-dist/index.mjs`.
+- **Server bundling with esbuild (`app/scripts/server.mjs`)**: Bundles `server/index.ts` into one ESM file, `server-dist/index.mjs` (`platform: 'node'`, `target: 'node22'`). Sets `loader: { '.css': 'empty' }` to skip CSS files pulled in by Plate's `BaseEditorKit`, and injects a `createRequire(import.meta.url)` banner for CommonJS packages.
+- **Single-file reading page bundling (`app/vite.viewer.config.ts`, `app/scripts/inline-viewer.mjs`)**:
+  - `vite.viewer.config.ts` builds `viewer.html` into `dist-viewer/` as a single chunk (`inlineDynamicImports: true`), while aliasing `python/kernel` to `src/viewer/kernel-stub.ts` and the MapLibre worker to `src/viewer/maplibre-worker.ts`.
+  - `inline-viewer.mjs` reads JS and CSS from `dist-viewer/`, filters out duplicate KaTeX `woff`/`truetype` fonts (keeps only `woff2`), compresses with `gzipSync` at level 9, then base64-encodes and embeds them in `<script id="pc-css">` and `<script id="pc-js">`. When the file opens, the bootstrap script uses the browser's `DecompressionStream('gzip')` to decompress and load the reading page (reducing file size by roughly a factor of 3); the build script finally writes `dist/viewer.html` (preserving the `>__PC_DOC__<` placeholder for `exportDocHtml` to fill with article JSON).
+- **Docker (`Dockerfile`, `docker-compose.yml`) and local execution (`run-local.bat`, `run-local.sh`)**:
+  - **Docker**: Multi-stage build on `node:22-alpine`, runs `npm run build`, copies `dist/` and `server-dist/` into the runtime image with `NODE_ENV=production PORT=8787`. `docker-compose.yml` maps port `${PORT:-8765}:8787` (open at `http://localhost:8765`).
+  - **Local execution**: `run-local.bat` (Windows) and `run-local.sh` (macOS/Linux) check Node.js, automatically run `npm install` if `node_modules` is missing, run `npm run build`, then set `PORT=8780 NODE_ENV=production` and run `node server-dist/index.mjs` (open at `http://localhost:8780`).
 
-### 6. Cách mở rộng (Các file cần sửa)
+### 6. Extension points (files to edit)
 
-1. **Thêm một route server mới**:
-   - Tạo/cập nhật hàm xử lý trong `app/server/<module>/...`.
-   - Đăng ký route trong `app/server/index.ts` (dưới tiền tố `/api/...` để Vite proxy trong `app/vite.config.ts` tự chuyển tiếp khi dev; bọc `if (!isLocal(c))` nếu tính năng truy cập tài nguyên máy chủ).
-2. **Thêm một nhà cung cấp AI mới**:
-   - `app/src/ai/config.ts`: Thêm ID vào kiểu `ProviderId` và thêm mục cấu hình (`label`, `defaultModel`, `defaultBaseURL`, `envVar`, `suggestions`…) vào `PROVIDERS`.
-   - `app/server/ai/provider.ts`: Thêm nhánh `case` trong `resolveModel(cfg)` để tạo `LanguageModel` và cập nhật cách gọi endpoint/header lấy danh sách model trong `listModels(cfg)` nếu khác chuẩn Bearer token.
-3. **Thêm một agent trên máy mới**:
-   - `app/server/agents/local.ts`: Thêm một phần tử `AgentDef` vào mảng `AGENTS` (khai báo `id`, `label`, `bin`, `args` bắt buộc ở chế độ chỉ đọc/sandbox, `promptInArgs`, và `makeParser` để bóc tách `delta`/`progress`/`error`). Nếu agent thường cài vào thư mục riêng ngoài `PATH`, thêm đường dẫn vào `knownDirs(name)`.
+1. **Add a server route**:
+   - Create/update the handler in `app/server/<module>/...`.
+   - Register the route in `app/server/index.ts` (under the `/api/...` prefix so the Vite proxy in `app/vite.config.ts` forwards it automatically during dev; guard with `if (!isLocal(c))` if the feature accesses host resources).
+2. **Add an AI provider**:
+   - `app/src/ai/config.ts`: Add the ID to the `ProviderId` type and a configuration entry (`label`, `defaultModel`, `defaultBaseURL`, `envVar`, `suggestions`…) to `PROVIDERS`.
+   - `app/server/ai/provider.ts`: Add a `case` in `resolveModel(cfg)` to create the `LanguageModel`, and update the model-list endpoint/header handling in `listModels(cfg)` if it differs from standard Bearer token authentication.
+3. **Add a local agent**:
+   - `app/server/agents/local.ts`: Add an `AgentDef` entry to `AGENTS` (declare `id`, `label`, `bin`, `args` that must use read-only/sandbox mode, `promptInArgs`, and `makeParser` to extract `delta`/`progress`/`error`). If the agent commonly installs in its own directory outside `PATH`, add the path to `knownDirs(name)`.
 
-### 7. Bẫy đã biết (Gotchas)
+### 7. Known gotchas
 
-- **Docker không thấy agent và Python trên máy**: Container chạy tách biệt (`existsSync('/.dockerenv')`), không thể gọi `claude`, `codex`, `agy` hay Python cài trên máy chủ. Muốn dùng agent cục bộ hoặc tính sẵn kịch bản bằng Python trên máy, bắt buộc chạy qua `chay-tren-may.bat` / `.sh` (cổng `8780`) hoặc môi trường dev.
-- **Giới hạn `isLocal` (`127.0.0.1`)**: Các route `/api/agents*` và `/api/python*` từ chối mọi truy cập từ máy khác qua mạng LAN để bảo mật, trừ khi biến môi trường `PAPERCELL_ALLOW_REMOTE_AGENTS=1` được bật trên server.
-- **Agent chạy qua `.cmd`/`.bat` trên Windows**:
-  - Nếu một agent đặt `promptInArgs: true` nhưng chỉ tìm thấy bản `.cmd`/`.bat` (`bin.shell === true`), `agentChat` sẽ chặn lại và báo lỗi 500 vì không truyền câu hỏi của người dùng qua `cmd.exe` (tránh lỗi ký tự đặc biệt và shell injection). Trên Windows, `resolveBin` đã ưu tiên tìm `.exe` trước để tránh bẫy này.
-  - Khi hủy request hoặc timeout trên Windows, bắt buộc phải dùng `stopTree(child)` (`taskkill /pid <pid> /T /F`), không dùng `child.kill()` đơn thuần vì sẽ để sót tiến trình con chạy ngầm.
-- **Menu AI trong bài của Plate không đi qua Local Agent**: Các lệnh AI trực tiếp trong trình soạn thảo (`Space`, `Ctrl+J`, ghost text Copilot) gọi `/api/ai/command` và `/api/ai/copilot` bằng Vercel AI SDK (`resolveModel`), nên luôn cần API key (trên trình duyệt hoặc biến môi trường server) ngay cả khi sidebar `AssistantPanel` đang chọn chế độ `Local agent`.
-- **Thứ tự build `dist/viewer.html`**: `scripts/inline-viewer.mjs` ghi kết quả thẳng vào `dist/viewer.html` và kiểm tra `existsSync('dist')`, nên luôn phải chạy `vite build` trước `npm run build:viewer`.
+- **Docker cannot see local agents or Python**: The container is isolated (`existsSync('/.dockerenv')`) and cannot call `claude`, `codex`, `agy`, or Python installed on the host. To use local agents or precompute scenarios with local Python, you must run via `run-local.bat` / `.sh` (port `8780`) or the dev environment.
+- **`isLocal` restriction (`127.0.0.1`)**: Routes `/api/agents*` and `/api/python*` reject all access from other machines over the LAN for security, unless the server environment variable `PAPERCELL_ALLOW_REMOTE_AGENTS=1` is enabled.
+- **Agents run via `.cmd`/`.bat` on Windows**:
+  - If an agent sets `promptInArgs: true` but only a `.cmd`/`.bat` version is found (`bin.shell === true`), `agentChat` blocks it with a 500 error because it will not pass the user's prompt through `cmd.exe` (avoids special-character errors and shell injection). On Windows, `resolveBin` already prefers `.exe` to avoid this gotcha.
+  - On request cancellation or timeout on Windows, use `stopTree(child)` (`taskkill /pid <pid> /T /F`), not just `child.kill()`, which leaves child processes running in the background.
+- **Plate's in-article AI menu does not use Local Agent**: Direct AI commands in the editor (`Space`, `Ctrl+J`, Copilot ghost text) call `/api/ai/command` and `/api/ai/copilot` through the Vercel AI SDK (`resolveModel`), so they always require an API key (in the browser or server environment variables), even when the `AssistantPanel` sidebar is in `Local agent` mode.
+- **Build order for `dist/viewer.html`**: `scripts/inline-viewer.mjs` writes directly to `dist/viewer.html` and checks `existsSync('dist')`, so always run `vite build` before `npm run build:viewer`.
 
-### 8. Agent trên máy — phiên chạy lâu dài (chat nhiều lượt, chọn model)
+### 8. Local agents — persistent sessions (multi-turn chat, model selection)
 
-Bên cạnh chế độ hỏi một lần (`/api/agents/chat`, `agentChat` trong `local.ts`), có thêm phiên giữ một tiến trình CLI suốt cuộc trò chuyện (như tab chat của Orca): agent nhớ ngữ cảnh giữa các lượt, chọn được model và effort.
+Alongside single-query mode (`/api/agents/chat`, `agentChat` in `local.ts`), sessions keep one CLI process throughout a conversation (like an Orca chat tab): the agent retains context between turns, with model and effort selection.
 
-- **Hợp đồng chung `app/server/agents/drivers/types.ts`**: interface `AgentDriver` (`start`/`send`/`interrupt`/`close`/`alive`), các sự kiện `AgentEvent` (`text`/`step`/`tool`/`done`/`error`), kiểu `DriverOptions` (`model`, `effort`, `cwd`), `AgentModel`. **Đừng sửa file này nếu chưa xem hết nơi dùng.**
-- **Driver mỗi CLI** (`drivers/claude.ts`, `drivers/codex.ts`, `drivers/agy.ts`, đăng ký ở `drivers/index.ts`): mỗi driver giữ một tiến trình theo giao thức riêng. Codex dùng `codex app-server` (JSON-RPC, một thread/phiên); Claude và agy dùng `--input-format stream-json --output-format stream-json`. `interrupt()`: Claude và Codex ngắt tại chỗ, giữ ngữ cảnh; **agy phải giết tiến trình rồi tự khởi động lại ở lượt sau nên mất ngữ cảnh** (giới hạn của agy stream-json).
-- **Model `app/server/agents/models.ts`** (`listAgentModels`): hỏi danh sách model từ chính CLI (agy `agy models`; codex `model/list`; claude control_request `initialize`), cache 5 phút, không bao giờ throw (lỗi → `{ models: [], warning }`). Tham khảo `D:/Workspace/agent-proxy/catalog.py`.
-- **Quản lý phiên `app/server/agents/session.ts`**: `createSession`/`runTurn`/`interrupt`/`closeSession`/`listSessions`. Mỗi phiên có thư mục tạm riêng; ghi `document.md` trước mỗi lượt; chèn chỉ dẫn (`INSTRUCTIONS`) vào lượt đầu; một lượt mỗi lúc (bận → 409); tiến trình chết → tự tạo lại driver + phát step "Restarted…"; tối đa 4 phiên, bỏ không 20 phút tự đóng; đóng hết driver khi server thoát.
-- **Route `app/server/index.ts`** (đều kiểm tra `isLocal`): `GET /api/agents/models`, `GET/POST /api/agents/sessions`, `POST /api/agents/sessions/:id/turn` (stream NDJSON `AgentEvent`), `POST …/:id/interrupt`, `DELETE …/:id`. `/api/agents/chat` nhận thêm `model`/`effort`.
-- **Giao diện `app/src/ai/`**: `agent-session.ts` (client gọi các route trên), `store.ts` (lưu model/effort theo từng agent), `AssistantPanel.tsx` (chọn model/effort, chat theo phiên, hiện bước, Stop, New chat), `ask.ts` (ô nhờ AI dưới trình soạn code gửi kèm model/effort). **Thêm loại tham số/agent/model phải sửa đồng bộ các file này.**
-
----
-
-## Phần B. Thẻ hình, Design, tính sẵn Python, xuất HTML, editor
-
-### 1. Mô hình dữ liệu và nơi lưu
-
-- `app/src/editor/types.ts` định nghĩa `PapercellDoc = { version: 3, meta, data, content }`; `content` là cây node Plate (`any[]`), có thể chứa cột lồng nhau.
-- `DocMeta` chứa `title`, `authors`, `date`, tùy chọn `figurePadding`; `MetaContext` trong `app/src/editor/DocHeader.tsx` đưa metadata vào editor và thẻ hình.
-- `FigureNode` là node void: `type: 'figure'`, `id`, `caption`, `js`, `python`, `params`, `display`, `codeAccess`, `children: [{ text: '' }]`.
-- Các trường tùy chọn cùng nằm trên node hình: `verify`, `spec`, `specDetached`, `padding`, `label`, `codeBackup`, `scenarios`, `autoOpen`.
-- `display`: `output` / `both` / `code` / `hidden`; `codeAccess`: `none` / `js` / `python` / `both`. Hai trường điều khiển hai việc khác nhau: bố cục và code người đọc thấy.
-- `VerifyResult = { ok, message, at }` là kết quả kiểm chứng đã lưu; không có fingerprint hoặc cơ chế tự vô hiệu hóa khi sửa JS/Python/params.
-- `FigureParam` chứa `name`, `label`, `min`, `max`, `step`, `value`, tùy chọn `kind`, `unit`, `options`; `ParamValue` chỉ là `number | string | boolean`.
-- `ParamKind` gồm `range`, `select`, `radio`, `toggle`; `paramKind(p)` mặc định về `range` khi tài liệu cũ không có `kind`; `isChoice` nhận `select` và `radio`.
-- Slider dùng min/max/step; dropdown/radio dùng `options` giữ kiểu giá trị; toggle dùng boolean. Min/max/step vẫn là trường bắt buộc cả với lựa chọn và công tắc.
-- `DataFile = { name, kind: 'csv' | 'json', content, labels? }`: lưu nội dung dạng chữ trong `PapercellDoc.data`, không lưu đối tượng đã parse.
-- `labels` là map tên cột gốc → tên hiển thị, thuộc file dữ liệu và dùng chung cho mọi hình; đổi labels không đổi khóa cột trong dữ liệu.
-- `app/src/figure/runtime.ts`: `dataKey` bỏ phần mở rộng, thay ký tự không hợp lệ bằng `_`, thêm `_` trước chữ số đầu; `labelsOf` chuyển labels sang map theo khóa dataset đó.
-- `parseData` tạo `Dataset = Record<string, unknown>`: CSV qua `d3.csvParse(..., d3.autoType)`, JSON qua `JSON.parse`, lỗi parse thành `null`.
-- `DataContext` chứa `{ files, data, setFiles }`; đây là dữ liệu chạy trong phiên React, khác với mảng `DataFile[]` được tuần tự hóa trong tài liệu.
-- `ChartSpec` trong `app/src/figure/builder.ts` được lưu ở `FigureNode.spec`: `data`, `type`, channel `x/y/color/size/facet/lat/lon`, `agg`, `bins`, `sort`, `xLabel/yLabel`, `scheme`, `basemap`.
-- `ChartType` hiện có 12 loại: bar, barh, line, area, scatter, histogram, box, heatmap, table, map-points, map-heat, map-regions.
-- `ScenarioCache` trong `app/src/figure/scenarios.ts` được lưu ở `FigureNode.scenarios`: `grid`, `payload`, `count`, `bytes`, `fingerprint`, `engine`, `at`, `seconds`, `failed`.
-- Mỗi `GridAxis = { name, values: ParamValue[] }`; `payload` là mảng kết quả Python theo thứ tự tổ hợp, JSON → gzip → base64; `bytes` là số byte sau nén.
-- `app/src/docs/store.ts`: localStorage có danh mục `papercell.index.v1`, mỗi bài ở `papercell.doc.<id>`, cờ thêm gallery một lần ở `papercell.gallery.v1`.
-- `loadDoc` chỉ nhận version 3 với content là mảng rồi gọi `upgradeDoc`; `saveDoc` ghi toàn bộ doc và cập nhật tiêu đề/thời điểm trong danh mục.
-- `emptyDoc` tạo một paragraph trống; `ensureFirstDoc` thêm gallery một lần và bài mẫu khi cần. Lỗi ghi localStorage bị bắt và không được báo lên người dùng tại đây.
-
-### 2. Nhập dữ liệu và nhãn cột
-
-- `app/src/data/import.ts`: `importFile` nhận CSV/TSV/TXT/XLSX/JSON/GeoJSON, giới hạn 20 MB/file; XLS cũ bị từ chối.
-- CSV/TSV/TXT được dò dấu phân cách, chuẩn hóa CSV; số dấu phẩy thập phân được đổi khi delimiter là `;` hoặc tab; header trống/trùng được đặt lại.
-- XLSX dùng import động `read-excel-file/browser`, mỗi sheet có dữ liệu thành một `DataFile` CSV; JSON/GeoJSON giữ nguyên chuỗi sau kiểm tra JSON hợp lệ.
-- `describeColumns` xem tối đa 2.000 dòng, nhận number/date/text và lat/lon theo tên + miền giá trị; `asRows` lấy mảng dữ liệu hoặc properties của GeoJSON FeatureCollection.
-- `app/src/figure/DataPanel.tsx` quản lý thêm/xóa file, preview 8 dòng và sửa labels trên blur; nhập file cùng tên thay bản cũ, không tự giữ labels cũ.
-- `DesignTab.tsx` cũng cho nhập file và sửa labels của cột đang dùng; bảng không group cho sửa toàn bộ cột. `pc.label(dataset, column)` dùng label đã trim hoặc trả tên cột gốc.
-
-### 3. Vòng đời một thẻ hình
-
-- `app/src/figure/templates.ts` chứa `FIGURE_TEMPLATES`, kiểu `FigureTemplate`, `figureFromTemplate`, `insertFigure`, `insertChart` và helper `insertNode`.
-- Template có `id/label/hint/icon/keywords/js`, tùy chọn Python/params/caption; mẫu thường có sample data ngay trong JS và không có `spec`.
-- Template `data` tạo spec mặc định và `autoOpen: true`; `insertChart(editor, type)` tạo spec cho loại đã chọn, sinh JS và `specParams`, cũng mở Design tự động.
-- `insertNode` thay paragraph trống hiện tại; nếu không thì chèn node với `select: true`. Mỗi hình mới có `newId()` và một text child rỗng.
-- `app/src/editor/papercell-kit.tsx`: `FigurePlugin` đăng ký key `figure`, `isElement: true`, `isVoid: true`, component `FigureElement`; `PapercellKit` ghép với `EditorKit` và `DocHeaderPlugin`.
-- `app/src/figure/FigureElement.tsx`: `FigureElement` tìm path node rồi `editor.tf.setNodes` để cập nhật; xóa dùng removeNodes và toast Undo gọi `editor.undo()`.
-- `FigureCard` dùng chung cho editor và viewer: render biểu đồ, controls, caption, inline code và nút mở `FigureDialog`; `FigureNumbers` cung cấp chuỗi nhãn theo id.
-- Card giữ params đang kéo trong state; editor chỉ ghi về node lúc commit, người đọc thay đổi state trong phiên. Ref `latestParams` tránh commit giá trị cũ sau dropdown/toggle.
-- `autoOpen` mở tab Design một lần rồi được xóa khỏi node; nút sửa mở Design khi có spec còn gắn, các hình khác mở JS; click hình/mở rộng vào tab Figure.
-- `app/src/figure/FigureView.tsx` đo chiều rộng bằng ResizeObserver, làm tròn bước 10 px, tối thiểu 200; chưa có width thì chưa chạy code.
-- View gọi `runFigure` lại khi JS, tên/giá trị params, data, width, scenario payload hoặc labels đổi; bỏ kết quả bất đồng bộ đã lỗi thời.
-- Kết quả DOM được append, chuỗi HTML được gán `innerHTML`, lỗi nằm trong `.fig-error`; React không trực tiếp vẽ nội dung Plot/MapLibre.
-- Trước thay output và khi unmount, View gọi `__pcCleanup` trên các phần tử con; `releaseNode` còn dọn cả node gốc của kết quả đến muộn.
-- `app/src/figure/runtime.ts::runFigure` tạo `AsyncFunction`, truyền sẵn `Plot`, `d3`, `data`, `width`, `expose`, `params`, `pc`, `ket_qua`, rồi từng tham số theo tên.
-- `params` là object name → value; từng name đồng thời là biến trực tiếp. `expose(v)` ghi giá trị cuối để kiểm chứng và trả lại chính v.
-- `pc.map(options)` gọi `makeMap({ width, ...options })`, nên code hình có thể ghi đè width; `pc.esc` thoát HTML; `pc.label` tra tên hiển thị của cột.
-- `ket_qua` là phần tử cache gần nhất theo params, hoặc `undefined` khi chưa có cache; runFigure không tự chạy Python.
-- `RunOutput` gồm `{ node, html, exposed, error }`; chỉ chấp nhận Node hoặc HTML string làm giá trị return, lỗi compile/chạy được bắt thành message.
-- `ParamSliders` dù tên cũ vẫn render cả bốn kind; range bắt vào grid bằng `snap`, select/radio trả option gốc, toggle trả boolean và commit ngay sau thay đổi.
-
-### 4. Popup và trình soạn code
-
-- `app/src/figure/FigureDialog.tsx`: `DialogTab` gồm design, figure, js, python, params, verify, scenarios, settings; popup portal vào `document.body`.
-- Tab **Design** dùng `DesignTab`; tab **Figure** dùng `FigureView` lớn và `ParamSliders`; trạng thái params dùng chung với card.
-- Tab **JS code** / **Original Python** dùng `CodeTab`, preview và `CodeAssist`; preview Python vẫn vẽ từ JS, không tự chạy Python khi gõ.
-- `CodeTab` giữ draft, cập nhật node sau debounce 400 ms; JS còn gắn Design đi qua `syncFromCode`, Python được lưu trực tiếp.
-- Tab **Parameters** dùng `ParamsTab`: sửa draft rồi Save parameters; kiểm tra identifier và trùng tên, range max > min/step > 0, choice ít nhất hai options.
-- `parseOptions` chuyển chuỗi true/false thành boolean và chuỗi số thành number; toggle lưu boolean. Phải giữ quy tắc này để chuỗi "false" không bị coi là truthy.
-- Tab **Verify** dùng `VerifyTab`/`verifyFigure`, lưu `VerifyResult`; tab **Precompute** dùng `ScenarioTab`; tab **Settings** chỉnh padding/display/label/codeAccess.
-- Read-only chỉ có Figure và các tab code do `visibleCode` cho phép; Python trống không thành tab. `visibleCode` còn quyết định code inline của card khi đọc.
-- Popup khóa cuộn bằng `modal-open`, giữ callback đóng trong ref, focus một lần khi mở và trả focus khi đóng; tránh effect chạy lại làm giật focus người đang gõ.
-- `app/src/figure/CodeEditor.tsx`: CodeMirror 6 cho JS/Python; `useCodeHints` lấy datasets/cột/params/labels từ context; Ctrl+Space gợi ý Plot, d3, data và biến tham số.
-- Thay value bên ngoài được dispatch phần khác biệt nhỏ nhất để giữ caret/scroll và undo; phím trong code editor không truyền lên Plate.
-- `CodeAssist` tạo context gồm code hiện tại, code ngôn ngữ kia, params, nhãn, profile dữ liệu được @mention; dùng `askAI` và các skill figure-js/figure-python được import raw.
-- AI trả một fenced code block hoàn chỉnh rồi `onApply` đi qua cùng luồng `change`; đây không phải một pipeline render/thi hành riêng.
-
-### 5. Design, codegen và tương thích tài liệu
-
-- `app/src/figure/builder.ts`: `CHART_TYPES` là metadata icon/label/channels/required và cờ agg/bins/sort/map; `typeInfo`, `missingChannels` và UI dựa vào danh sách này.
-- `defaultSpec` mặc định bar/count, 20 bins, không sort, blues, light; `specParams` hiện chỉ tạo slider `so_cot` cho histogram.
-- `codegen` sinh JS dễ đọc: Plot cho chart, HTML table cho table, `pc.map` cho map; thiếu dataset/channel bắt buộc thì trả thông báo HTML thay vì vẽ.
-- Nhãn trục/legend/table được tra lúc chạy qua `pc.label`; line/area sort theo X trước nối điểm; layout tính margin/rotate/facet theo dữ liệu.
-- `chartLine` ghi đúng một dòng `const chart = {...}`; `SPEC_KEYS` là whitelist các trường cấu hình được tuần tự hóa/đọc lại, không phải toàn bộ object tùy ý.
-- Dòng cấu hình là metadata để tái sinh code; phần JS phía dưới đã được codegen theo spec, không phải renderer tổng quát chỉ đọc biến chart lúc chạy.
-- `parseChartLine` tìm dòng đầu theo regex đầu dòng, thử JSON rồi object literal bằng `new Function`; chỉ chấp nhận type có trong `CHART_TYPES`, bổ sung default còn thiếu.
-- `syncFromCode(spec, js)` so toàn bộ phần ngoài dòng chart với `codegen(spec)`; khác phần thân/comment/whitespace ngoài dòng đó → `'detached'`.
-- Chỉ sửa dòng chart hợp lệ → cập nhật spec và tái sinh thân code, giữ nguyên chính dòng người dùng gõ; dòng đang nhập chưa hợp lệ → `'pending'`.
-- `CodeTab` đặt `specDetached: true` khi detached; pending chỉ lưu JS; sync thành công thay spec/JS/params và giữ value cũ của tham số cùng tên.
-- `app/src/figure/DesignTab.tsx`: `mergeParams` cũng giữ value cũ cùng tên; tab chọn dataset đầu phù hợp, ưu tiên GeoJSON cho map-regions, tự đoán lat/lon khi cần.
-- Có `specDetached`, hoặc không có spec nhưng JS khác rỗng, thì Design chỉ preview và không ghi đè JS khi mở/tab đổi lựa chọn.
-- `apply(next, true)` ở nút Use this design mới cho thay code tay; lưu `codeBackup = { js, params, spec, specDetached }`, không backup Python hoặc toàn bộ FigureNode.
-- `restore` khôi phục các trường trong backup rồi xóa backup; với hình detached có spec, đổi lựa chọn vẫn có thể cập nhật spec nhưng không thay JS/params thực thi.
-- `app/src/editor/upgrade.ts::upgradeDoc` duyệt đệ quy hình trong cây, tái sinh JS khi có spec và chưa detached; mở bài cũ tự nhận bản sửa của builder.
-- Upgrade gallery dựa tiêu đề `GALLERY_TITLE` / tên Việt cũ, thêm `paramsDemo`/`controlsSection` nếu chưa có; không phải migration schema tổng quát cho mọi version.
-- Với gallery Việt bị Design ghi đè trước đây: lấy bản gốc từ `app/src/legacy/gallery-vi.ts` theo caption, khôi phục hình code tay khi phù hợp và giữ id cũ.
-- `app/src/gallery.ts::makeGallery` tạo dữ liệu tổng hợp và cả hình spec/code/template; `app/src/demo-params.ts` chứa `PARAMS_DEMO_ID`, `CONTROLS_ID_PREFIX`, demo controls dùng cho bài mới và upgrade.
-
-### 6. Precompute và kiểm chứng Python
-
-- `app/src/figure/scenarios.ts::axisValues`: range liệt kê từ min đến max theo step, choice dùng mọi option, toggle dùng `[false, true]`; không có params vẫn có một tổ hợp.
-- `comboCount`, `comboAt`, `indexOf` thống nhất thứ tự tham số cuối thay đổi nhanh nhất; lookup số lấy điểm gần nhất, loại khác so bằng String và fallback về phần tử đầu.
-- `snap` dùng cùng phép chọn điểm gần nhất; `encodeResults`/`decodeResults` nén/giải nén qua `app/src/lib/pack.ts`, kết quả giải nén được memoize theo payload rút gọn.
-- `fingerprint` là SHA-256 lấy 16 ký tự hex của Python + tên/nội dung file + grid; không bao gồm JS hoặc labels vì chúng không là đầu vào tính Python.
-- `app/src/figure/ScenarioTab.tsx` mặc định engine local, GET `/api/python` để dò; thử lại một lần khi request lỗi, fallback Pyodide nếu không dùng được local.
-- Grid có thể dùng step lớn hơn slider để giảm số lần tính; cảnh báo trên 2.000 tổ hợp, chặn trên 50.000; yêu cầu Python khác rỗng và gán `ket_qua`.
-- Local POST `/api/python/grid` với `{ code, files: [{ key, kind, content }], combos }`, nhận JSONL streaming `{ i, ok, value?, error? }` hoặc `{ fatal }`.
-- `readJsonLines` giữ phần dòng dở giữa các chunk, xử lý dòng cuối; AbortController dừng request local. Báo cáo này xác nhận contract phía client, không đọc implementation server ngoài phạm vi.
-- Pyodide gọi `kernel.runGrid` và nhận từng item qua callback; Stop dùng `kernel.cancel()` để terminate worker, các tác vụ pending bị reject.
-- Chỉ ghi cache mới sau khi đủ item và không phải tất cả đều lỗi; item lỗi giữ `null`, có số failed; khi dừng/lỗi vẫn giữ cache cũ.
-- Stale được báo bằng so fingerprint với `cache.grid`; việc đổi cấu hình grid dự kiến trong UI hoặc định nghĩa params không tự xóa cache hiện có.
-- `app/src/python/kernel.ts`: singleton `kernel` tạo module Worker lười bằng `new URL('./worker.ts', import.meta.url)`; seq/pending/gridHandlers ghép response với request và phát status cho subscriber.
-- `app/src/python/worker.ts` tải Pyodide từ jsDelivr theo `PYODIDE_VERSION`, nạp pandas và GLUE; `loadPackagesFromImports` xử lý import bổ sung; chain serialize các request.
-- GLUE `__pc_load` đọc CSV thành DataFrame, JSON thành object; `__pc_run_one` đưa `data` và params vào globals, capture stdout, chạy code và bắt lỗi có dòng `<python>`.
-- Dữ liệu được copy theo từng tổ hợp, kết quả `ket_qua` qua `__pc_jsonable` đổi Series/DataFrame/numpy/container/NaN; matplotlib dùng backend agg và đóng figures sau mỗi lần chạy.
-- `app/src/figure/verify.ts::verifyFigure` chạy JS ở width 600 không truyền scenario cache, lấy `expose`, gọi `kernel.verify` với cùng params/files; Verify hiện dùng Pyodide, không gọi server local.
-- So sánh flatten object theo khóa đã sort; hỗ trợ Map/Date phía JS, số gần nhau theo sai số `1e-9 + 1e-6 * max(abs(a), abs(b))`; chỉ kiểm chứng bộ params hiện tại.
-
-### 7. Xuất HTML và viewer
-
-- `app/src/publish/export-html.ts::exportDocHtml` fetch `/viewer.html`, kiểm tra placeholder `>__PC_DOC__<` và từ chối template dev còn tham chiếu `/src/viewer/`.
-- `forPublish` duyệt cây, bỏ hình hidden, bỏ trường verify/spec/specDetached/autoOpen, xóa Python nếu codeAccess không cho xem; giữ JS để chạy hình và giữ dữ liệu/scenarios.
-- Export đóng `{ version: 3, meta, data: files, content }` bằng `packText`, thay placeholder và title đã escape, tải Blob HTML với tên từ `docSlug`.
-- `app/vite.viewer.config.ts`: build riêng vào dist-viewer, inline dynamic imports, một CSS bundle, tắt module preload, inline assets với ngưỡng rất lớn.
-- Alias viewer thay import python/kernel bằng `app/src/viewer/kernel-stub.ts`; stub reject verify/runGrid và không tải Pyodide. Alias MapLibre worker sang `viewer/maplibre-worker.ts`.
-- `app/scripts/inline-viewer.mjs` đọc dist-viewer/viewer.html và JS/CSS assets, bỏ font KaTeX woff/ttf dư, gzip/base64 từng bundle, nhúng vào dist/viewer.html.
-- Bootstrap dùng `DecompressionStream('gzip')`, thêm style và import JS từ Blob URL; script kiểm tra không sót tham chiếu assets trong HTML và placeholder tài liệu còn tồn tại.
-- `app/src/viewer/main.tsx::readDoc` đọc script `papercell-doc`, giải nén/parse; `Viewer` tạo static editor với `BaseEditorKit` + `FigureStaticPlugin`, không gọi `upgradeDoc`.
-- Viewer dựng DataContext/MetaContext/FigureNumbers bằng dữ liệu nhúng, `parseData` và `scan`; setter no-op; tiêu đề/tác giả/ngày và TOC h1–h3 được render bên ngoài static content.
-- `app/src/figure/FigureStatic.tsx` dùng `FigureCard` readOnly nên controls/popup vẫn hoạt động; lọc data-slate attributes để không chép chuỗi code thành thuộc tính DOM.
-- `app/src/viewer/maplibre-worker.ts` import raw worker MapLibre, bỏ export cuối file, tạo Blob classic worker và thay `window.Worker` cho yêu cầu module worker của viewer.
-- Lý do trong code: Chrome chặn module worker từ blob khi mở file://, MapLibre còn bọc import blob do origin null; classic worker nhúng không có import tránh luồng này.
-- Shim giả định viewer chỉ MapLibre dùng module worker; thêm worker module khác phải xem lại shim. `app/src/figure/map.ts` bản editor vẫn dùng import `?worker&url` bình thường.
-- Một HTML chứa runtime/data/cache không đồng nghĩa mọi hình offline: MapLibre vẫn tải style/tiles OpenFreeMap; code hình tự fetch dữ liệu ngoài cũng cần kết nối.
-- `app/scripts/server.mjs` chỉ là script bundle server bằng esbuild, bỏ CSS và restart khi --watch; không thuộc pipeline nhúng viewer, không được chạy trong task này.
-
-### 8. Đánh số, cột và padding
-
-- `app/src/editor/scan.ts::scan` duyệt theo thứ tự cây, kể cả column_group/column, đếm Figure và Table riêng; chỉ hình có caption khác trắng, không hidden, label khác none mới có số.
-- `captionKind`: ưu tiên `fig.label`; nếu không, spec.type table → Table; hình không spec có JS khớp literal `<table class="fig-table` → Table; còn lại Figure.
-- `NEXT_CAPTION` quay Figure → Table → none → Figure; Settings có lựa chọn Automatic bằng xóa label. Heading chỉ vào outline khi là h1–h3 và có id.
-- `app/src/editor/side-drop.ts`: `sideOf` nhận vùng mép trái/phải 20% chiều rộng, tối đa 90 px; `sideTarget`/`useSideTarget` là external store cho chỉ báo hover.
-- `canDropSide` cho target root, group, hoặc block trực tiếp trong column; tối đa bốn columns; `dropToSide` chặn tự thả và thả vào hậu duệ của block đang kéo.
-- `dropToSide` chạy withoutNormalizing, xóa các path kéo từ cuối về đầu rồi tìm target lại theo id; tạo group mới hoặc thêm column vào group hiện có, `equalize` chia đều width phần trăm.
-- `FigureCard` tính padding bằng `fig.padding ?? meta.figurePadding ?? DEFAULT_FIG_PADDING` (12 px), chỉ đặt vào vùng hình inline; popup có padding CSS riêng.
-- Apply to all figures đổi `meta.figurePadding`, xóa mọi override `padding` ở node figure bằng setNodes match toàn cây; 0 là giá trị hợp lệ, không dùng phép `||` thay `??`.
-- `app/src/figure/figure.css` quy định card/output/dialog/controls/table/map và resize handle; `papercell.css` chứa style chung, `viewer/viewer.css` lo layout trang đọc/TOC.
-- Trong `app/src/lib/`, `pack.ts` là helper trực tiếp của scenarios/export; `utils.ts` chỉ re-export `cn`.
-- `block-discussion-index.ts` lập chỉ mục thảo luận/gợi ý theo block, `suggestion.ts` chứa biến thể style suggestion; `markdown-joiner-transform.ts` ghép chunk Markdown cho luồng AI/deserialize.
-- `uploadthing.ts` định nghĩa router upload với chặn ngoài development nếu chưa cấu hình xác thực; đây không phải đường nhập DataFile của `DataPanel`/`importFile`.
-
-### 9. Điểm mở rộng: file cần sửa
-
-- **Loại chart Design mới:** bắt buộc `app/src/figure/builder.ts`: thêm ChartType, CHART_TYPES, nhánh codegen, nhãn/default/SPEC_KEYS khi có field mới, specParams nếu cần controls.
-- `app/src/figure/DesignTab.tsx` tự render CHART_TYPES/channels/cờ hiện có; chỉ sửa nếu loại mới cần control, điều kiện dataset hoặc channel mới ngoài schema hiện tại.
-- Nếu mở rộng khả năng map, sửa `app/src/figure/map.ts`; nếu thay cách tự nhận Table, sửa `app/src/editor/scan.ts`; thêm ví dụ spec trong `app/src/gallery.ts` để dễ thử.
-- **Template mới:** thêm entry `app/src/figure/templates.ts`, hoặc `app/src/figure/control-templates.ts` nếu thuộc nhóm reader controls đã được spread vào FIGURE_TEMPLATES; id phải duy nhất.
-- Template dùng JS return DOM/HTML, params có default đúng kiểu, Python tùy chọn và sample data tự chứa; thêm ví dụ vào `gallery.ts` hoặc `demo-params.ts` nếu cần. Consumer menu ngoài phạm vi đọc cần được Claude kiểm tra khi tích hợp.
-- **Kind tham số mới:** sửa `app/src/editor/types.ts`, `app/src/figure/FigureView.tsx`, `app/src/figure/FigureDialog.tsx`, `app/src/figure/scenarios.ts`, `app/src/figure/CodeEditor.tsx`.
-- Cần đồng bộ type/default tương thích cũ, UI nhập và validate/serialize params, control người đọc/commit, axisValues/lookup/snap, mô tả autocomplete/AI; thêm style ở `figure.css`, ví dụ ở `control-templates.ts`/`demo-params.ts`.
-- Nếu giá trị vẫn number/string/boolean thì runtime và worker đã truyền chung; kiểu phức tạp hơn phải sửa cả ParamValue, contract kernel/worker và các phép lookup/String/JSON liên quan.
-
-### 10. Bẫy và rủi ro cần giữ khi sửa
-
-- Chuỗi code lồng JS/Python/HTML và regex có nhiều lớp escape (`builder.ts`, templates, worker GLUE, inline-viewer); dùng công cụ sửa file, không chèn qua shell heredoc theo AGENTS.md.
-- MapLibre giữ WebGL context: phải giữ `__pcCleanup`/`map.remove()`, ResizeObserver cleanup và dọn kết quả đến muộn; nhiều bản đồ không được giải phóng có thể thành ô đen.
-- `makeMap` lấy bounds bằng tọa độ thô thay `d3.geoBounds` để tránh lỗi chiều vòng polygon GeoJSON; không đổi thuật toán theo tên hàm trông tương đương.
-- Không tái sinh code tay chỉ vì mở Design; không xóa specDetached/codeBackup tùy tiện; thay codegen tác động mọi hình còn gắn Design khi `upgradeDoc` chạy.
-- Nhận Table từ JS là regex literal, không phải phân tích HTML: đổi class/thứ tự cú pháp có thể đổi đánh số khi không còn spec, nhất là sau export bỏ spec.
-- `codeAccess` là quyền hiện UI: JS vẫn nằm trong HTML để thi hành; `forPublish` hiện cũng giữ `codeBackup` qua spread rest. Nếu sửa loại bỏ dữ liệu nội bộ, cần xét cả backup lồng bên trong.
-- `runFigure`/`parseChartLine` dùng Function và output HTML dùng innerHTML, không có sandbox trong các hàm này; tên params còn có thể đụng tên biến runtime/keyword dù qua regex identifier.
-- Cache `parseData` khóa theo tên/length/64 ký tự đầu; `decodeResults` theo length/48 ký tự đầu-cuối. Có nguy cơ dùng lại dữ liệu nếu sửa phần giữa mà các phần khóa giữ nguyên.
-- CodeTab hủy timer khi unmount, không flush draft; chuyển tab/đóng rất nhanh sau khi gõ có nguy cơ mất thay đổi trong 400 ms cuối. Đây là suy luận từ code, chưa thử UI.
-- Verify không chạy với scenario cache, không kiểm tra toàn grid và không tự làm mới badge khi code đổi; hình chỉ vẽ bằng ket_qua precompute cần chú ý contract này.
+- **Shared contract `app/server/agents/drivers/types.ts`**: `AgentDriver` interface (`start`/`send`/`interrupt`/`close`/`alive`), `AgentEvent` events (`text`/`step`/`tool`/`done`/`error`), `DriverOptions` type (`model`, `effort`, `cwd`), `AgentModel`. **Do not edit this file before reviewing every consumer.**
+- **Per-CLI drivers** (`drivers/claude.ts`, `drivers/codex.ts`, `drivers/agy.ts`, registered in `drivers/index.ts`): each driver maintains a process using its own protocol. Codex uses `codex app-server` (JSON-RPC, one thread/session); Claude and agy use `--input-format stream-json --output-format stream-json`. `interrupt()`: Claude and Codex interrupt in place, retaining context; **agy must kill the process and automatically restart on the next turn, losing context** (an agy stream-json limitation).
+- **Models `app/server/agents/models.ts`** (`listAgentModels`): queries the CLI itself for models (agy `agy models`; codex `model/list`; claude control_request `initialize`), caches for 5 minutes, never throws (error → `{ models: [], warning }`). See `D:/Workspace/agent-proxy/catalog.py`.
+- **Session management `app/server/agents/session.ts`**: `createSession`/`runTurn`/`interrupt`/`closeSession`/`listSessions`. Each session has its own temporary directory; writes `document.md` before each turn; injects instructions (`INSTRUCTIONS`) into the first turn; one turn at a time (busy → 409); dead process → automatically recreates the driver + emits a "Restarted…" step; at most 4 sessions, automatically closed after 20 idle minutes; closes all drivers when the server exits.
+- **Routes `app/server/index.ts`** (all check `isLocal`): `GET /api/agents/models`, `GET/POST /api/agents/sessions`, `POST /api/agents/sessions/:id/turn` (streams NDJSON `AgentEvent`), `POST …/:id/interrupt`, `DELETE …/:id`. `/api/agents/chat` also accepts `model`/`effort`.
+- **UI `app/src/ai/`**: `agent-session.ts` (client for the routes above), `store.ts` (stores model/effort per agent), `AssistantPanel.tsx` (model/effort selection, session chat, step display, Stop, New chat), `ask.ts` (AI prompt field below the code editor sends model/effort). **Adding a parameter type/agent/model requires synchronized changes across these files.**
 
 ---
 
-## Phần C. Rủi ro đã biết chưa xử lý
+## Part B. Figure cards, Design, Python precomputation, HTML export, editor
 
-Các điểm dưới đây phát hiện khi đọc code, chưa sửa. Muốn xử lý thì giao thành việc riêng.
+### 1. Data model and storage locations
 
-- **Xuất HTML còn kèm `codeBackup`:** `forPublish` (`app/src/publish/export-html.ts`) bỏ `verify/spec/specDetached/autoOpen` nhưng giữ `codeBackup`, nên code viết tay cũ (đã bị thay bằng thiết kế) vẫn nằm trong file xuất.
-- **Có thể mất 400 ms gõ cuối:** `CodeTab` hủy timer khi đóng popup mà không lưu bản nháp (chưa thử trên giao diện).
-- **Khóa cache yếu:** `parseData` khóa theo tên + độ dài + 64 ký tự đầu, `decodeResults` theo độ dài + 48 ký tự đầu/cuối; sửa phần giữa dữ liệu mà giữ nguyên các phần này có thể dùng lại kết quả cũ.
-- **Kiểm chứng không tự hết hạn:** `VerifyResult` không có dấu vân tay, nên sửa JS/Python/tham số sau khi kiểm chứng vẫn hiện "Verified".
-- **Nhận dạng Table bằng chuỗi:** hình không có spec chỉ được tính là Table nếu JS chứa đúng `<table class="fig-table`.
+- `app/src/editor/types.ts` defines `PapercellDoc = { version: 3, meta, data, content }`; `content` is a Plate node tree (`any[]`), which may contain nested columns.
+- `DocMeta` contains `title`, `authors`, `date`, and optional `figurePadding`; `MetaContext` in `app/src/editor/DocHeader.tsx` provides metadata to the editor and figure cards.
+- `FigureNode` is a void node: `type: 'figure'`, `id`, `caption`, `js`, `python`, `params`, `display`, `codeAccess`, `children: [{ text: '' }]`.
+- Optional fields also stored on the figure node: `verify`, `spec`, `specDetached`, `padding`, `label`, `codeBackup`, `scenarios`, `autoOpen`.
+- `display`: `output` / `both` / `code` / `hidden`; `codeAccess`: `none` / `js` / `python` / `both`. These fields control different things: layout and which code readers can see.
+- `VerifyResult = { ok, message, at }` is the saved verification result; there is no fingerprint or automatic invalidation when JS/Python/params change.
+- `FigureParam` contains `name`, `label`, `min`, `max`, `step`, `value`, and optional `kind`, `unit`, `options`; `ParamValue` is only `number | string | boolean`.
+- `ParamKind` includes `range`, `select`, `radio`, `toggle`; `paramKind(p)` defaults to `range` when an older document has no `kind`; `isChoice` recognizes `select` and `radio`.
+- Sliders use min/max/step; dropdowns/radios use `options`, preserving value types; toggles use booleans. Min/max/step remain required fields even for choices and toggles.
+- `DataFile = { name, kind: 'csv' | 'json', content, labels? }`: stores text content in `PapercellDoc.data`, not parsed objects.
+- `labels` maps original column names → display names, belongs to the data file, and is shared by all figures; changing labels does not change column keys in the data.
+- `app/src/figure/runtime.ts`: `dataKey` removes the extension, replaces invalid characters with `_`, and prefixes a leading digit with `_`; `labelsOf` converts labels into a map keyed by that dataset key.
+- `parseData` creates `Dataset = Record<string, unknown>`: CSV through `d3.csvParse(..., d3.autoType)`, JSON through `JSON.parse`, parse errors become `null`.
+- `DataContext` contains `{ files, data, setFiles }`; this is runtime data in the React session, distinct from the `DataFile[]` array serialized in the document.
+- `ChartSpec` in `app/src/figure/builder.ts` is stored at `FigureNode.spec`: `data`, `type`, channels `x/y/color/size/facet/lat/lon`, `agg`, `bins`, `sort`, `xLabel/yLabel`, `scheme`, `basemap`.
+- `ChartType` currently has 12 types: bar, barh, line, area, scatter, histogram, box, heatmap, table, map-points, map-heat, map-regions.
+- `ScenarioCache` in `app/src/figure/scenarios.ts` is stored at `FigureNode.scenarios`: `grid`, `payload`, `count`, `bytes`, `fingerprint`, `engine`, `at`, `seconds`, `failed`.
+- Each `GridAxis = { name, values: ParamValue[] }`; `payload` is an array of Python results in combination order, JSON → gzip → base64; `bytes` is the compressed byte count.
+- `app/src/docs/store.ts`: localStorage holds the `papercell.index.v1` index, each article at `papercell.doc.<id>`, and the flag for adding the gallery once at `papercell.gallery.v1`.
+- `loadDoc` only accepts version 3 with array content, then calls `upgradeDoc`; `saveDoc` writes the entire doc and updates its title/timestamp in the index.
+- `emptyDoc` creates an empty paragraph; `ensureFirstDoc` adds the gallery once and a sample article when needed. localStorage write errors are caught and not reported to the user here.
+
+### 2. Data import and column labels
+
+- `app/src/data/import.ts`: `importFile` accepts CSV/TSV/TXT/XLSX/JSON/GeoJSON, limited to 20 MB/file; legacy XLS is rejected.
+- CSV/TSV/TXT delimiters are detected and the data normalized to CSV; decimal-comma numbers are converted when the delimiter is `;` or tab; blank/duplicate headers are reassigned.
+- XLSX uses dynamic import of `read-excel-file/browser`, with each nonempty sheet becoming a CSV `DataFile`; JSON/GeoJSON strings are preserved after JSON validation.
+- `describeColumns` examines up to 2,000 rows, recognizes number/date/text and lat/lon by name + value range; `asRows` extracts the data array or properties from a GeoJSON FeatureCollection.
+- `app/src/figure/DataPanel.tsx` manages adding/removing files, an 8-row preview, and label edits on blur; importing a file with the same name replaces the old one without automatically retaining its labels.
+- `DesignTab.tsx` also supports file import and editing labels for columns in use; ungrouped tables allow editing all columns. `pc.label(dataset, column)` uses the trimmed label or returns the original column name.
+
+### 3. Figure card lifecycle
+
+- `app/src/figure/templates.ts` contains `FIGURE_TEMPLATES`, the `FigureTemplate` type, `figureFromTemplate`, `insertFigure`, `insertChart`, and the `insertNode` helper.
+- Templates have `id/label/hint/icon/keywords/js`, with optional Python/params/caption; ordinary templates include sample data directly in JS and have no `spec`.
+- The `data` template creates a default spec and `autoOpen: true`; `insertChart(editor, type)` creates a spec for the selected type, generates JS and `specParams`, and also opens Design automatically.
+- `insertNode` replaces the current empty paragraph; otherwise inserts a node with `select: true`. Each new figure has `newId()` and an empty text child.
+- `app/src/editor/papercell-kit.tsx`: `FigurePlugin` registers key `figure`, `isElement: true`, `isVoid: true`, component `FigureElement`; `PapercellKit` combines it with `EditorKit` and `DocHeaderPlugin`.
+- `app/src/figure/FigureElement.tsx`: `FigureElement` finds the node path, then updates via `editor.tf.setNodes`; deletion uses removeNodes, and the Undo toast calls `editor.undo()`.
+- `FigureCard` is shared by editor and viewer: renders the chart, controls, caption, inline code, and a button to open `FigureDialog`; `FigureNumbers` provides label strings by id.
+- The card keeps parameters being dragged in state; the editor writes back to the node only on commit, while readers change session state. The `latestParams` ref prevents committing stale values after dropdown/toggle changes.
+- `autoOpen` opens the Design tab once, then is removed from the node; the edit button opens Design when a spec is still attached, JS for other figures; clicking/expanding a figure opens the Figure tab.
+- `app/src/figure/FigureView.tsx` measures width with ResizeObserver, rounded to 10 px increments with a minimum of 200; code does not run before width is available.
+- The View reruns `runFigure` when JS, parameter names/values, data, width, scenario payload, or labels change; discards outdated asynchronous results.
+- DOM results are appended, HTML strings assigned to `innerHTML`, and errors placed in `.fig-error`; React does not directly draw Plot/MapLibre content.
+- Before replacing output and on unmount, the View calls `__pcCleanup` on child elements; `releaseNode` also cleans the root node of late-arriving results.
+- `app/src/figure/runtime.ts::runFigure` creates an `AsyncFunction`, passing `Plot`, `d3`, `data`, `width`, `expose`, `params`, `pc`, `ket_qua`, then each parameter by name.
+- `params` is a name → value object; each name is also a direct variable. `expose(v)` records the last value for verification and returns v itself.
+- `pc.map(options)` calls `makeMap({ width, ...options })`, so figure code can override width; `pc.esc` escapes HTML; `pc.label` looks up a column's display name.
+- `ket_qua` is the nearest cache entry for the parameters, or `undefined` when there is no cache; runFigure does not automatically run Python.
+- `RunOutput` contains `{ node, html, exposed, error }`; only accepts a Node or HTML string as the return value; compilation/runtime errors are caught as messages.
+- Despite its legacy name, `ParamSliders` renders all four kinds; range snaps to the grid using `snap`, select/radio return the original option, toggle returns a boolean and commits immediately after a change.
+
+### 4. Popup and code editor
+
+- `app/src/figure/FigureDialog.tsx`: `DialogTab` includes design, figure, js, python, params, verify, scenarios, settings; the popup portals into `document.body`.
+- The **Design** tab uses `DesignTab`; the **Figure** tab uses a large `FigureView` and `ParamSliders`; parameter state is shared with the card.
+- **JS code** / **Original Python** tabs use `CodeTab`, preview, and `CodeAssist`; the Python preview still renders from JS and does not automatically run Python while typing.
+- `CodeTab` keeps a draft and updates the node after a 400 ms debounce; JS still attached to Design goes through `syncFromCode`, while Python is saved directly.
+- The **Parameters** tab uses `ParamsTab`: edit a draft, then Save parameters; validates identifiers and duplicate names, range max > min/step > 0, and at least two options for choices.
+- `parseOptions` converts true/false strings to booleans and numeric strings to numbers; toggles store booleans. Preserve this rule so the string "false" is not treated as truthy.
+- The **Verify** tab uses `VerifyTab`/`verifyFigure`, saving `VerifyResult`; **Precompute** uses `ScenarioTab`; **Settings** edits padding/display/label/codeAccess.
+- Read-only mode has only Figure and code tabs allowed by `visibleCode`; empty Python does not become a tab. `visibleCode` also determines inline code in the card when reading.
+- The popup locks scrolling with `modal-open`, keeps the close callback in a ref, focuses once on opening, and restores focus on closing; avoid rerunning effects that steal focus from someone typing.
+- `app/src/figure/CodeEditor.tsx`: CodeMirror 6 for JS/Python; `useCodeHints` gets datasets/columns/params/labels from context; Ctrl+Space suggests Plot, d3, data, and parameter variables.
+- External value changes dispatch the smallest diff to preserve caret/scroll and undo; code editor keystrokes do not propagate to Plate.
+- `CodeAssist` builds context from current code, the other language's code, params, labels, and profiles of @mentioned data; uses `askAI` and raw-imported figure-js/figure-python skills.
+- AI returns a complete fenced code block, then `onApply` goes through the same `change` flow; this is not a separate rendering/execution pipeline.
+
+### 5. Design, codegen, and document compatibility
+
+- `app/src/figure/builder.ts`: `CHART_TYPES` holds icon/label/channels/required metadata and agg/bins/sort/map flags; `typeInfo`, `missingChannels`, and the UI rely on this list.
+- `defaultSpec` defaults to bar/count, 20 bins, no sorting, blues, light; `specParams` currently only creates a `so_cot` slider for histograms.
+- `codegen` generates readable JS: Plot for charts, HTML tables for tables, `pc.map` for maps; missing required datasets/channels return an HTML message instead of rendering.
+- Axis/legend/table labels are looked up at runtime through `pc.label`; line/area sort by X before connecting points; layout computes margin/rotate/facet from the data.
+- `chartLine` writes exactly one `const chart = {...}` line; `SPEC_KEYS` is a whitelist of configuration fields to serialize/read back, not an arbitrary entire object.
+- The configuration line is metadata for regenerating code; the JS below is already generated from the spec, not a generic renderer that simply reads the chart variable at runtime.
+- `parseChartLine` finds the first line using a start-of-line regex, tries JSON then an object literal via `new Function`; only accepts types in `CHART_TYPES`, fills missing defaults.
+- `syncFromCode(spec, js)` compares everything outside the chart line with `codegen(spec)`; differences in body/comments/whitespace outside that line → `'detached'`.
+- Editing only a valid chart line → updates the spec and regenerates the code body, preserving the exact line the user typed; a line still being typed that is not yet valid → `'pending'`.
+- `CodeTab` sets `specDetached: true` when detached; pending only saves JS; successful sync replaces spec/JS/params and retains old values for parameters with the same names.
+- `app/src/figure/DesignTab.tsx`: `mergeParams` also retains old values with matching names; the tab selects the first suitable dataset, prefers GeoJSON for map-regions, and guesses lat/lon when needed.
+- With `specDetached`, or with no spec but nonempty JS, Design only previews and does not overwrite JS when opening the tab/changing selections.
+- Only `apply(next, true)` on the Use this design button allows replacing handwritten code; saves `codeBackup = { js, params, spec, specDetached }`, not Python or the entire FigureNode.
+- `restore` restores the backed-up fields, then deletes the backup; for detached figures with a spec, changing selections may still update the spec but does not replace the JS/params used for execution.
+- `app/src/editor/upgrade.ts::upgradeDoc` recursively visits figures in the tree, regenerating JS when a spec exists and is not detached; opening old articles automatically picks up builder fixes.
+- Gallery upgrades use the `GALLERY_TITLE` / old Vietnamese title, adding `paramsDemo`/`controlsSection` if absent; this is not a general schema migration for every version.
+- For the Vietnamese gallery previously overwritten by Design: retrieves originals from `app/src/legacy/gallery-vi.ts` by caption, restores handwritten figures where appropriate, and keeps existing ids.
+- `app/src/gallery.ts::makeGallery` creates synthetic data and spec/code/template figures; `app/src/demo-params.ts` contains `PARAMS_DEMO_ID`, `CONTROLS_ID_PREFIX`, and control demos used for new articles and upgrades.
+
+### 6. Python precomputation and verification
+
+- `app/src/figure/scenarios.ts::axisValues`: range enumerates min to max by step, choice uses every option, toggle uses `[false, true]`; even without params there is one combination.
+- `comboCount`, `comboAt`, `indexOf` share an ordering where the last parameter changes fastest; numeric lookup selects the nearest point, other types compare via String and fall back to the first item.
+- `snap` uses the same nearest-point selection; `encodeResults`/`decodeResults` compress/decompress via `app/src/lib/pack.ts`, with decoded results memoized by a shortened payload key.
+- `fingerprint` takes 16 hex characters from the SHA-256 of Python + file names/contents + grid; excludes JS and labels because they are not Python computation inputs.
+- `app/src/figure/ScenarioTab.tsx` defaults to the local engine, probes with GET `/api/python`; retries once on request failure, falls back to Pyodide if local is unavailable.
+- The grid can use a larger step than the slider to reduce computations; warns above 2,000 combinations, blocks above 50,000; requires nonempty Python that assigns `ket_qua`.
+- Local POST `/api/python/grid` sends `{ code, files: [{ key, kind, content }], combos }`, receives streaming JSONL `{ i, ok, value?, error? }` or `{ fatal }`.
+- `readJsonLines` retains partial lines between chunks and processes the final line; AbortController stops local requests. This report confirms the client-side contract; it did not read the out-of-scope server implementation.
+- Pyodide calls `kernel.runGrid` and receives items through a callback; Stop uses `kernel.cancel()` to terminate the worker, rejecting pending tasks.
+- A new cache is written only after all items arrive and not all have failed; failed items remain `null`, with a failed count; stopping/errors preserve the old cache.
+- Staleness is reported by comparing fingerprints using `cache.grid`; changing the planned grid configuration in the UI or parameter definitions does not automatically delete the existing cache.
+- `app/src/python/kernel.ts`: singleton `kernel` lazily creates a module Worker using `new URL('./worker.ts', import.meta.url)`; seq/pending/gridHandlers match responses to requests and emit status to subscribers.
+- `app/src/python/worker.ts` loads Pyodide from jsDelivr according to `PYODIDE_VERSION`, loads pandas and GLUE; `loadPackagesFromImports` handles additional imports; a chain serializes requests.
+- GLUE `__pc_load` reads CSV into DataFrames, JSON into objects; `__pc_run_one` puts `data` and params into globals, captures stdout, runs code, and catches errors with `<python>` line information.
+- Data is copied for each combination; `ket_qua` results pass through `__pc_jsonable` to convert Series/DataFrame/numpy/containers/NaN; matplotlib uses the agg backend and closes figures after each run.
+- `app/src/figure/verify.ts::verifyFigure` runs JS at width 600 without passing a scenario cache, retrieves `expose`, and calls `kernel.verify` with the same params/files; Verify currently uses Pyodide, not the local server.
+- Comparison flattens objects with sorted keys; supports Map/Date on the JS side, numbers within tolerance `1e-9 + 1e-6 * max(abs(a), abs(b))`; verifies only the current parameter set.
+
+### 7. HTML export and viewer
+
+- `app/src/publish/export-html.ts::exportDocHtml` fetches `/viewer.html`, checks the `>__PC_DOC__<` placeholder, and rejects dev templates still referencing `/src/viewer/`.
+- `forPublish` walks the tree, removes hidden figures and verify/spec/specDetached/autoOpen fields, deletes Python if codeAccess does not allow viewing; keeps JS to run figures and retains data/scenarios.
+- Export packs `{ version: 3, meta, data: files, content }` with `packText`, replaces the placeholder and escaped title, downloads an HTML Blob named via `docSlug`.
+- `app/vite.viewer.config.ts`: separate build into dist-viewer, inlines dynamic imports, one CSS bundle, disables module preload, inlines assets with a very large threshold.
+- The viewer alias replaces python/kernel imports with `app/src/viewer/kernel-stub.ts`; the stub rejects verify/runGrid and does not load Pyodide. Aliases the MapLibre worker to `viewer/maplibre-worker.ts`.
+- `app/scripts/inline-viewer.mjs` reads dist-viewer/viewer.html and JS/CSS assets, removes redundant KaTeX woff/ttf fonts, gzip/base64-encodes each bundle, embeds them in dist/viewer.html.
+- Bootstrap uses `DecompressionStream('gzip')`, adds styles and imports JS from a Blob URL; the script checks that no asset references remain in the HTML and that the document placeholder still exists.
+- `app/src/viewer/main.tsx::readDoc` reads the `papercell-doc` script, decompresses/parses it; `Viewer` creates a static editor with `BaseEditorKit` + `FigureStaticPlugin`, without calling `upgradeDoc`.
+- Viewer builds DataContext/MetaContext/FigureNumbers from embedded data, `parseData`, and `scan`; setters are no-ops; title/authors/date and the h1–h3 TOC render outside the static content.
+- `app/src/figure/FigureStatic.tsx` uses readOnly `FigureCard`, so controls/popup still work; filters data-slate attributes to avoid copying code strings into DOM attributes.
+- `app/src/viewer/maplibre-worker.ts` imports the raw MapLibre worker, removes the final export, creates a Blob classic worker, and replaces `window.Worker` for viewer module-worker requests.
+- Reason given in the code: Chrome blocks module workers from blobs when opened via file://, and MapLibre also wraps imports in blobs because the origin is null; an embedded classic worker without imports avoids this flow.
+- The shim assumes only MapLibre uses module workers in the viewer; adding other module workers requires revisiting the shim. The editor version of `app/src/figure/map.ts` still uses the normal `?worker&url` import.
+- An HTML file containing runtime/data/cache does not mean every figure works offline: MapLibre still downloads OpenFreeMap styles/tiles; figure code that fetches external data also needs a connection.
+- `app/scripts/server.mjs` is only an esbuild server-bundling script, omitting CSS and restarting with --watch; it is not part of the viewer embedding pipeline and must not be run in this task.
+
+### 8. Numbering, columns, and padding
+
+- `app/src/editor/scan.ts::scan` traverses in tree order, including column_group/column, counting Figure and Table separately; only figures with nonblank captions, not hidden, and a label other than none are numbered.
+- `captionKind`: prioritizes `fig.label`; otherwise, spec.type table → Table; figures without a spec whose JS matches the literal `<table class="fig-table` → Table; everything else is Figure.
+- `NEXT_CAPTION` cycles Figure → Table → none → Figure; Settings offers Automatic by deleting label. Headings only enter the outline when they are h1–h3 and have an id.
+- `app/src/editor/side-drop.ts`: `sideOf` recognizes left/right edge zones of 20% width, up to 90 px; `sideTarget`/`useSideTarget` is an external store for the hover indicator.
+- `canDropSide` allows root, group, or direct blocks within columns as targets; at most four columns; `dropToSide` prevents dropping a block onto itself or its descendants.
+- `dropToSide` runs withoutNormalizing, removes dragged paths from last to first, then finds the target again by id; creates a new group or adds a column to an existing group, with `equalize` distributing percentage widths equally.
+- `FigureCard` computes padding with `fig.padding ?? meta.figurePadding ?? DEFAULT_FIG_PADDING` (12 px), applying it only to the inline figure area; the popup has separate CSS padding.
+- Apply to all figures changes `meta.figurePadding`, removing all `padding` overrides on figure nodes via setNodes matching the entire tree; 0 is valid, so do not replace `??` with `||`.
+- `app/src/figure/figure.css` defines card/output/dialog/controls/table/map and resize-handle styles; `papercell.css` holds shared styles, `viewer/viewer.css` handles reading-page/TOC layout.
+- In `app/src/lib/`, `pack.ts` directly supports scenarios/export; `utils.ts` only re-exports `cn`.
+- `block-discussion-index.ts` indexes discussions/suggestions by block, `suggestion.ts` contains suggestion style variants; `markdown-joiner-transform.ts` joins Markdown chunks for AI streaming/deserialization.
+- `uploadthing.ts` defines an upload router that blocks access outside development if authentication is not configured; this is not the DataFile import path used by `DataPanel`/`importFile`.
+
+### 9. Extension points: files to edit
+
+- **New Design chart type:** requires `app/src/figure/builder.ts`: add ChartType, CHART_TYPES, a codegen branch, labels/defaults/SPEC_KEYS for new fields, specParams if controls are needed.
+- `app/src/figure/DesignTab.tsx` automatically renders existing CHART_TYPES/channels/flags; edit only if the new type needs controls, dataset conditions, or new channels outside the current schema.
+- To extend map capabilities, edit `app/src/figure/map.ts`; to change automatic Table detection, edit `app/src/editor/scan.ts`; add spec examples in `app/src/gallery.ts` for easy testing.
+- **New template:** add an entry in `app/src/figure/templates.ts`, or `app/src/figure/control-templates.ts` for the reader-controls group already spread into FIGURE_TEMPLATES; ids must be unique.
+- Templates use JS returning DOM/HTML, parameters with correctly typed defaults, optional Python, and self-contained sample data; add examples to `gallery.ts` or `demo-params.ts` if needed. Menu consumers outside the review scope must be checked by Claude during integration.
+- **New parameter kind:** edit `app/src/editor/types.ts`, `app/src/figure/FigureView.tsx`, `app/src/figure/FigureDialog.tsx`, `app/src/figure/scenarios.ts`, `app/src/figure/CodeEditor.tsx`.
+- Synchronize backward-compatible types/defaults, parameter input UI and validation/serialization, reader controls/commit, axisValues/lookup/snap, autocomplete/AI descriptions; add styles in `figure.css`, examples in `control-templates.ts`/`demo-params.ts`.
+- If values remain number/string/boolean, the runtime and worker already pass them generically; more complex types require updating ParamValue, the kernel/worker contract, and related lookup/String/JSON operations.
+
+### 10. Gotchas and risks to account for when editing
+
+- Nested JS/Python/HTML code strings and regex have multiple escape layers (`builder.ts`, templates, worker GLUE, inline-viewer); use file editing tools, not shell heredocs, per AGENTS.md.
+- MapLibre retains WebGL contexts: preserve `__pcCleanup`/`map.remove()`, ResizeObserver cleanup, and cleanup of late results; multiple unreleased maps may turn into black rectangles.
+- `makeMap` computes bounds from raw coordinates instead of `d3.geoBounds` to avoid GeoJSON polygon winding issues; do not substitute algorithms merely because function names look equivalent.
+- Do not regenerate handwritten code just because Design opens; do not arbitrarily remove specDetached/codeBackup; changing codegen affects every figure still attached to Design when `upgradeDoc` runs.
+- Table detection from JS uses a literal regex, not HTML parsing: changing class/syntax order may change numbering when no spec remains, especially after export removes the spec.
+- `codeAccess` controls UI visibility: JS remains in the HTML for execution; `forPublish` currently also preserves `codeBackup` through a rest spread. Changes that remove internal data must account for nested backups too.
+- `runFigure`/`parseChartLine` use Function and HTML output uses innerHTML, with no sandbox in these functions; parameter names can still collide with runtime variables/keywords despite passing the identifier regex.
+- `parseData` cache keys use name/length/first 64 characters; `decodeResults` uses length/first and last 48 characters. Data may be reused if its middle changes while these key parts stay the same.
+- CodeTab cancels its timer on unmount without flushing the draft; switching tabs/closing very quickly after typing risks losing the last 400 ms of changes. This is inferred from code, not tested in the UI.
+- Verify does not run with the scenario cache, check the full grid, or automatically refresh the badge when code changes; figures rendered solely from precomputed ket_qua must account for this contract.
+
+---
+
+## Part C. Known unresolved risks
+
+The following issues were found during code review and have not been fixed. Assign separate tasks to address them.
+
+- **HTML export still includes `codeBackup`:** `forPublish` (`app/src/publish/export-html.ts`) removes `verify/spec/specDetached/autoOpen` but retains `codeBackup`, so old handwritten code (replaced by a design) remains in the exported file.
+- **The last 400 ms of typing may be lost:** `CodeTab` cancels its timer when the popup closes without saving the draft (not tested in the UI).
+- **Weak cache keys:** `parseData` keys on name + length + first 64 characters, `decodeResults` on length + first/last 48 characters; changing the middle of the data while preserving these parts may reuse old results.
+- **Verification does not automatically expire:** `VerifyResult` has no fingerprint, so editing JS/Python/parameters after verification still shows "Verified".
+- **String-based Table detection:** figures without a spec only count as Table if JS contains exactly `<table class="fig-table`.

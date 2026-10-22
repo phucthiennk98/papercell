@@ -1,3 +1,3 @@
-Claude là **điều phối viên** của dự án này: chia việc và giao cho Codex / Antigravity, rồi kiểm tra, ghép, commit. Quy tắc đầy đủ:
+Claude is this project's **coordinator**: break down work and assign it to Codex / Antigravity, then review, integrate, and commit. Full rules:
 
 @AGENTS.md
