@@ -6,11 +6,18 @@ import type { DropdownMenuProps } from '@radix-ui/react-dropdown-menu';
 
 import { AIChatPlugin } from '@platejs/ai/react';
 import { insertInlineEquation } from '@platejs/math';
-import { RadicalIcon, SparklesIcon, SuperscriptIcon } from 'lucide-react';
+import {
+  ArrowUpIcon,
+  RadicalIcon,
+  SparklesIcon,
+  SuperscriptIcon,
+} from 'lucide-react';
 import { KEYS } from 'platejs';
 import { useEditorRef } from 'platejs/react';
 
 import { aiTaskStore } from '@/ai/ai-task-store';
+import { wrapEquationPrompt } from '@/ai/figure-nodes';
+import { startCellAITask } from '@/components/editor/plugins/ai-kit';
 import { insertInlineElement } from '@/components/editor/transforms';
 import {
   DropdownMenu,
@@ -82,6 +89,39 @@ const CATEGORIES: FormulaTemplateItem['category'][] = [
 export function EquationToolbarButton(props: DropdownMenuProps) {
   const editor = useEditorRef();
   const [open, setOpen] = React.useState(false);
+  const [aiPrompt, setAiPrompt] = React.useState('');
+  const promptInputRef = React.useRef<HTMLInputElement | null>(null);
+
+  const runFormulaAI = () => {
+    const clean = aiPrompt.trim();
+    const id = insertEquationNode(
+      editor,
+      String.raw`f(x) = \frac{\square}{\square}`
+    );
+    setOpen(false);
+    setAiPrompt('');
+
+    if (clean) {
+      window.setTimeout(() => {
+        aiTaskStore.set({ menuTargetId: id });
+        startCellAITask(editor, {
+          input: clean,
+          label: `Write formula: ${clean}`,
+          mode: 'insert',
+          prompt: wrapEquationPrompt(clean),
+          toolName: 'generate',
+        });
+      }, 30);
+    } else {
+      window.setTimeout(() => {
+        aiTaskStore.set({ menuTargetId: id });
+        editor.setOption(AIChatPlugin, 'open', false);
+        window.requestAnimationFrame(() => {
+          editor.setOption(AIChatPlugin, 'open', true);
+        });
+      }, 40);
+    }
+  };
 
   return (
     <DropdownMenu open={open} onOpenChange={setOpen} modal={false} {...props}>
@@ -100,35 +140,63 @@ export function EquationToolbarButton(props: DropdownMenuProps) {
       <DropdownMenuContent
         className="max-h-[min(80vh,640px)] w-[400px] overflow-y-auto"
         align="start"
+        onCloseAutoFocus={(e) => e.preventDefault()}
       >
         <DropdownMenuLabel className="text-xs text-muted-foreground">
           Create or generate with AI
         </DropdownMenuLabel>
 
-        <DropdownMenuItem
-          className="items-start gap-2.5 py-1.5"
-          onSelect={() => {
-            const id = insertEquationNode(
-              editor,
-              String.raw`f(x) = \frac{\square}{\square}`
-            );
-            window.setTimeout(() => {
-              aiTaskStore.set({ menuTargetId: id });
-              editor.getApi(AIChatPlugin).aiChat.show();
-            }, 30);
-          }}
+        <div
+          className="mx-1 mb-1 rounded-lg border border-blue-200/80 bg-blue-50/40 p-2.5 transition-colors hover:border-blue-300"
+          onClick={() => promptInputRef.current?.focus()}
+          onKeyDown={(e) => e.stopPropagation()}
         >
-          <SparklesIcon className="mt-0.5 size-4 shrink-0 text-blue-600" />
-          <span className="flex flex-col">
-            <span className="font-medium text-blue-600">
-              Ask AI to write a formula…
-            </span>
-            <span className="text-xs text-muted-foreground">
-              Describe the equation in plain language; click any number after to
-              edit
-            </span>
-          </span>
-        </DropdownMenuItem>
+          <div className="flex items-start gap-2">
+            <SparklesIcon className="mt-0.5 size-4 shrink-0 text-blue-600" />
+            <div className="min-w-0 flex-1">
+              <div className="text-xs font-semibold text-blue-700">
+                Ask AI to write a formula…
+              </div>
+              <div className="text-[11px] text-muted-foreground">
+                Describe the equation in plain language; click any number after
+                to edit
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-2 flex items-center gap-1.5">
+            <input
+              ref={promptInputRef}
+              type="text"
+              value={aiPrompt}
+              onChange={(e) => setAiPrompt(e.target.value)}
+              onKeyDown={(e) => {
+                e.stopPropagation();
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  runFormulaAI();
+                }
+              }}
+              placeholder="e.g. Bayes theorem or exponential PDF with μ…"
+              className="h-8 min-w-0 flex-1 rounded-md border border-blue-200 bg-white px-2.5 text-xs text-foreground outline-none placeholder:text-muted-foreground focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15"
+            />
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                runFormulaAI();
+              }}
+              title={
+                aiPrompt.trim()
+                  ? 'Generate formula with AI (Enter)'
+                  : 'Insert formula & open cell AI box'
+              }
+              className="flex size-8 shrink-0 items-center justify-center rounded-md bg-blue-600 text-white transition-colors hover:bg-blue-700"
+            >
+              <ArrowUpIcon className="size-3.5" />
+            </button>
+          </div>
+        </div>
 
         <div className="grid grid-cols-2 gap-1 px-1 py-1">
           <DropdownMenuItem
