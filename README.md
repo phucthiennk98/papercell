@@ -1,9 +1,14 @@
 # Papercell
 
+![Papercell Banner](docs/media/papercell-banner-2x1.png)
+
 **Papercell** is an interactive, Lark Docs-style scientific article editor where figures, mathematical formulas, datasets, and AI agents work together in a single workspace.
 
 Figures are rendered live in JavaScript (**Observable Plot**, **D3**, **MapLibre GL**) with interactive reader controls (sliders, dropdowns, radio buttons, switches), paired side-by-side with the author's **original Python code** for numerical verification and grid precomputation. Completed articles export into a **single, self-contained HTML file** that opens and runs interactively anywhere—even offline via `file://`.
 
+![Papercell Live Demo](docs/media/papercell-demo.gif)
+
+- **Promo Video (1080p MP4 / WebM)**: [`docs/media/papercell-promo.mp4`](docs/media/papercell-promo.mp4) · [`docs/media/papercell-promo.webm`](docs/media/papercell-promo.webm)
 - **Installation & Setup Guide**: [**INSTALL.md**](INSTALL.md)
 - **Design Philosophy**: [**docs/DESIGN.md**](docs/DESIGN.md)
 - **Codebase Architecture Map**: [**docs/CODEBASE.md**](docs/CODEBASE.md)

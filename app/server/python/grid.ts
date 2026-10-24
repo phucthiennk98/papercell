@@ -12,6 +12,24 @@ os.environ.setdefault("MPLBACKEND", "agg")
 sys.stdout.reconfigure(encoding="utf-8")
 sys.stdin.reconfigure(encoding="utf-8")
 import pandas as pd
+try:
+    import matplotlib.pyplot
+except ImportError:
+    import types
+    class _Noop:
+        def __call__(self, *a, **kw): return self
+        def __getattr__(self, k): return self
+        def __iter__(self): return iter((self, self))
+    _mpl = types.ModuleType("matplotlib")
+    _plt = types.ModuleType("matplotlib.pyplot")
+    _plt.subplots = lambda *a, **kw: (_Noop(), _Noop())
+    _plt.close = lambda *a, **kw: None
+    _plt.__getattr__ = lambda k: _Noop()
+    _mpl.pyplot = _plt
+    sys.modules["matplotlib"] = _mpl
+    sys.modules["matplotlib.pyplot"] = _plt
+    pd.Series.plot = property(lambda self: _Noop())
+    pd.DataFrame.plot = property(lambda self: _Noop())
 
 def jsonable(v):
     mod = type(v).__module__ or ""
