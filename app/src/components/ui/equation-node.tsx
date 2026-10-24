@@ -144,6 +144,7 @@ export function EquationElement(props: PlateElementProps<TEquationElement>) {
   const selected = useSelected();
   const readOnly = useReadOnly();
   const [open, setOpen] = React.useState(false);
+  const autoOpen = Boolean((props.element as any).autoOpen);
   const tokens = React.useMemo(
     () => tokenizeLatex(texExpression),
     [texExpression]
@@ -154,12 +155,21 @@ export function EquationElement(props: PlateElementProps<TEquationElement>) {
   const [selectionTick, setSelectionTick] = React.useState(0);
   const [syncAllMatching, setSyncAllMatching] = React.useState(false);
 
-  // Auto-open when a brand-new empty equation block is inserted and selected
+  // Auto-open when a brand-new empty equation block is inserted or autoOpen is flagged
   React.useEffect(() => {
-    if (selected && !readOnly && texExpression.trim().length === 0) {
+    if (readOnly) return;
+    if (autoOpen) {
+      setOpen(true);
+      const at = props.editor.api.findPath(props.element);
+      if (at) {
+        props.editor.tf.setNodes({ autoOpen: undefined } as any, { at });
+      }
+      return;
+    }
+    if (selected && texExpression.trim().length === 0) {
       setOpen(true);
     }
-  }, [selected, readOnly, texExpression]);
+  }, [autoOpen, props.editor, props.element, selected, readOnly, texExpression]);
 
   const lineBreakBadge = (
     props as PlateElementProps<TEquationElement> & {
@@ -358,7 +368,7 @@ export function InlineEquationElement(
         {texExpression.length === 0 && (
           <span>
             <RadicalIcon className="mr-1 inline-block h-[19px] w-4 py-[1.5px] align-text-bottom" />
-            New equation
+            New formula
           </span>
         )}
       </div>

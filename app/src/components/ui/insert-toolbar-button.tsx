@@ -175,7 +175,7 @@ const groups: Group[] = [
       {
         focusEditor: false,
         icon: <RadicalIcon />,
-        label: 'Equation',
+        label: 'Formula',
         value: KEYS.equation,
       },
       {
@@ -218,7 +218,7 @@ const groups: Group[] = [
       {
         focusEditor: false,
         icon: <RadicalIcon />,
-        label: 'Inline Equation',
+        label: 'Inline Formula',
         value: KEYS.inlineEquation,
       },
     ].map((item) => ({

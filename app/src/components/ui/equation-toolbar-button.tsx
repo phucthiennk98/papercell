@@ -40,21 +40,28 @@ export function InlineEquationToolbarButton(
       onClick={() => {
         insertInlineEquation(editor);
       }}
-      tooltip="Mark as equation"
+      tooltip="Insert inline formula"
     >
       <RadicalIcon />
     </ToolbarButton>
   );
 }
 
-function insertEquationNode(editor: any, texExpression: string): string {
+export function insertEquationNode(
+  editor: any,
+  texExpression: string,
+  options?: { autoOpen?: boolean }
+): string {
   const id = `eq-${newId()}`;
-  const node = {
+  const node: Record<string, unknown> = {
     type: KEYS.equation,
     id,
     texExpression,
     children: [{ text: '' }],
   };
+  if (options?.autoOpen) {
+    node.autoOpen = true;
+  }
   const block = editor.api.block();
   const emptyPara =
     block && block[0].type === 'p' && editor.api.isEmpty(block[0]);
@@ -129,9 +136,9 @@ export function EquationToolbarButton(props: DropdownMenuProps) {
             onSelect={() => {
               insertEquationNode(
                 editor,
-                String.raw`y = \frac{\square}{\square}`
+                String.raw`y = \frac{\square}{\square}`,
+                { autoOpen: true }
               );
-              editor.tf.focus();
             }}
           >
             <RadicalIcon className="size-4 shrink-0" />

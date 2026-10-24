@@ -31,6 +31,8 @@ import { PlateElement } from 'platejs/react';
 
 import { CHART_TYPES } from '@/figure/builder';
 import { FIGURE_TEMPLATES, insertChart, insertFigure } from '@/figure/templates';
+import { insertEquationNode } from '@/components/ui/equation-toolbar-button';
+import { FORMULA_TEMPLATES } from '@/components/ui/equation-visual';
 
 import {
   insertBlock,
@@ -60,7 +62,12 @@ type Group = {
   }[];
 };
 
-const VN = (t: string) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').toLowerCase();
+const VN = (t: string) =>
+  t
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd')
+    .toLowerCase();
 
 const chartGroup: Group = {
   group: 'Charts from data',
@@ -84,6 +91,28 @@ const figureGroup: Group = {
   })),
 };
 
+const formulaGroup: Group = {
+  group: 'Formula templates',
+  items: FORMULA_TEMPLATES.map((t) => ({
+    focusEditor: false,
+    icon: <RadicalIcon />,
+    keywords: [
+      'formula',
+      'equation',
+      'math',
+      'cong thuc',
+      'bieu thuc',
+      VN(t.label),
+      VN(t.category),
+    ],
+    label: `Formula: ${t.label}`,
+    value: 'formula:' + t.id,
+    onSelect: (editor: PlateEditor) => {
+      insertEquationNode(editor, t.latex, { autoOpen: true });
+    },
+  })),
+};
+
 const groups: Group[] = [
   {
     group: 'AI',
@@ -100,6 +129,7 @@ const groups: Group[] = [
   },
   chartGroup,
   figureGroup,
+  formulaGroup,
   {
     group: 'Basic blocks',
     items: [
@@ -199,7 +229,15 @@ const groups: Group[] = [
       {
         focusEditor: false,
         icon: <RadicalIcon />,
-        label: 'Equation',
+        keywords: [
+          'formula',
+          'equation',
+          'math',
+          'latex',
+          'cong thuc',
+          'bieu thuc',
+        ],
+        label: 'Formula',
         value: KEYS.equation,
       },
       {
@@ -248,7 +286,8 @@ const groups: Group[] = [
       {
         focusEditor: false,
         icon: <RadicalIcon />,
-        label: 'Inline Equation',
+        keywords: ['inline formula', 'inline equation', 'math', 'cong thuc'],
+        label: 'Inline Formula',
         value: KEYS.inlineEquation,
       },
     ].map((item) => ({
