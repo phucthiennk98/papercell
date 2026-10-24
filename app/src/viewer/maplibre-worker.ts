@@ -1,14 +1,14 @@
-// Bản xuất một file: nhúng worker của MapLibre dạng chữ rồi tạo URL tạm (blob).
-// Mở bằng file:// thì Chrome chặn *module* worker từ blob ("Worker failed to load"),
-// nên bỏ dòng export cuối file (worker không import gì) và tạo worker kiểu thường (classic).
+// Single-file HTML export helper: inline the MapLibre worker bundle as text and instantiate via Blob URL.
+// When opened via file://, Chrome blocks ES module workers created from blob: URLs ("Worker failed to load"),
+// so we strip the trailing export statement and instantiate a classic Worker instead.
 import src from 'maplibre-gl/dist/maplibre-gl-worker.mjs?raw'
 
 const classic = src.replace(/export\s*\{[^}]*\};?\s*(\/\/# sourceMappingURL=.*)?\s*$/, '')
 const url = URL.createObjectURL(new Blob([classic], { type: 'text/javascript' }))
 
-// MapLibre luôn xin module worker; ở file:// nó còn coi blob là "khác nguồn" (origin "null" ≠ "file://")
-// nên bọc thêm một blob `import "blob:…"`. Trang đọc chỉ có MapLibre dùng module worker,
-// nên mọi yêu cầu module worker đều trả về worker thường chạy code đã nhúng ở trên.
+// MapLibre requests a module worker by default; under file:// origin ("null"),
+// we intercept module worker requests and return a classic Worker running the inlined bundle.
+// This keeps MapLibre maps working offline when opening exported HTML files directly from disk.
 const NativeWorker = window.Worker
 window.Worker = class extends NativeWorker {
   constructor(u: string | URL, opts?: WorkerOptions) {

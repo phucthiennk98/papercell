@@ -1,4 +1,4 @@
-// Server Papercell: route AI của Plate, (sau này) MCP, và phát giao diện đã build.
+// Papercell server: Plate AI routes, local agent bridge, Python grid runner, and static production asset serving.
 import { existsSync } from 'node:fs'
 import { serve } from '@hono/node-server'
 import { serveStatic } from '@hono/node-server/serve-static'
@@ -21,7 +21,7 @@ app.get('/api/health', (c) => c.json({ ok: true }))
 app.post('/api/ai/command', (c) => aiCommand(c.req.raw, isLocal(c)))
 app.post('/api/ai/copilot', (c) => aiCopilot(c.req.raw, isLocal(c)))
 app.post('/api/assistant/chat', (c) => assistantChat(c.req.raw))
-// Agent trên máy: chỉ cho phép yêu cầu từ chính máy này (trừ khi bật PAPERCELL_ALLOW_REMOTE_AGENTS=1)
+// Local CLI agents: only allow loopback requests unless PAPERCELL_ALLOW_REMOTE_AGENTS=1 is set
 const isLocal = (c: Parameters<typeof getConnInfo>[0]) => {
   if (process.env.PAPERCELL_ALLOW_REMOTE_AGENTS === '1') return true
   const ip = getConnInfo(c).remote.address ?? ''
@@ -89,7 +89,7 @@ app.post('/api/agents/chat', async (c) => {
   if (!messages.some((m: any) => m.role === 'user' && m.content.trim())) return c.json({ error: 'No question was sent.' }, 400)
   return agentChat(b.agent, messages, typeof b.doc === 'string' ? b.doc.slice(0, 500_000) : '', c.req.raw.signal, ERROR_MARK, PROGRESS_MARK, { model: b.model, effort: b.effort })
 })
-// Python trên máy hoặc trong Docker để tính sẵn kịch bản và đối chiếu kết quả
+// Host or container Python runner for scenario precomputation and verification
 const canUseServerPython = (c: Parameters<typeof getConnInfo>[0]) => isLocal(c) || existsSync('/.dockerenv')
 app.get('/api/python', async (c) => {
   if (!canUseServerPython(c)) return c.json({ available: false, error: 'Local Python only works when Papercell is opened on the computer running the server.' })

@@ -1,4 +1,4 @@
-// Kernel Python chỉ dùng để KIỂM CHỨNG: chạy code Python gốc trên cùng dữ liệu và lấy biến `ket_qua`.
+// Pyodide Web Worker kernel for verification: executes reference Python code on shared datasets and extracts `result` / `ket_qua`.
 /// <reference lib="webworker" />
 
 const PYODIDE_VERSION = '314.0.7'
@@ -95,7 +95,7 @@ async function handle(req: Req) {
       errorCallback: () => {},
     })
     if (req.type === 'grid') {
-      // Chạy cả lưới: báo từng tổ hợp ngay khi xong để giao diện hiện tiến độ
+      // Run full parameter grid: stream each combination result as soon as it finishes for live progress updates
       py.globals.get('__pc_load')(JSON.stringify(req.files ?? []))
       const one = py.globals.get('__pc_run_one')
       for (let i = 0; i < req.combos.length; i++) {

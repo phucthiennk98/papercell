@@ -2,7 +2,7 @@ import type { CaptionKind, FigureNode } from './types'
 
 export type Heading = { id: string; level: number; text: string }
 
-/** Đánh số hình (có chú thích, không ẩn) và lấy dàn ý từ các tiêu đề. */
+/** Number visible captioned figures and extract the document outline from heading blocks. */
 /** Automatic caption label: tables built by the chart builder or returning an HTML table are Tables, the rest Figures. */
 export function captionKind(f: FigureNode): CaptionKind {
   if (f.label) return f.label

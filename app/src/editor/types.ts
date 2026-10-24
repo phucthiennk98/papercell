@@ -1,6 +1,6 @@
-/** Cách thẻ hình hiện trong bài. */
+/** Display mode for a figure card in the article. */
 export type FigureDisplay = 'output' | 'both' | 'code' | 'hidden'
-/** Người đọc được xem code nào trong popup. */
+/** Which code tabs readers are allowed to inspect in the figure dialog. */
 export type CodeAccess = 'none' | 'js' | 'python' | 'both'
 
 export type ParamValue = number | string | boolean
@@ -30,27 +30,27 @@ export type FigureNode = {
   type: 'figure'
   id: string
   caption: string
-  /** Code JS vẽ hình: có sẵn Plot, d3, data, width, expose() và mỗi tham số là một biến. */
+  /** JS rendering code: receives Plot, d3, data, width, expose(), and each parameter as a local variable. */
   js: string
-  /** Code Python gốc của nhà nghiên cứu, chỉ để đối chiếu và kiểm chứng. */
+  /** Researcher's reference Python code used for verification and scenario precomputation. */
   python: string
   params: FigureParam[]
   display: FigureDisplay
   codeAccess: CodeAccess
   verify?: VerifyResult
-  /** Có nếu hình tạo bằng trình tạo biểu đồ; code JS được sinh từ đây. */
+  /** Present when the figure is driven by the visual chart builder; JS code is generated from this spec. */
   spec?: ChartSpec
-  /** Người dùng đã sửa code tay nên Thiết kế không ghi đè code nữa. */
+  /** True once the user manually edits the JS code so the Design tab stops overwriting it. */
   specDetached?: boolean
   /** Caption label: numbered as a Figure or a Table (separate counters), or not numbered. Empty = automatic. */
   label?: CaptionKind
   /** Inner padding around the chart (px). Empty = the document default (DocMeta.figurePadding). */
   padding?: number
-  /** Code trước khi bị thiết kế thay thế, để nút "Quay lại code cũ" dùng. */
+  /** Backup of custom JS code before switching to the Design builder, used by "Restore previous code". */
   codeBackup?: { js: string; params: FigureParam[]; spec?: ChartSpec; specDetached?: boolean }
-  /** Kết quả Python đã tính sẵn cho mọi tổ hợp tham số (để xuất bản không cần Python). */
+  /** Precomputed Python outputs across the parameter grid (enables Python-free HTML export). */
   scenarios?: ScenarioCache
-  /** Mở popup ở tab Thiết kế ngay khi vừa chèn. */
+  /** Automatically open the figure dialog on the Design tab right after insertion. */
   autoOpen?: boolean
   children: [{ text: '' }]
 }
@@ -98,8 +98,8 @@ export const ACCESS_LABEL: Record<CodeAccess, string> = {
 
 export const newId = () => Math.random().toString(36).slice(2, 10)
 
-export const STARTER_JS = `// Có sẵn: Plot, d3, data (các file dữ liệu), width, expose(giá_trị)
-// Mỗi tham số là một biến cùng tên. Trả về một hình (Plot.plot) hoặc chuỗi HTML.
+export const STARTER_JS = `// Available: Plot, d3, data (attached datasets), width, expose(value)
+// Each parameter is a local variable of the same name. Return a DOM node (Plot.plot) or HTML string.
 const ds = data[Object.keys(data)[0]] ?? []
 return Plot.plot({
   width,

@@ -1,4 +1,4 @@
-// Trang đọc của file HTML xuất bản: tài liệu (nén gzip + base64) nằm sẵn trong thẻ <script id="papercell-doc">.
+// Standalone HTML viewer entry point: reads the gzip+base64 document payload from <script id="papercell-doc">.
 import { StrictMode, useEffect, useMemo, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { createStaticEditor } from 'platejs/static'

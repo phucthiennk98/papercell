@@ -1,4 +1,4 @@
-// Thẻ hình cho trang đọc tĩnh (bản xuất HTML): vẫn kéo thanh trượt và mở popup được.
+// Interactive figure card wrapper for the exported HTML viewer: supports sliders and detail dialog.
 import { createSlatePlugin } from 'platejs'
 import { SlateElement, type SlateElementProps } from 'platejs/static'
 import type { FigureNode } from '@/editor/types'
@@ -6,7 +6,7 @@ import { FigureCard, figClass } from './FigureElement'
 
 export function FigureElementStatic(props: SlateElementProps) {
   const fig = props.element as unknown as FigureNode
-  // Plate tĩnh chép mọi thuộc tính chữ của khối thành data-slate-*: bỏ đi để code không nằm lộ trong DOM.
+  // Strip Plate's data-slate-* attributes so full figure source code is not duplicated in DOM attributes.
   const attributes = Object.fromEntries(Object.entries(props.attributes).filter(([k]) => !k.startsWith('data-slate-') || /^data-slate-(node|void|type|id)$/.test(k))) as typeof props.attributes
   return (
     <SlateElement {...props} attributes={attributes} className={figClass(fig, true)}>

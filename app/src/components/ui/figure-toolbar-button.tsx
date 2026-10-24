@@ -45,7 +45,7 @@ function ensureTargetBlockForFigureAI(editor: any): string {
   return id;
 }
 
-/** Nút "Hình": tạo biểu đồ bằng AI, chọn loại biểu đồ từ dữ liệu hoặc chọn mẫu có code sẵn. */
+/** "Figure" toolbar button: generate a chart with AI, build one from dataset columns, or insert a starter template. */
 export function FigureToolbarButton(props: DropdownMenuProps) {
   const editor = useEditorRef();
   const [open, setOpen] = React.useState(false);

@@ -1,4 +1,4 @@
-# Papercell: build giao diện + server, chạy bằng một tiến trình Node
+# Papercell: build frontend + server, run in a single Node process
 FROM node:22-alpine AS build
 WORKDIR /app
 COPY app/package.json app/package-lock.json ./

@@ -3,14 +3,14 @@ import { EditorKit } from '@/components/editor/editor-kit'
 import { FigureElement } from '@/figure/FigureElement'
 import { DocHeader } from './DocHeader'
 
-/** Thẻ hình JS của Papercell: khối void, có tham số, popup và kiểm chứng. */
+/** Papercell interactive JS figure card: void block with parameters, dialog, and Python verification. */
 export const FigurePlugin = createPlatePlugin({
   key: 'figure',
   node: { isElement: true, isVoid: true, component: FigureElement },
 })
 
-/** Tiêu đề bài, vẽ ngay sau thanh công cụ cố định của Plate. */
+/** Document title bar rendered right below Plate's fixed toolbar. */
 export const DocHeaderPlugin = createPlatePlugin({ key: 'docHeader', render: { beforeEditable: () => <DocHeader /> } })
 
-/** Toàn bộ bộ editor của Plate cộng các khối riêng của Papercell. */
+/** Complete Plate editor kit combined with Papercell custom blocks. */
 export const PapercellKit = [...EditorKit, FigurePlugin, DocHeaderPlugin]

@@ -1,6 +1,6 @@
-// Bản tiếng Việt cũ của bộ thử biểu đồ: chỉ dùng để khôi phục hình bị ghi đè trong các bài đã tạo trước khi giao diện chuyển sang tiếng Anh.
-// Bài "Bộ thử biểu đồ": mỗi loại hình app hỗ trợ có ít nhất một ví dụ, dữ liệu giả lập đủ đa dạng để thử.
-// Số liệu là giả lập (cố định nhờ hạt giống ngẫu nhiên), KHÔNG phải số liệu thật.
+// Legacy Vietnamese chart gallery snapshot: kept solely so upgrade.ts can restore figures in documents created before the UI moved to English.
+// Legacy "Chart gallery" document with seeded synthetic datasets.
+// All values are deterministic synthetic data, NOT real-world measurements.
 import type { DataFile, FigureNode, PapercellDoc } from '@/editor/types'
 import { codegen, defaultSpec, specParams, type ChartSpec } from '@/figure/builder'
 import { FIGURE_TEMPLATES, figureFromTemplate } from '@/figure/templates'
@@ -9,7 +9,7 @@ function mulberry32(a: number) {
   return () => { a = (a + 0x6d2b79f5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296 }
 }
 
-// Tỉnh/thành: tên, vùng, tọa độ gần đúng; dân số (nghìn người) và các chỉ số là giả lập.
+// Provinces/cities: name, region, approximate coordinates, and synthetic population (thousands).
 const TINH: [string, string, number, number, number][] = [
   ['Hà Nội', 'Đồng bằng sông Hồng', 21.03, 105.85, 8400], ['Hải Phòng', 'Đồng bằng sông Hồng', 20.86, 106.68, 2100],
   ['Bắc Ninh', 'Đồng bằng sông Hồng', 21.18, 106.07, 1500], ['Nam Định', 'Đồng bằng sông Hồng', 20.43, 106.18, 1880],
@@ -41,13 +41,13 @@ function makeData(): DataFile[] {
     return xs[xs.length - 1]
   }
 
-  // 1. Tỉnh/thành
+  // 1. Provinces/cities
   const tinh = TINH.map(([ten, vung, lat, lon, dan_so]) => {
     const do_thi = Math.min(0.95, Math.max(0.12, 0.2 + dan_so / 12000 + normal(0, 0.08)))
     return { ten, vung, lat, lon, dan_so, ty_le_do_thi: +do_thi.toFixed(2), thu_nhap: +(4 + 9 * do_thi + normal(0, 0.8)).toFixed(1) }
   })
 
-  // 2. Chuỗi theo tháng 2023–2025 cho từng vùng: có xu hướng tăng, mùa vụ (Tết) và nhiễu
+  // 2. Monthly series 2023–2025 per region with upward trend, Tet seasonality, and noise
   const thang: string[] = ['thang,vung,chi_tieu,giao_dich']
   VUNG.forEach((v, k) => {
     const base = 40 + 12 * k
@@ -59,7 +59,7 @@ function makeData(): DataFile[] {
     }
   })
 
-  // 3. Khảo sát hành vi đi lại: 1.500 người, có tọa độ quanh tỉnh nơi sống
+  // 3. Travel behavior survey: 1,500 respondents jittered around home province coordinates
   const ks: string[] = ['id,tinh,vung,lat,lon,tuoi,nhom_tuoi,gioi,thu_nhap,phuong_tien,so_chuyen_tuan,thoi_gian_phut,diem_hai_long']
   const wTinh = tinh.map((t) => t.dan_so)
   for (let i = 0; i < 1500; i++) {
@@ -74,7 +74,7 @@ function makeData(): DataFile[] {
       thu.toFixed(1), pt, Math.max(1, Math.round(normal(9, 3))), tg.toFixed(0), diem].join(','))
   }
 
-  // 4. Lưới ô 1° × 1° (GeoJSON) phủ các tỉnh: thuộc tính là số người khảo sát và thu nhập trung bình trong ô
+  // 4. 1° × 1° GeoJSON grid cells covering surveyed provinces
   const rows = ks.slice(1).map((r) => r.split(','))
   const cells = new Map<string, { n: number; tn: number }>()
   for (const r of rows) {

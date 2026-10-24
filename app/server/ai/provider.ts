@@ -1,5 +1,5 @@
-// Tạo model của Vercel AI SDK từ cấu hình người dùng gửi lên.
-// Không nhập key thì dùng biến môi trường của server (server "phân phối" dùng chung một key).
+// Create a Vercel AI SDK model instance from user-supplied configuration.
+// Falls back to server environment variables when no client API key is provided.
 import { createAnthropic } from '@ai-sdk/anthropic'
 import { createGoogleGenerativeAI } from '@ai-sdk/google'
 import { createOpenAI } from '@ai-sdk/openai'
@@ -11,7 +11,7 @@ export class ConfigError extends Error {}
 
 const isProvider = (p: unknown): p is ProviderId => typeof p === 'string' && p in PROVIDERS
 
-/** Đọc cấu hình từ body; hỗ trợ cả kiểu cũ của Plate (apiKey + model qua AI Gateway). */
+/** Parse AI configuration from request body; also supports legacy Plate format (apiKey + model). */
 export function readConfig(body: { aiConfig?: Partial<AIConfig>; apiKey?: unknown; model?: unknown }): AIConfig {
   const c = body.aiConfig
   if (c && isProvider(c.provider)) {
@@ -37,7 +37,7 @@ export function resolveModel(cfg: AIConfig): LanguageModel {
   }
 }
 
-/** Danh sách model mà nhà cung cấp trả về (để bấm ↻ chọn). */
+/** Fetch available models reported by the provider (used by the refresh button). */
 export async function listModels(cfg: AIConfig): Promise<string[]> {
   const apiKey = keyFor(cfg)
   const base = cfg.baseURL.replace(/\/+$/, '')
@@ -53,5 +53,5 @@ export async function listModels(cfg: AIConfig): Promise<string[]> {
   return ids.sort()
 }
 
-/** Nhà cung cấp nào đã có key sẵn trên server (không trả về key). */
+/** List which providers have server-side API keys configured (never exposes the keys themselves). */
 export const serverKeys = () => Object.fromEntries((Object.keys(PROVIDERS) as ProviderId[]).map((p) => [p, !!process.env[PROVIDERS[p].envVar]]))

@@ -1,5 +1,5 @@
-// Bản đọc (viewer) dùng khi xuất HTML: chỉ hiển thị, không Python, không AI.
-// Đóng gói thành một chunk duy nhất; scripts/inline-viewer.mjs gộp tất cả vào viewer.html.
+// Standalone reading viewer used for HTML export: display only, no Python, no AI.
+// Bundled into a single chunk; scripts/inline-viewer.mjs packs everything into viewer.html.
 import path from 'node:path'
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'

@@ -318,8 +318,8 @@ export function ExportToolbarButton({
       downloadBlob(pngBlob, `${baseName}.png`);
     });
 
-  // Papercell: xuất HTML bằng trang đọc của Papercell (hình vẫn chạy, kéo thanh trượt được),
-  // thay cho bản HTML tĩnh của Plate vốn bỏ trống mọi thẻ hình.
+  // Papercell: export standalone interactive HTML using the Papercell viewer (figures and sliders remain live)
+  // instead of Plate's static HTML serializer which omits interactive figure cards.
   const exportToHtml = () =>
     exportDocHtml({ meta, files, content: editor.children });
 

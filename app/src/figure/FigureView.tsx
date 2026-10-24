@@ -3,7 +3,7 @@ import { paramKind, type FigureParam, type ParamValue } from '../editor/types'
 import { DataContext, labelsOf, runFigure } from './runtime'
 import { snap, type GridAxis, type ScenarioCache } from './scenarios'
 
-/** Vẽ một hình từ code JS; tự vẽ lại khi code, tham số, dữ liệu hoặc độ rộng thay đổi. */
+/** Render a figure from JS code; automatically re-renders when code, parameters, data, or width change. */
 export function FigureView({ js, params, scenarios, className, onError }: { js: string; params: FigureParam[]; scenarios?: ScenarioCache; className?: string; onError?: (e: string | null) => void }) {
   const { data, files } = useContext(DataContext)
   const labels = useMemo(() => labelsOf(files), [files])
@@ -24,10 +24,10 @@ export function FigureView({ js, params, scenarios, className, onError }: { js: 
     if (!width) return
     let alive = true
     runFigure(js, params, data, width, scenarios, labels).then((r) => {
-      // Lần vẽ đã bị thay bằng lần mới: giải phóng ngay bản đồ vừa tạo, nếu không mỗi lần
-      // vẽ lại sẽ giữ một ngữ cảnh WebGL; trình duyệt chỉ cho ~16 cái rồi bắt đầu tắt bản đồ (ô đen).
+      // Render superseded by a newer pass: immediately dispose any newly created map instance, otherwise
+      // each re-render leaks a WebGL context (browsers cap at ~16 contexts before maps turn blank).
       if (!alive || !out.current) { releaseNode(r.node); return }
-      // Giải phóng bản đồ cũ (WebGL) trước khi vẽ lại
+      // Dispose previous WebGL map contexts before replacing DOM children
       out.current.querySelectorAll('*').forEach((el) => (el as any).__pcCleanup?.())
       out.current.replaceChildren()
       if (r.node) out.current.append(r.node)
@@ -47,7 +47,7 @@ export function FigureView({ js, params, scenarios, className, onError }: { js: 
   )
 }
 
-/** Gọi __pcCleanup cho phần tử và mọi phần tử con (bản đồ MapLibre giải phóng WebGL). */
+/** Invoke __pcCleanup on an element and its descendants to release MapLibre WebGL contexts. */
 function releaseNode(n: Node | null) {
   if (!(n instanceof Element)) return
   ;(n as any).__pcCleanup?.()
@@ -58,10 +58,10 @@ const decimals = (step: number) => (String(step).split('.')[1] ?? '').length
 export const fmtParam = (p: FigureParam) =>
   (typeof p.value === 'number' ? p.value.toLocaleString('en-US', { minimumFractionDigits: decimals(p.step), maximumFractionDigits: decimals(p.step) }) : String(p.value)) + (p.unit ? ' ' + p.unit : '')
 
-/** Các thanh trượt của một hình. */
+/** Interactive parameter controls for a figure card. */
 export function ParamSliders({ params, onChange, onCommit, idPrefix, large, grid }: {
   params: FigureParam[]; onChange: (name: string, v: ParamValue) => void; onCommit?: () => void; idPrefix: string; large?: boolean
-  /** Có kết quả tính sẵn: thanh trượt bắt vào đúng các điểm đã tính. */
+  /** When precomputed scenarios exist, snap sliders to precomputed grid points. */
   grid?: GridAxis[]
 }) {
   if (!params.length) return null

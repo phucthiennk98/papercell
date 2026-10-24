@@ -31,7 +31,7 @@ export const CopilotKit = [
   - If no context is provided or you can't generate a continuation, return "0" without explanation.`,
         },
         onError: () => {
-          // Lỗi (thiếu key, sai model…) thì không gợi ý gì; lỗi chi tiết hiện ở Trợ lý AI.
+          // Silently skip inline ghost-text suggestions on error (missing key, invalid model, etc.); detailed errors surface in the AI Assistant.
         },
         onFinish: (_, completion) => {
           if (completion === '0') return;

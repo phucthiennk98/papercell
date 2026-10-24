@@ -35,7 +35,7 @@ async function runServerVerify(
   }
 }
 
-/** Trải phẳng một giá trị lồng nhau thành danh sách (đường dẫn, giá trị lá); khóa đối tượng được sắp xếp. */
+/** Flatten a nested value into (path, leaf) pairs with sorted object keys. */
 function flatten(v: unknown, path = '', out: Leaf[] = []): Leaf[] {
   if (v instanceof Map) v = Object.fromEntries(v)
   if (v instanceof Date) v = v.toISOString()

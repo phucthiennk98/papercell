@@ -8,7 +8,7 @@ import skillJs from './skills/figure-js.md?raw'
 import skillPy from './skills/figure-python.md?raw'
 import skillMath from './skills/equation-math.md?raw'
 
-/** Model hay viết công thức bằng \( \) và \[ \]; đổi sang $ và $$ để Markdown không nuốt dấu \ và để vẽ bằng KaTeX. */
+/** Normalize \( \) and \[ \] LaTeX delimiters to $ and $$ so Markdown preserves backslashes for KaTeX. */
 export function normalizeMath(md: string) {
   return md
     .replace(/```(?:latex|math|tex|katex|papercell-equation)\s*\n([\s\S]*?)```/gi, (_, m: string) => '\n$$\n' + m.trim() + '\n$$\n')
@@ -247,7 +247,7 @@ export function mergeUpdatedNodesIntoColumnGroup(origGroup: any, aiNodes: any[])
   }
 }
 
-/** Tóm tắt toàn bộ bảng dữ liệu đang có trong bài để gửi cho AI. */
+/** Summarize all datasets attached to the active document for AI context. */
 export function describeDocData(files: DataFile[], data: Dataset): string {
   if (!files.length) return 'Datasets in this document: (none loaded yet — generate deterministic sample data in JS if a figure is requested).'
   const labels = labelsOf(files)
@@ -280,7 +280,7 @@ export function describeDocData(files: DataFile[], data: Dataset): string {
   return lines.join('\n')
 }
 
-/** Nội dung bài dạng Markdown kèm thông tin thẻ hình, dữ liệu và hướng dẫn tạo FigureNode cho AI. */
+/** Serialize document markdown along with figure metadata, dataset schemas, and FigureNode authoring instructions. */
 export function docAsContextMarkdown(editor: PlateEditor, files: DataFile[] = [], data: Dataset = {}) {
   const parts: string[] = []
   const text = (n: any): string => (typeof n.text === 'string' ? n.text : (n.children ?? []).map(text).join(''))
@@ -473,7 +473,7 @@ export type ContentSegment =
   | { type: 'md'; text: string }
   | { type: 'figure'; node: FigureNode }
 
-/** Tách chuỗi Markdown của AI thành các đoạn văn bản thường và các thẻ FigureNode (nếu có). */
+/** Split AI markdown output into plain text segments and FigureNode blocks. */
 export function extractFigureSegments(md: string): { segments: ContentSegment[]; figures: FigureNode[] } {
   const fenceRegex = /```([a-zA-Z0-9_-]*)\s*\n([\s\S]*?)```/g
   const segments: ContentSegment[] = []
@@ -552,7 +552,7 @@ export function extractFigureSegments(md: string): { segments: ContentSegment[];
   return { segments, figures }
 }
 
-/** Chuyển chuỗi Markdown (có thể chứa khối papercell-figure hoặc công thức $$...$$) thành mảng node Plate. */
+/** Convert markdown text (including papercell-figure blocks and $$...$$ equations) into Plate editor nodes. */
 export function deserializeMarkdownWithFigures(editor: PlateEditor, md: string): any[] {
   const { segments } = extractFigureSegments(md)
   const out: any[] = []

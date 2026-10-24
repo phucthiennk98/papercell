@@ -1,10 +1,10 @@
-// Xuất một file HTML mở được ở mọi nơi: trang đọc (viewer) + bài viết nén (gzip + base64) nhúng bên trong.
+// Export a self-contained HTML file: bundled viewer + gzip/base64-compressed document payload.
 import { toast } from 'sonner'
 import type { DataFile, DocMeta, FigureNode } from '@/editor/types'
 import { formatBytes } from '@/figure/scenarios'
 import { packText } from '@/lib/pack'
 
-/** Bản cho người đọc: bỏ hình ẩn, bỏ Python gốc nếu tác giả không cho xem, bỏ dữ liệu nội bộ của trình soạn. */
+/** Sanitize document for readers: strip hidden figures, restricted code tabs, and editor-only state. */
 function forPublish(nodes: any[]): any[] {
   return nodes.flatMap((n) => {
     if (n.type !== 'figure') return [n.children ? { ...n, children: forPublish(n.children) } : n]
@@ -15,7 +15,7 @@ function forPublish(nodes: any[]): any[] {
   })
 }
 
-/** Tên file an toàn: bỏ dấu tiếng Việt, chỉ giữ chữ số và gạch ngang. */
+/** Generate a safe filename slug: strip diacritics and keep alphanumeric characters and hyphens. */
 export const docSlug = (title: string) => title.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D')
   .replace(/[^A-Za-z0-9]+/g, '-').replace(/^-|-$/g, '').toLowerCase() || 'bai-viet'
 

@@ -1,4 +1,4 @@
-// Trợ lý viết bài ở sidebar phải: trả lời dạng stream, có ngữ cảnh là nội dung bài đang mở.
+// Right-sidebar writing assistant: streams responses with the active article as context.
 import { streamText } from 'ai'
 import { ConfigError, readConfig, resolveModel } from './provider'
 
@@ -76,11 +76,11 @@ export async function assistantChat(req: Request) {
     maxOutputTokens: 16000,
     maxRetries: 1,
     abortSignal: req.signal,
-    // Lỗi được gửi về giao diện (xem bên dưới), không in nguyên stack ra console
+    // Errors are forwarded to the UI stream below rather than dumping full stack traces to the console
     onError: ({ error }) => console.warn('[assistant]', describe(error)),
   })
 
-  // Gửi chữ dạng stream; lỗi của nhà cung cấp được gửi kèm sau dấu ERROR_MARK để giao diện hiện rõ.
+  // Stream text chunks; provider errors are appended after ERROR_MARK so the UI can display them clearly.
   const enc = new TextEncoder()
   const stream = new ReadableStream<Uint8Array>({
     async start(ctrl) {
@@ -98,11 +98,11 @@ export async function assistantChat(req: Request) {
 }
 
 export const ERROR_MARK = '\u0000ERR:'
-/** Dòng trạng thái tiến độ: PROGRESS_MARK + chữ + xuống dòng. */
+/** Progress status line: PROGRESS_MARK + label + newline. */
 export const PROGRESS_MARK = '\u0000P:'
 
 export function describe(e: unknown): string {
-  // Lỗi sau nhiều lần thử lại: lấy lỗi cuối cùng
+  // Retry exhausted: unwrap the last underlying error
   const outer = e as { lastError?: unknown }
   const err = (outer?.lastError ?? e) as { message?: string; statusCode?: number; cause?: { message?: string; code?: string } }
   if (/Cannot connect to API/i.test(err?.message ?? '')) return 'Could not connect to the server address you entered.'

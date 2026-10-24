@@ -588,7 +588,7 @@ export function AssistantPanel({
     const fresh: FigureNode = { ...fig, id: 'fig-' + Math.random().toString(36).slice(2, 8), children: [{ text: '' }] }
     insertNodesAtCursor([fresh])
   }
-  const copy = async (i: number, t: string) => { try { await navigator.clipboard.writeText(t); setCopied(i); setTimeout(() => setCopied(null), 1500) } catch { /* bỏ qua */ } }
+  const copy = async (i: number, t: string) => { try { await navigator.clipboard.writeText(t); setCopied(i); setTimeout(() => setCopied(null), 1500) } catch { /* ignore */ } }
 
   const field = 'h-8 w-full rounded-md border bg-background px-2 text-sm outline-none focus:border-ring'
   return (

@@ -1,12 +1,12 @@
-// Chạy các agent đã cài trên máy (Claude Code, Codex, Antigravity…) ở chế độ không giao diện.
-// Agent làm việc trong một thư mục tạm chứa bai-viet.md, ở chế độ chỉ đọc / lập kế hoạch.
+// Run locally installed CLI agents (Claude Code, Codex, Antigravity…) in headless mode.
+// Each agent works inside a temporary directory containing the article markdown in read-only/plan mode.
 import { type ChildProcess, spawn } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { homedir, tmpdir } from 'node:os'
 import path from 'node:path'
 
-/** Một mẩu đầu ra đã hiểu: chữ của câu trả lời, dòng trạng thái tiến độ, hoặc lỗi. */
+/** Parsed output chunk: response text delta, progress status line, or error message. */
 type Parsed = { delta?: string; progress?: string; error?: string }
 type Parser = { line: (l: string) => Parsed[]; end: () => Parsed[] }
 
@@ -16,7 +16,7 @@ type AgentDef = {
   id: string
   label: string
   bin: string
-  /** Tham số chạy; nếu promptInArgs thì câu hỏi nằm trong tham số (cần file chạy trực tiếp, không qua shell). */
+  /** CLI arguments; if promptInArgs is true, the prompt is passed as an argument (requires direct executable without shell). */
   args: (prompt: string, opts?: ChatOptions) => string[]
   promptInArgs?: boolean
   makeParser: () => Parser
@@ -39,7 +39,7 @@ export const AGENTS: AgentDef[] = [
       ...(opts?.model ? ['--model', opts.model] : []),
       ...(opts?.effort ? ['-c', `model_reasoning_effort=${JSON.stringify(opts.effort)}`] : []), '-'],
     makeParser: () => {
-      // Codex gửi nhiều agent_message; chỉ cái cuối là câu trả lời, các cái trước là lời dẫn tiến độ.
+      // Codex emits multiple agent_message events; only the final one is the answer while earlier ones are progress notes.
       let pending: string | null = null
       const flush = (): Parsed[] => { const p = pending; pending = null; return p ? [{ delta: p + '\n' }] : [] }
       return {
@@ -87,8 +87,8 @@ export const AGENTS: AgentDef[] = [
   },
 ]
 
-// ---- Tìm file chạy trên PATH (kể cả .cmd/.exe trên Windows) ----
-/** Nơi cài đặt quen thuộc của từng agent, phòng khi thư mục đó không nằm trong PATH. */
+// ---- Locate executable on PATH (including .cmd/.exe on Windows) ----
+/** Common installation paths per agent in case they are not on the server's PATH. */
 function knownDirs(name: string): string[] {
   const home = homedir(), env = process.env
   const dirs: Record<string, string[]> = {
@@ -111,7 +111,7 @@ export function resolveBin(name: string): { file: string; shell: boolean } | nul
   return null
 }
 
-/** Tắt cả cây tiến trình: trên Windows, chương trình chạy qua cmd nên kill() chỉ tắt lớp vỏ ngoài. */
+/** Kill the entire process tree: on Windows, commands spawned via cmd leave child processes alive on plain kill(). */
 export function stopTree(child: ChildProcess) {
   if (child.exitCode !== null || !child.pid) return
   if (process.platform === 'win32') spawn('taskkill', ['/pid', String(child.pid), '/T', '/F'], { windowsHide: true })
@@ -120,10 +120,10 @@ export function stopTree(child: ChildProcess) {
 
 function run(file: string, args: string[], shell: boolean, opts: { cwd?: string; input?: string; timeoutMs: number; signal?: AbortSignal; onLine?: (l: string) => void }) {
   return new Promise<{ code: number | null; stdout: string; stderr: string }>((resolve, reject) => {
-    // Qua shell chỉ khi bắt buộc (.cmd); tham số là cờ cố định hoặc model/effort đã kiểm tra.
+    // Use shell only when required (.cmd); arguments are fixed flags or validated model/effort strings.
     const child = spawn(shell ? `"${file}"` : file, args, { cwd: opts.cwd, shell, windowsHide: true, env: process.env })
     let stdout = '', stderr = '', buf = ''
-    // Tắt cả cây tiến trình: trên Windows, agent chạy qua cmd nên kill() chỉ tắt lớp vỏ ngoài.
+    // Kill the entire process tree: on Windows, agents spawned via cmd leave child processes alive on plain kill().
     const stop = () => stopTree(child)
     const timer = setTimeout(stop, opts.timeoutMs)
     if (opts.signal?.aborted) stop()
@@ -145,7 +145,7 @@ export type AgentInfo = { id: string; label: string; available: boolean; version
 
 let cache: { at: number; list: AgentInfo[] } | null = null
 
-/** Dò các agent đã cài trên máy chạy server. */
+/** Detect CLI agents installed on the server host. */
 export async function detectAgents(force = false): Promise<AgentInfo[]> {
   if (cache && !force && Date.now() - cache.at < 60_000) return cache.list
   const list = await Promise.all(AGENTS.map(async (a): Promise<AgentInfo> => {
@@ -194,7 +194,7 @@ async function materializeEmbeddedImages(rawPrompt: string, dir: string): Promis
   return out
 }
 
-/** Chạy một agent cục bộ, trả về stream chữ; lỗi được gửi sau errorMark. */
+/** Run a local CLI agent and return a text stream; errors are appended after errorMark. */
 export async function agentChat(agentId: string, messages: Msg[], doc: string, signal: AbortSignal, errorMark: string, progressMark: string, opts: ChatOptions = {}): Promise<Response> {
   const def = AGENTS.find((a) => a.id === agentId)
   const bin = def && resolveBin(def.bin)

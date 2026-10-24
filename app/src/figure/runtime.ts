@@ -1,4 +1,4 @@
-// Chạy code JS của thẻ hình. Dữ liệu được phân tích một lần rồi dùng lại.
+// Execute figure card JS code with cached parsed datasets.
 import * as Plot from '@observablehq/plot'
 import * as d3 from 'd3'
 import { createContext } from 'react'
@@ -12,10 +12,10 @@ export type Labels = Record<string, Record<string, string>>
 
 export const labelsOf = (files: DataFile[]): Labels => Object.fromEntries(files.map((f) => [dataKey(f.name), f.labels ?? {}]))
 
-/** Dữ liệu của tài liệu đang mở, dùng chung cho mọi thẻ hình. */
+/** Active document datasets shared across all figure cards. */
 export const DataContext = createContext<{ files: DataFile[]; data: Dataset; setFiles: (f: DataFile[]) => void }>({ files: [], data: {}, setFiles: () => {} })
 
-/** Tên file → tên biến hợp lệ: "trips.csv" → "trips". */
+/** Convert filename to a valid JS identifier: "trips.csv" → "trips". */
 export const dataKey = (name: string) => name.replace(/\.[^.]+$/, '').replace(/[^A-Za-z0-9_]/g, '_').replace(/^(\d)/, '_$1')
 
 const cache = new Map<string, unknown>()
@@ -36,7 +36,7 @@ const AsyncFunction = Object.getPrototypeOf(async () => {}).constructor as new (
 
 export type RunOutput = { node: Node | null; html: string | null; exposed: unknown; error: string | null }
 
-/** Chạy code JS với tham số và dữ liệu; kết quả là một phần tử DOM hoặc chuỗi HTML. */
+/** Execute figure JS with current parameters and datasets, returning a DOM element or HTML string. */
 export async function runFigure(js: string, params: FigureParam[], data: Dataset, width: number, scenarios?: ScenarioCache, labels: Labels = {}): Promise<RunOutput> {
   let exposed: unknown = undefined
   const expose = (v: unknown) => { exposed = v; return v }
@@ -44,7 +44,7 @@ export async function runFigure(js: string, params: FigureParam[], data: Dataset
   try {
     const fn = new AsyncFunction('Plot', 'd3', 'data', 'width', 'expose', 'params', 'pc', 'result', 'ket_qua', ...names, js)
     const values = Object.fromEntries(params.map((p) => [p.name, p.value]))
-    // Kết quả Python đã tính sẵn cho tổ hợp tham số gần nhất (nếu có)
+    // Nearest precomputed Python scenario output for the current parameter values (if available)
     const ketQua = scenarios ? (await decodeResults(scenarios.payload))[indexOf(scenarios.grid, values)] : undefined
     // pc.label(dataset, column): the column's display name set in the Data panel, or the column name itself
     const label = (ds: string, col: string) => labels[ds]?.[col]?.trim() || col

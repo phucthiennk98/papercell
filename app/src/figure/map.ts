@@ -1,9 +1,9 @@
-// Bản đồ nền kéo/zoom được (MapLibre + OpenFreeMap, không cần key) cho thẻ hình JS.
-// Dùng trong code hình qua: pc.map({ data, kind, lat, lon, color, size, basemap })
+// Interactive pan/zoom basemap (MapLibre + OpenFreeMap, no API key required) for JS figure cards.
+// Usage in figure JS: pc.map({ data, kind, lat, lon, color, size, basemap })
 import * as d3 from 'd3'
 import * as maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
-// MapLibre 6 cần biết file worker; Vite đóng gói worker kèm các phần nó dùng.
+// Configure MapLibre 6 worker URL bundled by Vite.
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url'
 
 maplibregl.setWorkerUrl(workerUrl)
@@ -107,7 +107,7 @@ export type MapOptions = {
 
 type Feature = GeoJSON.Feature<GeoJSON.Geometry, Record<string, unknown>>
 
-/** Thoát ký tự HTML cho chữ lấy từ dữ liệu. */
+/** Escape HTML special characters in data-driven strings. */
 export const esc = (v: unknown) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!)
 
 const num = (v: unknown) => (typeof v === 'number' ? v : typeof v === 'string' && v.trim() !== '' && isFinite(+v) ? +v : NaN)
@@ -124,7 +124,7 @@ function toFeatures(o: MapOptions): Feature[] {
 
 const interpolator = (scheme = 'blues') => scheme.startsWith('#') ? d3.interpolateRgbBasis(scheme.includes(',') ? scheme.split(',').map((s) => s.trim()) : ['#e2e8f0', scheme.trim()]) : ((d3 as any)[`interpolate${scheme[0].toUpperCase()}${scheme.slice(1)}`] ?? d3.interpolateBlues)
 
-/** Tô màu và kích thước sẵn cho từng điểm; trả về chú giải. */
+/** Compute per-feature colors and radii and return legend metadata. */
 function styleFeatures(fs: Feature[], o: MapOptions) {
   let legend = ''
   if (o.color) {
@@ -151,7 +151,7 @@ function styleFeatures(fs: Feature[], o: MapOptions) {
   return legend
 }
 
-/** Tạo bản đồ; phần tử trả về có __pcCleanup để giải phóng WebGL khi vẽ lại. */
+/** Create a MapLibre map element with a __pcCleanup hook to release its WebGL context on re-render. */
 export function makeMap(o: MapOptions): HTMLElement {
   const width = o.width ?? 640
   const box = document.createElement('div')
@@ -164,7 +164,7 @@ export function makeMap(o: MapOptions): HTMLElement {
   }
   const legend = styleFeatures(fs, o)
   const fc: GeoJSON.FeatureCollection = { type: 'FeatureCollection', features: fs }
-  // Khung bao theo tọa độ thô: d3.geoBounds hiểu vòng ngược chiều kim đồng hồ (chuẩn GeoJSON) là "cả địa cầu trừ vùng này".
+  // Compute planar bounding box directly: d3.geoBounds treats counter-clockwise GeoJSON rings as covering the entire globe.
   let [x0, y0, x1, y1] = [Infinity, Infinity, -Infinity, -Infinity]
   const walk = (c: any): void => { if (typeof c[0] === 'number') { x0 = Math.min(x0, c[0]); x1 = Math.max(x1, c[0]); y0 = Math.min(y0, c[1]); y1 = Math.max(y1, c[1]) } else c.forEach(walk) }
   fs.forEach((f) => { if (f.geometry && 'coordinates' in f.geometry) walk(f.geometry.coordinates) })
@@ -192,7 +192,7 @@ export function makeMap(o: MapOptions): HTMLElement {
     map.addSource('pc', { type: 'geojson', data: fc })
     const kind = o.kind ?? (fs[0].geometry.type === 'Point' ? 'points' : 'regions')
     if (kind === 'heat') {
-      // Trọng số mỗi điểm giảm theo số điểm để nhiều điểm không thành một mảng đỏ; có cột trọng số thì chia theo giá trị lớn nhất
+      // Scale per-point heatmap weight by point count to prevent saturation, normalizing by max value when a weight column is used
       const per = Math.min(1, 40 / fs.length)
       const wMax = o.size ? Math.max(...fs.map((f) => Number(f.properties._w) || 0), 1e-9) : 1
       map.addLayer({
@@ -210,7 +210,7 @@ export function makeMap(o: MapOptions): HTMLElement {
     } else {
       map.addLayer({ id: 'pc-pts', type: 'circle', source: 'pc', paint: { 'circle-color': ['get', '_c'], 'circle-radius': ['get', '_r'], 'circle-opacity': 0.8, 'circle-stroke-color': '#ffffff', 'circle-stroke-width': 0.6 } })
     }
-    // Bấm vào điểm/vùng để xem thuộc tính
+    // Show feature properties in a popup on click
     for (const layer of ['pc-pts', 'pc-fill']) {
       if (!map.getLayer(layer)) continue
       map.on('click', layer, (e: maplibregl.MapLayerMouseEvent) => {
@@ -232,7 +232,7 @@ export function makeMap(o: MapOptions): HTMLElement {
     lg.innerHTML = legend
     box.append(lg)
   }
-  // Báo rõ thay vì để ô đen: nền không tải được (mất mạng) thì tự chuyển sang khung tọa độ giới hạn theo dữ liệu
+  // Gracefully fall back to a coordinate grid bounded to the data if basemap tiles fail to load (e.g. offline)
   const note = (text: string) => {
     let n = box.querySelector<HTMLDivElement>('.pcm-note')
     if (!n) { n = document.createElement('div'); n.className = 'pcm-note'; box.append(n) }

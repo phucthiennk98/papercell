@@ -1,4 +1,4 @@
-// Phiên chat giữ một tiến trình CLI và thư mục tài liệu riêng.
+// A chat session maintains a dedicated CLI process and temporary document workspace.
 import { randomUUID } from 'node:crypto'
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'

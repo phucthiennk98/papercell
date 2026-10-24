@@ -1,15 +1,15 @@
-# Môi trường & bí mật
+# Environment & secrets
 .env
 .env.*
 !.env.example
 
-# Dữ liệu crawl / dữ liệu lớn (không đưa vào git)
+# Raw / large datasets (excluded from git)
 data/raw/
 data/cache/
 *.parquet
 *.gpkg
 
-# Hệ điều hành / editor
+# OS / editor
 .DS_Store
 Thumbs.db
 .vscode/
@@ -21,8 +21,8 @@ __pycache__/
 *.pyc
 .venv/
 
-# Cấu hình cục bộ của công cụ
+# Local tool configuration
 .claude/
 
-# Báo cáo tạm của các agent worker
+# Temporary worker agent reports
 .agent-reports/

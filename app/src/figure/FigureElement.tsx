@@ -9,11 +9,11 @@ import { captionKind, NEXT_CAPTION } from '../editor/scan'
 import { FigureDialog, type DialogTab } from './FigureDialog'
 import { FigureView, ParamSliders } from './FigureView'
 
-/** Số thứ tự hình theo id thẻ. */
+/** Figure sequence numbers keyed by block id. */
 /** Caption number per figure id, e.g. "Figure 3" or "Table 1". */
 export const FigureNumbers = createContext<Map<string, string>>(new Map())
 
-/** Code người đọc được thấy, theo quyền tác giả đặt. */
+/** Filter visible code fields according to the author's code-visibility setting. */
 export function visibleCode(fig: FigureNode): { lang: 'JS' | 'Python'; code: string }[] {
   const out: { lang: 'JS' | 'Python'; code: string }[] = []
   if ((fig.codeAccess === 'python' || fig.codeAccess === 'both') && fig.python.trim()) out.push({ lang: 'Python', code: fig.python })
@@ -58,7 +58,7 @@ export function FigureElement(props: PlateElementProps) {
 export const figClass = (fig: FigureNode, readOnly: boolean) =>
   readOnly && fig.display === 'hidden' ? 'fig-hidden' : 'fig' + (readOnly ? ' is-read' : ' is-edit') + (fig.display === 'hidden' ? ' is-hidden' : '')
 
-/** Thân thẻ hình (dùng chung cho editor và trang đọc tĩnh khi xuất HTML). */
+/** Figure card body shared between the live editor and exported static HTML viewer. */
 export function FigureCard({ fig, readOnly, update, remove, applyPaddingAll, onAskAI }: {
   fig: FigureNode
   readOnly: boolean
@@ -70,7 +70,7 @@ export function FigureCard({ fig, readOnly, update, remove, applyPaddingAll, onA
   const no = useContext(FigureNumbers).get(fig.id)
   const { meta } = useContext(MetaContext)
   const pad = fig.padding ?? meta.figurePadding ?? DEFAULT_FIG_PADDING
-  // Giá trị tham số đang kéo; người đọc kéo thì không ghi vào tài liệu.
+  // Ephemeral parameter values while dragging sliders; reader interactions do not mutate the document.
   const [params, setParams] = useState<FigureParam[]>(fig.params)
   const [dialog, setDialog] = useState<DialogTab | null>(null)
   useEffect(() => { setParams(fig.params) }, [fig.params])

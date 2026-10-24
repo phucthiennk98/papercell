@@ -1,4 +1,4 @@
-// Giao tiếp với worker Python. Worker chỉ khởi động khi có người bấm "Kiểm chứng".
+// Client bridge to the Pyodide Web Worker, lazily started when the user triggers Python verification.
 export type GridItem = { i: number; ok: boolean; value?: unknown; error?: string }
 export type VerifyRaw = { value?: unknown; stdout?: string; error?: string }
 
@@ -27,14 +27,14 @@ class Kernel {
     return w
   }
 
-  /** Chạy code Python gốc trên dữ liệu, trả về biến ket_qua. */
+  /** Execute reference Python code on the active datasets and return the exposed result. */
   verify(code: string, params: Record<string, unknown>, files: { key: string; kind: string; content: string }[]): Promise<VerifyRaw> {
     const id = ++this.seq
     const w = this.ensure()
     return new Promise((resolve, reject) => { this.pending.set(id, { resolve, reject }); w.postMessage({ id, type: 'verify', code, params, files }) })
   }
 
-  /** Chạy code Python cho cả lưới tổ hợp trong trình duyệt; onItem được gọi sau mỗi tổ hợp. */
+  /** Execute reference Python code across the parameter grid in the browser, calling onItem after each combination. */
   runGrid(code: string, combos: Record<string, number | string | boolean>[], files: { key: string; kind: string; content: string }[], onItem: (it: GridItem) => void): Promise<void> {
     const id = ++this.seq
     const w = this.ensure()
@@ -45,7 +45,7 @@ class Kernel {
     })
   }
 
-  /** Dừng mọi việc đang chạy (tắt worker; lần sau tự khởi động lại). */
+  /** Terminate the running Pyodide worker (automatically respawns on next request). */
   cancel() {
     this.worker?.terminate(); this.worker = null
     this.pending.forEach((p) => p.reject(new Error('Stopped.')))

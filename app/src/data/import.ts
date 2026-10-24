@@ -1,12 +1,12 @@
-// Nạp file dữ liệu người dùng: CSV/TSV/TXT, Excel (.xlsx), JSON, GeoJSON.
-// Mọi bảng được chuẩn hóa về CSV (dấu phẩy, số dùng dấu chấm) để JS và Python gốc đọc giống nhau.
+// Import user data files: CSV/TSV/TXT, Excel (.xlsx), JSON, and GeoJSON.
+// Tabular inputs are normalized to standard CSV (comma delimiter, dot decimal) so JS and Python read identical values.
 import * as d3 from 'd3'
 import type { DataFile } from '@/editor/types'
 
 export const ACCEPT = '.csv,.tsv,.txt,.xlsx,.json,.geojson'
 const MAX_BYTES = 20e6
 
-/** Đọc chữ: thử UTF-8, nếu có ký tự lỗi thì thử bảng mã tiếng Việt Windows-1258. */
+/** Decode text bytes: try UTF-8 first and fall back to Windows-1258 if replacement characters appear. */
 async function readText(file: File) {
   const buf = await file.arrayBuffer()
   const utf8 = new TextDecoder('utf-8').decode(buf)
@@ -14,7 +14,7 @@ async function readText(file: File) {
   try { return new TextDecoder('windows-1258').decode(buf) } catch { return utf8 }
 }
 
-/** Đoán dấu phân cách: dấu xuất hiện đều nhất ở các dòng đầu. */
+/** Detect column delimiter by picking the character with the most consistent count across initial lines. */
 function sniffDelimiter(text: string) {
   const lines = text.split(/\r?\n/).filter((l) => l.trim()).slice(0, 20)
   let best = ',', bestScore = -1
@@ -28,7 +28,7 @@ function sniffDelimiter(text: string) {
 }
 
 const DECIMAL_COMMA = /^-?\d{1,3}(\.\d{3})*,\d+$|^-?\d+,\d+$/
-/** Bảng (mảng các dòng) → CSV chuẩn; đổi số kiểu "1.234,5" thành "1234.5" khi cần. */
+/** Convert 2D row array to normalized CSV, converting European-style "1.234,5" numbers to "1234.5" when needed. */
 function rowsToCsv(rows: unknown[][], decimalComma: boolean) {
   const clean = rows
     .filter((r) => r.some((c) => c !== null && c !== undefined && String(c).trim() !== ''))
@@ -39,7 +39,7 @@ function rowsToCsv(rows: unknown[][], decimalComma: boolean) {
       return decimalComma && DECIMAL_COMMA.test(s) ? s.replace(/\./g, '').replace(',', '.') : s
     }))
   if (!clean.length) throw new Error('The file has no data rows.')
-  // Tên cột trống hoặc trùng thì đặt lại
+  // Fill empty column names and deduplicate colliding headers
   const seen = new Map<string, number>()
   clean[0] = clean[0].map((h, i) => {
     const base = h || `cot_${i + 1}`, n = (seen.get(base) ?? 0) + 1
@@ -69,7 +69,7 @@ export async function importFile(file: File): Promise<DataFile[]> {
 
   const text = await readText(file)
   if (ext === 'json' || ext === 'geojson') {
-    JSON.parse(text) // báo lỗi sớm nếu file hỏng
+    JSON.parse(text) // validate JSON early
     return [{ name: file.name, kind: 'json', content: text }]
   }
   if (ext === 'csv' || ext === 'tsv' || ext === 'txt') {
@@ -80,7 +80,7 @@ export async function importFile(file: File): Promise<DataFile[]> {
   throw new Error(`.${ext} files are not supported. Use CSV, TXT, TSV, XLSX, JSON or GeoJSON.`)
 }
 
-// ---- Mô tả cột để gợi ý khi chọn ----
+// ---- Column metadata for UI pickers ----
 export type ColType = 'number' | 'date' | 'text' | 'lat' | 'lon'
 export type Column = { name: string; type: ColType; distinct: number; sample: string }
 
@@ -104,7 +104,7 @@ export function describeColumns(rows: Record<string, unknown>[]): Column[] {
   })
 }
 
-/** Dữ liệu dạng bảng (mảng đối tượng) — kể cả GeoJSON thì lấy thuộc tính của từng đối tượng. */
+/** Extract tabular rows (array of objects) — for GeoJSON, returns feature properties. */
 export function asRows(v: unknown): Record<string, unknown>[] {
   if (Array.isArray(v)) return v as Record<string, unknown>[]
   const g = v as { type?: string; features?: { properties?: Record<string, unknown> }[] }

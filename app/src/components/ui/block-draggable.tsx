@@ -378,7 +378,7 @@ export function InsertGap({ editor, element }: { editor: PlateEditor; element: T
   );
 }
 
-/** Nút "+" như Lark: mở menu chèn khối ở dòng mới ngay dưới khối này (hoặc ngay tại dòng trống). */
+/** Lark-style "+" button: opens the block insertion menu on a new line below this block (or on the current empty line). */
 function openInsertMenu(editor: PlateEditor, element: TElement) {
   const path = editor.api.findPath(element);
   if (!path) return;

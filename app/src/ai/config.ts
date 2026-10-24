@@ -1,4 +1,4 @@
-// Cấu hình nhà cung cấp AI, dùng chung cho giao diện và server.
+// Shared AI provider configuration used by both client UI and server.
 export type ProviderId = 'anthropic' | 'openai' | 'google' | 'gateway' | 'compatible'
 
 export type AIConfig = { provider: ProviderId; model: string; baseURL: string; apiKey: string }
@@ -7,7 +7,7 @@ export type ProviderInfo = {
   label: string
   defaultModel: string
   defaultBaseURL: string
-  /** Biến môi trường server đọc khi người dùng không nhập key. */
+  /** Server environment variable read when the user does not supply a client API key. */
   envVar: string
   keyUrl?: string
   keyOptional?: boolean

@@ -1,5 +1,5 @@
-// Gộp bản viewer thành một file dist/viewer.html (tài liệu được chèn vào lúc xuất).
-// JS và CSS được nén gzip + base64 rồi giải nén trong trình duyệt, để file nhẹ hơn khoảng 3 lần.
+// Bundle the viewer into a single dist/viewer.html file (document payload is injected on export).
+// JS and CSS are gzip + base64 compressed and unpacked in the browser (~3x smaller output).
 import { readFileSync, writeFileSync, existsSync } from 'node:fs'
 import { gzipSync } from 'node:zlib'
 import path from 'node:path'
@@ -12,7 +12,7 @@ const pack = (text) => gzipSync(Buffer.from(text, 'utf8'), { level: 9 }).toStrin
 
 let css = ''
 html = html.replace(/<link rel="stylesheet"[^>]*href="(\/assets\/[^"]+\.css)"[^>]*>\s*/g, (_, href) => { css += read(href); return '' })
-// Trình duyệt nào cũng đọc được woff2: bỏ bản woff/ttf trùng lặp của font KaTeX.
+// All modern browsers support woff2: strip duplicate woff/ttf KaTeX font fallbacks.
 css = css.replace(/,\s*url\(data:font\/(?:woff|ttf|truetype)[^)]*\)\s*format\(["'](?:woff|truetype)["']\)/g, '')
 
 let js = ''

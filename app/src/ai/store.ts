@@ -1,5 +1,5 @@
-// Cài đặt AI phía trình duyệt. Cấu hình (không có key) luôn được nhớ;
-// key chỉ giữ trong phiên này, trừ khi người dùng chọn "Nhớ key trên máy này".
+// Browser-side AI settings. Non-secret configuration is persisted in localStorage;
+// API keys stay in sessionStorage unless the user opts into "Remember key on this device".
 import { useSyncExternalStore } from 'react'
 import { defaultConfig, PROVIDERS, type AIConfig } from './config'
 
@@ -10,7 +10,7 @@ const MODE = 'papercell.ai.mode'
 const AGENT = 'papercell.ai.agent'
 const AGENT_SETTINGS = 'papercell.ai.agent-settings'
 
-/** 'api': gọi nhà cung cấp bằng key; 'agent': dùng agent đã cài trên máy (Claude Code, Codex, Antigravity…). */
+/** 'api': call cloud/local API provider with key; 'agent': use a locally installed CLI agent (Claude Code, Codex, Antigravity…). */
 export type AIMode = 'api' | 'agent'
 
 const safe = <T,>(f: () => T, d: T): T => { try { return f() } catch { return d } }

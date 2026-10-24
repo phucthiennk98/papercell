@@ -1,4 +1,4 @@
-// Gói gọn chữ: nén gzip rồi mã base64 (chỉ để nhẹ và nhúng được vào HTML, không phải mã hóa bảo mật).
+// Compress text with gzip + base64 for compact HTML embedding (not cryptographic encryption).
 export async function packText(text: string): Promise<{ b64: string; bytes: number }> {
   const raw = new Blob([text]).stream().pipeThrough(new CompressionStream('gzip'))
   const buf = new Uint8Array(await new Response(raw).arrayBuffer())

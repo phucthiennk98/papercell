@@ -1,5 +1,5 @@
-// Chạy code Python gốc cho cả lưới tham số bằng Python cài trên máy (nhanh, dùng được mọi thư viện).
-// Mỗi tổ hợp chạy trong một vùng biến riêng, dữ liệu được sao chép để code không làm hỏng lần sau.
+// Execute reference Python code across a parameter grid using the host Python installation.
+// Each combination runs in an isolated namespace with deep-copied datasets to prevent cross-run mutation.
 import { spawn } from 'node:child_process'
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -103,7 +103,7 @@ function pythonBin() {
 
 let cached: { at: number; info: { available: boolean; version?: string; pandas?: string; error?: string } } | null = null
 
-/** Có Python + pandas trên máy chạy server không. */
+/** Check whether Python and pandas are available on the server host. */
 export async function detectPython() {
   if (cached && Date.now() - cached.at < 60_000) return cached.info
   const bin = pythonBin()
@@ -123,7 +123,7 @@ export async function detectPython() {
 
 type Job = { code: string; files: { key: string; kind: string; content: string }[]; combos: Record<string, number | string | boolean>[] }
 
-/** Chạy lưới; trả về luồng JSONL: {"ready":…} rồi mỗi dòng một tổ hợp {"i","ok","value"|"error"}. */
+/** Execute parameter grid; streams JSONL: {"ready":…} followed by {"i","ok","value"|"error"} per combination. */
 export async function runGrid(job: Job, signal: AbortSignal): Promise<Response> {
   const bin = pythonBin()
   if (!bin || bin.shell) return Response.json({ error: 'Python was not found on this computer.' }, { status: 404 })

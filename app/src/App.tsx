@@ -36,8 +36,8 @@ export default function App() {
   const [confirmDelete, setConfirmDelete] = useState<DocEntry | null>(null)
   const editorRef = useRef<PlateEditor | null>(null)
   const [assistant, setAssistant] = useState(() => { try { return localStorage.getItem('papercell.assistant') === '1' && (typeof window === 'undefined' || window.innerWidth >= 900) } catch { return false } })
-  useEffect(() => { try { localStorage.setItem('papercell.assistant', assistant ? '1' : '0') } catch { /* bỏ qua */ } }, [assistant])
-  // Hai thanh bên cùng mở trên màn hình vừa sẽ ép hẹp vùng soạn bài: thu gọn thanh trái
+  useEffect(() => { try { localStorage.setItem('papercell.assistant', assistant ? '1' : '0') } catch { /* ignore */ } }, [assistant])
+  // Collapse the left sidebar on medium screens when both sidebars would crowd the editor
   useEffect(() => { if (assistant && window.innerWidth < 1280) setSidebar(false) }, [assistant])
   useEffect(() => {
     if (!confirmDelete) return
@@ -343,7 +343,7 @@ function DocView({ docId, sidebar, onShowSidebar, onSaved, onHeadings, onEditor,
   }
   useEffect(() => { onEditor(editor); onHeadings(scan(editor.children).headings) }, [editor])
   useEffect(() => { persist() }, [meta, files])
-  // Menu AI trong bài của Plate dùng chung cài đặt với sidebar Trợ lý AI.
+  // Plate's inline AI menu shares provider settings with the right-hand AI Assistant sidebar.
   useEffect(() => {
     const docData = `${describeDocData(files, dataCtx.data)}\n\n${FIGURE_PROMPT_GUIDE}`
     const sync = () => {

@@ -8,7 +8,7 @@ import { DataContext, dataKey } from './runtime'
 const size = (s: string) => { const b = new Blob([s]).size; return b > 1e6 ? (b / 1e6).toFixed(1) + ' MB' : Math.ceil(b / 1e3) + ' KB' }
 const TYPE_LABEL = { number: 'number', date: 'date', text: 'text', lat: 'latitude', lon: 'longitude' } as const
 
-/** Quản lý các file dữ liệu đính kèm bài viết, có xem trước. */
+/** Manage datasets attached to the article with tabular preview. */
 export function DataPanel({ onChange, onClose }: { onChange: (files: DataFile[]) => void; onClose: () => void }) {
   const { files, data } = useContext(DataContext)
   const input = useRef<HTMLInputElement>(null)
