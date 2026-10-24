@@ -1,6 +1,6 @@
 // Store multiple documents in browser localStorage: one index key + one key per document.
 import type { PapercellDoc } from '@/editor/types'
-import { LEGACY_SAMPLE_TITLE, makeSample } from '@/sample'
+import { LEGACY_SAMPLE_TITLE, LEGACY_SAMPLE_TITLE_EN, LEGACY_SAMPLE_TITLE_LONG, makeSample } from '@/sample'
 import { GALLERY_TITLE, makeGallery } from '@/gallery'
 import { upgradeDoc } from '@/editor/upgrade'
 
@@ -47,7 +47,7 @@ export const emptyDoc = (): PapercellDoc => ({
 export function ensureFirstDoc(): string {
   // Migrate any existing legacy Vietnamese sample or gallery documents in localStorage to English
   for (const entry of listDocs()) {
-    if (entry.title === LEGACY_SAMPLE_TITLE) {
+    if (entry.title === LEGACY_SAMPLE_TITLE || entry.title === LEGACY_SAMPLE_TITLE_EN || entry.title === LEGACY_SAMPLE_TITLE_LONG) {
       saveDoc(entry.id, makeSample(), entry.updated)
     } else if (entry.title === 'Bộ thử biểu đồ') {
       saveDoc(entry.id, makeGallery(), entry.updated)

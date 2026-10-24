@@ -3,7 +3,7 @@ import { makeGallery as makeLegacyGallery } from '@/legacy/gallery-vi'
 import { codegen } from '@/figure/builder'
 import type { FigureNode, PapercellDoc } from './types'
 import { GALLERY_TITLE } from '@/gallery'
-import { LEGACY_SAMPLE_TITLE, SAMPLE_TITLE } from '@/sample'
+import { LEGACY_SAMPLE_TITLE, LEGACY_SAMPLE_TITLE_EN, SAMPLE_TITLE } from '@/sample'
 import { CONTROLS_ID_PREFIX, PARAMS_DEMO_ID, controlsSection, paramsDemo } from '@/demo-params'
 
 /** Title of the old Vietnamese chart gallery. */
@@ -64,7 +64,7 @@ function addControlsSection(content: any[]): any[] {
 }
 
 export function upgradeDoc(doc: PapercellDoc): PapercellDoc {
-  if (doc.meta.title === SAMPLE_TITLE || doc.meta.title === LEGACY_SAMPLE_TITLE) doc = { ...doc, content: repairSampleColumnGroup(doc.content) }
+  if (doc.meta.title === SAMPLE_TITLE || doc.meta.title === LEGACY_SAMPLE_TITLE || doc.meta.title === LEGACY_SAMPLE_TITLE_EN) doc = { ...doc, content: repairSampleColumnGroup(doc.content) }
   if (doc.meta.title === GALLERY_TITLE || doc.meta.title === LEGACY_GALLERY_TITLE) doc = { ...doc, content: addControlsSection(doc.content) }
   if (doc.meta.title === GALLERY_TITLE) doc = { ...doc, content: addParamsDemo(doc.content, 'en') }
   if (doc.meta.title === LEGACY_GALLERY_TITLE) doc = { ...doc, content: addParamsDemo(doc.content, 'vi') }

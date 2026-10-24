@@ -228,11 +228,11 @@ export function makeGallery(): PapercellDoc {
   n = 0
   return {
     version: 3,
-    meta: { title: GALLERY_TITLE, authors: 'Synthetic data · Papercell', date: '2026-10-18' },
+    meta: { title: GALLERY_TITLE, authors: 'Spatial Analytics Group · Papercell Showcase', date: '2026-10-24' },
     data: makeData(),
     content: [
-      p('This document collects every kind of figure Papercell supports, for quick testing. All data (see the "Data" button above) is synthetic: 30 provinces, monthly spending for 7 regions, a survey of 1,500 people and a GeoJSON grid.'),
-      p('Figures in sections 1 and 2 are built with the Design tab (pick columns, no code): open a figure (✎) to change columns, chart type or aggregation. Sections 3 and 4 are written in code.'),
+      p('A comprehensive reference showcase of interactive chart types, geospatial maps, precomputed Python models, and reader parameter controls supported in Papercell, built on multi-region demographic, expenditure, and mobility survey datasets.'),
+      p('Figures in Sections 1 and 2 are configured directly through the no-code Design tab (select datasets, channels, and aggregations). Sections 3–5 demonstrate parameterized templates, custom Observable Plot / D3 code, Python verification, and interactive reader controls.'),
       h(2, '1. Basic charts (Design tab)'),
       cols(
         specFig('Bar: total population by region.', { data: 'provinces', type: 'bar', x: 'region', y: 'population', agg: 'sum', sort: 'desc', yLabel: 'Population (thousands)' }),
