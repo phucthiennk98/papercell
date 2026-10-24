@@ -59,7 +59,7 @@ export default function App() {
         {sidebar && (
           <aside className="flex w-64 shrink-0 flex-col border-r bg-muted/30 text-sm" aria-label="Sidebar">
             <div className="flex items-center justify-between px-3 pt-3 pb-2">
-              <span className="flex items-center gap-2 font-semibold"><span className="grid size-6 place-items-center rounded-md bg-foreground text-background text-xs">▤</span>Papercell</span>
+              <span className="flex items-center gap-2 font-semibold"><svg className="size-6 shrink-0" viewBox="0 0 100 100" aria-hidden="true"><rect x="10" y="8" width="24" height="24" rx="5.5" fill="currentColor" /><path d="M45.5 8H63L82 25V26.5Q82 32 76.5 32H45.5Q40 32 40 26.5V13.5Q40 8 45.5 8Z" fill="#4468EB" /><path d="M63 8V19.5Q63 25 68.5 25H82Z" fill="#FFFFFF" fillOpacity=".56" /><path d="M15.5 38H28.5Q34 38 34 43.5Q34 47 37.5 47H62.5Q67 47 67 42.5Q67 38 71.5 38H76.5Q82 38 82 43.5V45Q82 62 65 62H15.5Q10 62 10 56.5V43.5Q10 38 15.5 38Z" fill="currentColor" /><rect x="10" y="68" width="24" height="24" rx="5.5" fill="currentColor" /></svg>Papercell</span>
               <button className="rounded-md p-1 text-muted-foreground hover:bg-accent" aria-label="Collapse sidebar" onClick={() => setSidebar(false)}><PanelLeftClose className="size-4" /></button>
             </div>
             <label className="mx-3 mb-2 flex items-center gap-2 rounded-md border bg-background px-2 py-1.5">
