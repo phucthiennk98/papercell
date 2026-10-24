@@ -79,7 +79,7 @@ function jsSource(get: () => CodeHints) {
       options: [
         { label: 'Plot', type: 'namespace', detail: 'Observable Plot' }, { label: 'd3', type: 'namespace', detail: 'd3 v7' },
         { label: 'data', type: 'variable', detail: 'document datasets' }, { label: 'width', type: 'variable', detail: 'figure width (px)' },
-        fn('expose', 'value to verify against Python'), { label: 'ket_qua', type: 'variable', detail: 'precomputed Python result' },
+        fn('expose', 'value to verify against Python'), { label: 'result', type: 'variable', detail: 'precomputed Python result' },
         { label: 'pc', type: 'namespace', detail: 'Papercell helpers' }, { label: 'params', type: 'variable', detail: 'all parameters' },
         ...paramOptions(h),
       ],
@@ -105,7 +105,7 @@ function pySource(get: () => CodeHints) {
     if (!w && !c.explicit) return null
     return {
       from: w?.from ?? c.pos,
-      options: [{ label: 'data', type: 'variable', detail: 'dict of DataFrames' }, { label: 'ket_qua', type: 'variable', detail: 'assign the result here' },
+      options: [{ label: 'data', type: 'variable', detail: 'dict of DataFrames' }, { label: 'result', type: 'variable', detail: 'assign the result here' },
         { label: 'pd', type: 'namespace', detail: 'pandas' }, { label: 'np', type: 'namespace', detail: 'numpy' }, ...paramOptions(h)],
       validFor: /^\w*$/,
     }

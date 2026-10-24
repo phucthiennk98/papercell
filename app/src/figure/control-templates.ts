@@ -1,6 +1,6 @@
 // Templates whose readers get controls: dropdowns, radio buttons, on/off switches (and a slider).
 // Each carries its own sample data so it draws right away.
-import { ChartLine, ChartNoAxesColumn, ChartScatter, MapPin, SlidersHorizontal } from 'lucide-react'
+import { ChartLine, ChartNoAxesColumn, ChartScatter, Globe, Map as MapIcon, MapPin, Route, SlidersHorizontal } from 'lucide-react'
 import type { FigureParam } from '@/editor/types'
 import type { FigureTemplate } from './templates'
 
@@ -133,5 +133,232 @@ const ds = [
 ]
 expose(ds.length)
 return pc.map({ data: ds, kind, lat: "lat", lon: "lon", size: "value", color: kind === "points" ? "value" : undefined, basemap, width })`,
+  },
+]
+
+
+export const GEO_TEMPLATES: FigureTemplate[] = [
+  {
+    id: 'geo-choropleth',
+    label: 'GeoChoropleth polygons (D3 / GeoPandas)',
+    hint: 'Vector polygon choropleth with metric selector, color palette & centroid labels (Plot.geo)',
+    icon: MapIcon,
+    keywords: ['geo', 'geopandas', 'd3', 'choropleth', 'map', 'polygon', 'ban do', 'vung'],
+    caption: 'Spatial distribution across urban districts (D3-Geo & GeoPandas vector choropleth).',
+    params: [
+      select('metric', 'Metric', ['uhi_c', 'canopy_pct', 'pop_density'], 'uhi_c'),
+      select('scheme', 'Palette', ['ylorrd', 'viridis', 'blues', 'greens', 'purples'], 'ylorrd'),
+      toggle('show_labels', 'District labels', true),
+    ],
+    python: `# GeoPandas / pandas spatial aggregation over district polygons
+import geopandas as gpd
+
+districts = [
+    {"code": "D1", "uhi_c": 4.2, "canopy_pct": 11.5, "pop_density": 24.8},
+    {"code": "D2", "uhi_c": 2.1, "canopy_pct": 28.4, "pop_density": 11.2},
+    {"code": "D3", "uhi_c": 3.8, "canopy_pct": 14.0, "pop_density": 21.5},
+    {"code": "D4", "uhi_c": 3.5, "canopy_pct": 15.8, "pop_density": 19.4},
+    {"code": "D5", "uhi_c": 2.9, "canopy_pct": 20.2, "pop_density": 16.0},
+    {"code": "D6", "uhi_c": 1.6, "canopy_pct": 34.5, "pop_density": 8.4},
+    {"code": "D7", "uhi_c": 3.1, "canopy_pct": 18.6, "pop_density": 17.2},
+    {"code": "D8", "uhi_c": 2.4, "canopy_pct": 25.0, "pop_density": 13.5},
+    {"code": "D9", "uhi_c": 1.3, "canopy_pct": 38.2, "pop_density": 6.9},
+]
+gdf = gpd.GeoDataFrame.from_features([
+    {"type": "Feature", "properties": d, "geometry": {"type": "Point", "coordinates": [105.8, 21.0]}}
+    for d in districts
+])
+result = round(float(gdf[metric].mean()), 2)
+`,
+    js: `// Publication-grade vector choropleth map using Plot.geo + d3.geoCentroid (no external tiles needed)
+const rows = [
+  { code: "D1", name: "Central Core", gx: 1, gy: 1, uhi_c: 4.2, canopy_pct: 11.5, pop_density: 24.8 },
+  { code: "D2", name: "River East", gx: 2, gy: 1, uhi_c: 2.1, canopy_pct: 28.4, pop_density: 11.2 },
+  { code: "D3", name: "West Quarter", gx: 0, gy: 1, uhi_c: 3.8, canopy_pct: 14.0, pop_density: 21.5 },
+  { code: "D4", name: "North Hub", gx: 1, gy: 2, uhi_c: 3.5, canopy_pct: 15.8, pop_density: 19.4 },
+  { code: "D5", name: "Midtown", gx: 0, gy: 2, uhi_c: 2.9, canopy_pct: 20.2, pop_density: 16.0 },
+  { code: "D6", name: "Green Belt", gx: 2, gy: 2, uhi_c: 1.6, canopy_pct: 34.5, pop_density: 8.4 },
+  { code: "D7", name: "South Port", gx: 1, gy: 0, uhi_c: 3.1, canopy_pct: 18.6, pop_density: 17.2 },
+  { code: "D8", name: "Canal Ward", gx: 0, gy: 0, uhi_c: 2.4, canopy_pct: 25.0, pop_density: 13.5 },
+  { code: "D9", name: "Wetland Park", gx: 2, gy: 0, uhi_c: 1.3, canopy_pct: 38.2, pop_density: 6.9 },
+]
+// Build contiguous irregular district polygons in lon/lat coordinates
+const corner = (ix, iy) => {
+  const dx = Math.sin(ix * 1.9 + iy * 2.3) * 0.008
+  const dy = Math.cos(ix * 2.1 - iy * 1.7) * 0.006
+  return [+(105.78 + ix * 0.045 + dx).toFixed(4), +(20.96 + iy * 0.038 + dy).toFixed(4)]
+}
+const geojson = {
+  type: "FeatureCollection",
+  features: rows.map((r) => {
+    const p0 = corner(r.gx, r.gy), p1 = corner(r.gx + 1, r.gy)
+    const p2 = corner(r.gx + 1, r.gy + 1), p3 = corner(r.gx, r.gy + 1)
+    return {
+      type: "Feature",
+      properties: r,
+      geometry: { type: "Polygon", coordinates: [[p0, p3, p2, p1, p0]] },
+    }
+  }),
+}
+const labels = {
+  uhi_c: "Surface heat anomaly ΔT (°C)",
+  canopy_pct: "Tree canopy cover (%)",
+  pop_density: "Population density (k / km²)",
+}
+expose(+d3.mean(rows, (d) => d[metric]).toFixed(2))
+return Plot.plot({
+  width,
+  height: 360,
+  projection: { type: "mercator", domain: geojson, inset: 14 },
+  color: { scheme, legend: true, label: labels[metric] || metric },
+  marks: [
+    Plot.geo(geojson, {
+      fill: (f) => f.properties[metric],
+      stroke: "#ffffff",
+      strokeWidth: 1.6,
+      tip: true,
+      title: (f) => \`\${f.properties.code} · \${f.properties.name}\\n\${labels[metric]}: \${f.properties[metric]}\`,
+    }),
+    show_labels
+      ? Plot.text(
+          geojson.features,
+          Plot.centroid({
+            text: (f) => \`\${f.properties.code}\\n\${f.properties[metric]}\`,
+            fill: "#0f172a",
+            stroke: "#ffffff",
+            strokeWidth: 3,
+            fontSize: 11,
+            fontWeight: 600,
+          }),
+        )
+      : null,
+  ],
+})`,
+  },
+  {
+    id: 'geo-flows',
+    label: 'Spatial OD flow & hub map (D3-Geo)',
+    hint: 'Origin–destination corridor arcs, regional boundary & proportional hubs',
+    icon: Route,
+    keywords: ['geo', 'geopandas', 'd3', 'flow', 'network', 'arrow', 'od', 'map', 'ban do'],
+    caption: 'Origin–destination corridor flows and hub volumes (D3-Geo vector network).',
+    params: [
+      { name: 'min_flow', label: 'Min corridor flow', min: 10, max: 70, step: 5, value: 20, unit: 'k' },
+      { name: 'bend', label: 'Arc curvature', min: 0, max: 40, step: 5, value: 22, unit: '°' },
+    ],
+    python: `# Total active corridor volume at or above min_flow threshold
+flows = [68, 54, 46, 39, 34, 28, 24, 18, 14]
+result = int(sum(v for v in flows if v >= min_flow))
+`,
+    js: `// Spatial origin-destination flow network over a regional polygon boundary
+const region = {
+  type: "FeatureCollection",
+  features: [{
+    type: "Feature",
+    properties: { name: "Metropolitan Basin" },
+    geometry: {
+      type: "Polygon",
+      coordinates: [[[105.72, 20.94], [105.71, 21.06], [105.80, 21.15], [105.94, 21.16], [106.01, 21.08], [105.98, 20.97], [105.86, 20.92], [105.72, 20.94]]],
+    },
+  }],
+}
+const hubs = [
+  { id: "Core", lon: 105.85, lat: 21.03, jobs: 120 },
+  { id: "North", lon: 105.83, lat: 21.12, jobs: 65 },
+  { id: "East", lon: 105.95, lat: 21.05, jobs: 80 },
+  { id: "South", lon: 105.86, lat: 20.95, jobs: 55 },
+  { id: "West", lon: 105.75, lat: 21.04, jobs: 72 },
+  { id: "Tech Park", lon: 105.92, lat: 21.12, jobs: 60 },
+]
+const byId = Object.fromEntries(hubs.map((h) => [h.id, h]))
+const pairs = [
+  ["West", "Core", 68], ["North", "Core", 54], ["East", "Core", 46],
+  ["South", "Core", 39], ["North", "Tech Park", 34], ["East", "Tech Park", 28],
+  ["West", "North", 24], ["South", "East", 18], ["West", "South", 14],
+].map(([from, to, volume]) => ({
+  from, to, volume,
+  lon1: byId[from].lon, lat1: byId[from].lat,
+  lon2: byId[to].lon, lat2: byId[to].lat,
+}))
+const active = pairs.filter((d) => d.volume >= min_flow)
+expose(d3.sum(active, (d) => d.volume))
+return Plot.plot({
+  width,
+  height: 360,
+  projection: { type: "mercator", domain: region, inset: 18 },
+  color: { scheme: "blues", legend: true, label: "Corridor flow (k trips / day)" },
+  marks: [
+    Plot.graticule({ stroke: "#cbd5e1", strokeOpacity: 0.45 }),
+    Plot.geo(region, { fill: "#f8fafc", stroke: "#94a3b8", strokeWidth: 1.4 }),
+    Plot.arrow(active, {
+      x1: "lon1", y1: "lat1", x2: "lon2", y2: "lat2",
+      stroke: "volume",
+      strokeWidth: (d) => 1.2 + d.volume / 22,
+      bend,
+      headLength: 8,
+      inset: 9,
+      tip: true,
+      title: (d) => \`\${d.from} → \${d.to}: \${d.volume}k trips/day\`,
+    }),
+    Plot.dot(hubs, { x: "lon", y: "lat", r: (d) => 4 + Math.sqrt(d.jobs) * 0.65, fill: "#0f172a", stroke: "#ffffff", strokeWidth: 1.8 }),
+    Plot.text(hubs, { x: "lon", y: "lat", text: "id", dy: -12, fontSize: 11, fontWeight: 600, fill: "#0f172a", stroke: "#ffffff", strokeWidth: 3 }),
+  ],
+})`,
+  },
+  {
+    id: 'geo-projection',
+    label: 'Globe & projection map (D3-Geo)',
+    hint: 'Switch map projections (Orthographic, Equal Earth, Mercator) & rotate longitude',
+    icon: Globe,
+    keywords: ['geo', 'geopandas', 'd3', 'globe', 'projection', 'sphere', 'graticule', 'map', 'ban do'],
+    caption: 'Global monitoring stations rendered with interactive D3-Geo map projections.',
+    params: [
+      radio('proj', 'Projection', ['orthographic', 'equal-earth', 'mercator'], 'orthographic'),
+      { name: 'lon0', label: 'Center longitude', min: -180, max: 180, step: 15, value: 105, unit: '°' },
+      { name: 'lat0', label: 'Center latitude', min: -45, max: 45, step: 15, value: 15, unit: '°' },
+    ],
+    python: `import geopandas as gpd
+
+lons = [105.8, 139.7, 103.8, 121.5, 77.2, 151.2, 2.3, -0.1, -74.0, -122.4, -46.6, 31.2]
+lats = [21.0, 35.7, 1.3, 31.2, 28.6, -33.9, 48.9, 51.5, 40.7, 37.8, -23.5, 30.0]
+pts = gpd.points_from_xy(lons, lats)
+result = len(pts)
+`,
+    js: `// Interactive D3-Geo projection with sphere, graticules, landmass polygons & station anomalies
+const stations = [
+  { city: "Hanoi", lon: 105.8, lat: 21.0, anomaly: 1.45, obs: 92 },
+  { city: "Tokyo", lon: 139.7, lat: 35.7, anomaly: 1.62, obs: 110 },
+  { city: "Singapore", lon: 103.8, lat: 1.3, anomaly: 1.18, obs: 85 },
+  { city: "Shanghai", lon: 121.5, lat: 31.2, anomaly: 1.54, obs: 105 },
+  { city: "New Delhi", lon: 77.2, lat: 28.6, anomaly: 1.78, obs: 98 },
+  { city: "Sydney", lon: 151.2, lat: -33.9, anomaly: 0.95, obs: 76 },
+  { city: "Paris", lon: 2.3, lat: 48.9, anomaly: 1.34, obs: 88 },
+  { city: "London", lon: -0.1, lat: 51.5, anomaly: 1.21, obs: 84 },
+  { city: "New York", lon: -74.0, lat: 40.7, anomaly: 1.41, obs: 102 },
+  { city: "San Francisco", lon: -122.4, lat: 37.8, anomaly: 1.12, obs: 79 },
+  { city: "Sao Paulo", lon: -46.6, lat: -23.5, anomaly: 1.28, obs: 81 },
+  { city: "Cairo", lon: 31.2, lat: 30.0, anomaly: 1.67, obs: 74 },
+]
+expose(stations.length)
+return Plot.plot({
+  width,
+  height: 360,
+  projection: { type: proj, rotate: [-lon0, -lat0] },
+  color: { scheme: "ylorrd", legend: true, label: "Thermal anomaly (°C)" },
+  marks: [
+    Plot.sphere({ fill: "#f0f9ff", stroke: "#94a3b8", strokeWidth: 1.2 }),
+    Plot.graticule({ stroke: "#64748b", strokeOpacity: 0.28 }),
+    Plot.dot(stations, {
+      x: "lon", y: "lat",
+      r: (d) => 4 + d.obs / 22,
+      fill: "anomaly",
+      stroke: "#0f172a",
+      strokeWidth: 1,
+      tip: true,
+      title: (d) => \`\${d.city}: +\${d.anomaly} °C (\${d.obs} sensors)\`,
+    }),
+    Plot.text(stations, { x: "lon", y: "lat", text: "city", dy: -10, fontSize: 10.5, fontWeight: 600, fill: "#0f172a", stroke: "#ffffff", strokeWidth: 2.5 }),
+  ],
+})`,
   },
 ]

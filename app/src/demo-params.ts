@@ -30,7 +30,7 @@ return Plot.plot({
   const python = `rows = data["${v.data}"]
 if sort_desc:
     rows = rows.sort_values(metric, ascending=False)
-ket_qua = rows[metric].head(top_n).tolist()`
+result = rows[metric].head(top_n).tolist()`
   return {
     type: 'figure', id: PARAMS_DEMO_ID, caption: v.caption, js, python, display: 'output', codeAccess: 'both', children: [{ text: '' }],
     params: [

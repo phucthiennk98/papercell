@@ -87,7 +87,7 @@ function makeData(): DataFile[] {
     const [la, lo] = k.split(',').map(Number)
     return {
       type: 'Feature', properties: { cell: `${la}°N ${lo}°E`, respondents: c.n, mean_income: +(c.inc / c.n).toFixed(1) },
-      geometry: { type: 'Polygon', coordinates: [[[lo, la], [lo + 1, la], [lo + 1, la + 1], [lo, la + 1], [lo, la]]] },
+      geometry: { type: 'Polygon', coordinates: [[[lo, la], [lo, la + 1], [lo + 1, la + 1], [lo + 1, la], [lo, la]]] },
     }
   })
 
@@ -141,7 +141,7 @@ return Plot.plot({
 })`
 
 const DOT_PY = `provinces = data["provinces"]
-ket_qua = int((provinces.income >= threshold).sum())`
+result = int((provinces.income >= threshold).sum())`
 
 const DENSITY_JS = `// Density lines of travel time by mode; smoothness set by the slider
 const ds = data.survey
@@ -179,7 +179,7 @@ return Plot.plot({
 
 const CORR_PY = `vars = ["age", "income", "trips_per_week", "travel_min", "satisfaction"]
 c = data["survey"][vars].corr().round(2)
-ket_qua = [{"a": a, "b": b, "r": float(c.loc[b, a])} for a in vars for b in vars]`
+result = [{"a": a, "b": b, "r": float(c.loc[b, a])} for a in vars for b in vars]`
 
 const WAFFLE_JS = `// Waffle chart: each square ≈ 1% of respondents
 const counts = d3.rollups(data.survey, v => v.length, d => d.mode).sort((a, b) => b[1] - a[1])
@@ -224,6 +224,124 @@ return \`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(1
   \`<div style="border:1px solid #e5e7eb;border-radius:10px;padding:12px 14px"><div style="font-size:12px;color:#6b7280">\${pc.esc(t)}</div>
    <div style="font-size:24px;font-weight:600;margin-top:4px">\${v} <span style="font-size:12px;font-weight:400;color:#6b7280">\${unit}</span></div></div>\`).join("")}</div>\``
 
+const GEO_BIVARIATE_JS = `// Bivariate D3-Geo vector map: 1° GeoJSON grid cells + filtered province hubs
+const cells = data.grid_cells
+const provs = data.provinces.filter(d => d.population >= min_pop)
+expose(provs.length)
+return Plot.plot({
+  width, height: 360,
+  projection: { type: "mercator", domain: cells, inset: 14 },
+  color: { scheme: "ylgnbu", legend: true, label: "Grid mean income (M VND)" },
+  marks: [
+    Plot.graticule({ stroke: "#cbd5e1", strokeOpacity: 0.4 }),
+    Plot.geo(cells, {
+      fill: f => f.properties.mean_income,
+      stroke: "#64748b",
+      strokeWidth: 0.75,
+      fillOpacity: 0.82,
+      tip: true,
+      title: f => \`\${f.properties.cell}\\nMean income: \${f.properties.mean_income}M VND (n=\${f.properties.respondents})\`,
+    }),
+    Plot.dot(provs, {
+      x: "lon", y: "lat",
+      r: d => 3 + Math.sqrt(d.population) * 0.085,
+      fill: "#e11d48", stroke: "#ffffff", strokeWidth: 1.4,
+    }),
+    Plot.text(provs.slice(0, 8), {
+      x: "lon", y: "lat", text: "name", dy: -9,
+      fontSize: 10, fontWeight: 600, fill: "#0f172a", stroke: "#ffffff", strokeWidth: 2.5,
+    }),
+  ],
+})`
+
+const GEO_BIVARIATE_PY = `import geopandas as gpd
+
+provs = data["provinces"]
+gdf = gpd.GeoDataFrame(provs, geometry=gpd.points_from_xy(provs.lon, provs.lat))
+result = int((gdf["population"] >= min_pop).sum())`
+
+const CONTOUR_JS = `// 2D joint density contours (D3 / Observable Plot contour density)
+const ds = data.survey.filter(d => ["Motorbike", "Car", "Bus", "Ride-hailing"].includes(d.mode))
+expose(ds.length)
+return Plot.plot({
+  width, height: 320,
+  x: { label: "Monthly income (million VND)", grid: true },
+  y: { label: "Commute duration (minutes)", grid: true },
+  color: { legend: true, scheme: "tableau10" },
+  marks: [
+    Plot.density(ds, { x: "income", y: "travel_min", stroke: "mode", bandwidth, thresholds: 8, strokeWidth: 1.4 }),
+    Plot.dot(ds.slice(0, 350), { x: "income", y: "travel_min", fill: "mode", r: 2, fillOpacity: 0.45, tip: true }),
+  ],
+})`
+
+const FOREST_JS = `// Regional mean income with 95% confidence intervals (Forest / Error-bar plot)
+const groups = d3.rollups(
+  data.survey,
+  v => {
+    const n = v.length
+    const mean = d3.mean(v, d => d.income)
+    const sd = d3.deviation(v, d => d.income) || 0
+    const ci = 1.96 * sd / Math.sqrt(n)
+    return { n, mean: +mean.toFixed(2), low: +(mean - ci).toFixed(2), high: +(mean + ci).toFixed(2) }
+  },
+  d => d.region
+).map(([region, s]) => ({ region, ...s })).sort((a, b) => b.mean - a.mean)
+expose(groups.filter(d => d.mean >= ref_line).length)
+return Plot.plot({
+  width, height: 320, marginLeft: 145,
+  x: { label: "Mean monthly income ± 95% CI (M VND)", grid: true },
+  y: { label: null, domain: groups.map(d => d.region) },
+  marks: [
+    Plot.ruleX([ref_line], { stroke: "#e11d48", strokeDasharray: "4,3", strokeWidth: 1.5 }),
+    Plot.link(groups, { y1: "region", y2: "region", x1: "low", x2: "high", stroke: "#475569", strokeWidth: 2.2 }),
+    Plot.dot(groups, {
+      y: "region", x: "mean", r: 5.5,
+      fill: d => d.mean >= ref_line ? "#2563eb" : "#94a3b8",
+      stroke: "#ffffff", strokeWidth: 1.5, tip: true,
+    }),
+  ],
+})`
+
+const FOREST_PY = `survey = data["survey"]
+means = survey.groupby("region")["income"].mean()
+result = int((means >= ref_line).sum())`
+
+const PARALLEL_JS = `// Multi-indicator normalized parallel coordinates profile by region
+const metrics = ["income", "travel_min", "trips_per_week", "satisfaction"]
+const byReg = d3.rollups(
+  data.survey,
+  v => Object.fromEntries(metrics.map(m => [m, d3.mean(v, d => d[m])])),
+  d => d.region
+)
+const extents = Object.fromEntries(metrics.map(m => [m, d3.extent(byReg, ([, o]) => o[m])]))
+const pts = byReg.flatMap(([region, o]) =>
+  metrics.map(m => {
+    const [lo, hi] = extents[m]
+    return { region, metric: m, norm: hi > lo ? (o[m] - lo) / (hi - lo) : 0.5, raw: +o[m].toFixed(2) }
+  })
+)
+expose(byReg.length)
+return Plot.plot({
+  width, height: 320,
+  x: { label: "Indicator axis", domain: metrics },
+  y: { label: "Normalized score (0 = min, 1 = max)", domain: [0, 1], grid: true },
+  color: { legend: true, scheme: "tableau10" },
+  marks: [
+    Plot.ruleX(metrics, { stroke: "#cbd5e1" }),
+    Plot.line(pts, {
+      x: "metric", y: "norm", z: "region",
+      stroke: "region",
+      strokeWidth: d => highlight === "All" || d.region === highlight ? 2.8 : 1.2,
+      strokeOpacity: d => highlight === "All" || d.region === highlight ? 1 : 0.25,
+    }),
+    Plot.dot(pts, {
+      x: "metric", y: "norm", fill: "region", r: 4,
+      fillOpacity: d => highlight === "All" || d.region === highlight ? 1 : 0.25,
+      tip: true, title: d => \`\${d.region} · \${d.metric}: \${d.raw}\`,
+    }),
+  ],
+})`
+
 export function makeGallery(): PapercellDoc {
   n = 0
   return {
@@ -231,9 +349,44 @@ export function makeGallery(): PapercellDoc {
     meta: { title: GALLERY_TITLE, authors: 'Spatial Analytics Group · Papercell Showcase', date: '2026-10-24' },
     data: makeData(),
     content: [
-      p('A comprehensive reference showcase of interactive chart types, geospatial maps, precomputed Python models, and reader parameter controls supported in Papercell, built on multi-region demographic, expenditure, and mobility survey datasets.'),
-      p('Figures in Sections 1 and 2 are configured directly through the no-code Design tab (select datasets, channels, and aggregations). Sections 3–5 demonstrate parameterized templates, custom Observable Plot / D3 code, Python verification, and interactive reader controls.'),
-      h(2, '1. Basic charts (Design tab)'),
+      p('A comprehensive reference showcase of interactive chart types, GeoPandas & D3-Geo vector maps, scientific equations, precomputed Python models, and reader parameter controls supported in Papercell — built on synthetic multi-region demographic, expenditure, and mobility survey datasets.'),
+      h(2, '1. GeoPandas & D3-Geo Vector Maps (Spatial Analytics)'),
+      p('Publication-grade vector maps rendered directly with Observable Plot / D3-Geo (Plot.geo, Plot.centroid, Plot.arrow, Plot.sphere) and paired with GeoPandas (geopandas.GeoDataFrame) verification scripts.'),
+      cols(
+        tplFig('geo-choropleth'),
+        tplFig('geo-flows'),
+      ),
+      cols(
+        tplFig('geo-projection'),
+        codeFig('Bivariate spatial grid & regional hubs (GeoPandas + D3-Geo).', GEO_BIVARIATE_JS,
+          [{ name: 'min_pop', label: 'Min population', min: 500, max: 3000, step: 250, value: 1000, unit: 'k' }], GEO_BIVARIATE_PY),
+      ),
+      h(2, '2. Advanced D3 & Statistical Visualizations'),
+      {
+        type: 'equation',
+        id: `g${++n}`,
+        texExpression: String.raw`T_{ij} = \kappa\,\frac{P_i^{\alpha}\,A_j^{\gamma}}{d_{ij}^{\beta}}\,\exp(-\lambda\,c_{ij}), \qquad \beta = 1.45,\;\lambda = 0.08`,
+        description: [
+          String.raw`• $T_{ij}$: Expected daily origin–destination flow between zone $i$ and corridor hub $j$`,
+          String.raw`• $P_i, A_j$: Origin population mass ($10^3$) and destination employment attraction index`,
+          String.raw`• $d_{ij}, c_{ij}$: Geodesic network distance ($\text{km}$) and generalized travel time cost ($\text{min}$)`,
+          String.raw`• $\beta = 1.45, \lambda = 0.08$: Power-law impedance exponent and exponential deterrence parameter`,
+        ].join('\n'),
+        descriptionMode: 'inline',
+        children: [{ text: '' }],
+      },
+      cols(
+        codeFig('2D joint density contours: income vs. travel duration by mode.', CONTOUR_JS,
+          [{ name: 'bandwidth', label: 'Contour bandwidth', min: 10, max: 40, step: 5, value: 22 }]),
+        codeFig('Regional income ± 95% confidence interval forest plot (with Python verify).', FOREST_JS,
+          [{ name: 'ref_line', label: 'Reference benchmark', min: 5, max: 9, step: 0.2, value: 6.8, unit: 'M VND' }], FOREST_PY),
+      ),
+      cols(
+        codeFig('Multi-indicator normalized parallel coordinates profile by region.', PARALLEL_JS,
+          [{ name: 'highlight', label: 'Highlight region', kind: 'select', options: ['All', 'Southeast', 'Red River Delta', 'Mekong Delta', 'North Central Coast'], value: 'Southeast', min: 0, max: 0, step: 1 }]),
+        codeFig('Correlation matrix (with original Python to verify).', CORR_JS, [], CORR_PY),
+      ),
+      h(2, '3. Basic charts (Design tab)'),
       cols(
         specFig('Bar: total population by region.', { data: 'provinces', type: 'bar', x: 'region', y: 'population', agg: 'sum', sort: 'desc', yLabel: 'Population (thousands)' }),
         specFig('Horizontal bar: mean income by region.', { data: 'provinces', type: 'barh', y: 'region', x: 'income', agg: 'mean', sort: 'desc', xLabel: 'Income (million VND / month)' }),
@@ -256,18 +409,18 @@ export function makeGallery(): PapercellDoc {
         specFig('Table: respondents by travel mode.', { data: 'survey', type: 'table', x: 'mode', agg: 'count', sort: 'desc' }),
       ),
       specFig('Table: first rows of the province data (scrolls sideways when narrow).', { data: 'provinces', type: 'table' }),
-      h(2, '2. Maps (MapLibre, OpenFreeMap basemaps)'),
+      h(2, '4. Interactive Tile Maps (MapLibre, OpenFreeMap basemaps)'),
       specFig('Point map: provinces, colored by region, sized by population.', { data: 'provinces', type: 'map-points', lat: 'lat', lon: 'lon', color: 'region', size: 'population', basemap: 'light' }),
       cols(
         specFig('Heat map: where survey respondents live.', { data: 'survey', type: 'map-heat', lat: 'lat', lon: 'lon', basemap: 'dark' }),
         specFig('Choropleth (GeoJSON): respondents in each 1° cell.', { data: 'grid_cells', type: 'map-regions', color: 'respondents', scheme: 'ylorrd', basemap: 'streets' }),
       ),
-      h(2, '3. Built-in templates (Figure button)'),
-      p('Templates carry their own sample data inside the code and have sliders. The "Python model" template needs the Precompute tab: press Run to get a figure.'),
+      h(2, '5. Built-in templates (Figure button)'),
+      p('Templates carry their own sample data inside the code and have sliders. The "Python model" template needs the Verify & Precompute tab: press Run to get a figure.'),
       cols(tplFig('line'), tplFig('scatter')),
       cols(tplFig('histogram'), tplFig('hexbin')),
       tplFig('model'),
-      h(2, '4. Hand-written code (Observable Plot, d3, HTML)'),
+      h(2, '6. Custom Observable Plot, D3 & HTML Figures'),
       codeFig('KPI cards in HTML.', CARDS_JS),
       cols(
         codeFig('100% stacked bars: travel mode share by age group.', STACK_JS),
@@ -276,10 +429,7 @@ export function makeGallery(): PapercellDoc {
       codeFig('Dot plot: income by province, threshold set by a slider.', DOT_JS,
         [{ name: 'threshold', label: 'Income threshold', min: 4, max: 12, step: 0.5, value: 8, unit: 'M VND' }], DOT_PY),
       paramsDemo('en'),
-      cols(
-        codeFig('Density of travel time by mode.', DENSITY_JS, [{ name: 'bins', label: 'Bins', min: 10, max: 60, step: 5, value: 30 }]),
-        codeFig('Correlation matrix (with original Python to verify).', CORR_JS, [], CORR_PY),
-      ),
+      codeFig('Density of travel time by mode.', DENSITY_JS, [{ name: 'bins', label: 'Bins', min: 10, max: 60, step: 5, value: 30 }]),
       codeFig('Trend with moving average (Southeast).', TREND_JS, [{ name: 'window_size', label: 'Moving window', min: 1, max: 12, step: 1, value: 3, unit: 'months' }]),
       ...controlsSection(),
       p('Add a figure: use the "Figure" button on the toolbar, type / on an empty line, or click + next to the ⠿ handle left of any block.'),

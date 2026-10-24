@@ -99,6 +99,16 @@ export function FigureCard({ fig, readOnly, update, remove, applyPaddingAll, onA
         )}
         {/* Floating toolbar, shown on hover: status + actions */}
         <div className="fig-tools">
+          {!readOnly && fig.js.trim() && (
+            <button
+              type="button"
+              className="fig-badge fig-badge-btn"
+              data-tip={fig.specDetached || !fig.spec ? 'Custom JavaScript code (click to open)' : 'JavaScript code (click to open)'}
+              onClick={() => setDialog('js')}
+            >
+              JS
+            </button>
+          )}
           {!readOnly && fig.python.trim() && (
             <button
               type="button"

@@ -1,20 +1,20 @@
-// "Kịch bản tính sẵn": chạy Python gốc cho mọi tổ hợp tham số một lần (trên máy tác giả),
-// nén kết quả vào tài liệu; khi đọc bài chỉ tra kết quả theo vị trí thanh trượt, không cần Python.
+// Precomputed scenarios: run Local Python (ket_qua) or JavaScript (expose(value)) across every parameter combination once,
+// compress the results into the document, and look up the precomputed result on slider movement when reading.
 import { isChoice, paramKind, type DataFile, type FigureNode, type FigureParam, type ParamValue } from '@/editor/types'
 import { packText, unpackText } from '@/lib/pack'
 
 export type GridAxis = { name: string; values: ParamValue[] }
 
 export type ScenarioCache = {
-  /** Lưới đã tính: mỗi tham số một dãy giá trị. Tổ hợp xếp theo thứ tự: tham số cuối thay đổi nhanh nhất. */
+  /** Precomputed grid: one array of values per parameter. Combinations ordered with the last parameter varying fastest. */
   grid: GridAxis[]
-  /** Kết quả (biến ket_qua của Python) cho từng tổ hợp, nén gzip rồi mã base64. */
+  /** Result (ket_qua from Python or expose() from JS) for each combination, gzip-compressed and base64-encoded. */
   payload: string
   count: number
   bytes: number
-  /** Dấu vân tay của code Python + dữ liệu + lưới; đổi một trong ba là kết quả cũ. */
+  /** Fingerprint of the source code + data + grid; changing any of them marks cached results stale. */
   fingerprint: string
-  engine: 'local' | 'pyodide'
+  engine: 'local' | 'js' | 'pyodide'
   at: string
   seconds: number
   failed: number
@@ -32,7 +32,7 @@ export function axisValues(p: FigureParam, step = p.step): ParamValue[] {
 
 export const comboCount = (grid: GridAxis[]) => grid.reduce((n, a) => n * a.values.length, 1)
 
-/** Tổ hợp thứ i của lưới (tham số cuối thay đổi nhanh nhất). */
+/** Combination #i of the grid (last parameter changes fastest). */
 export function comboAt(grid: GridAxis[], i: number): Record<string, ParamValue> {
   const out: Record<string, ParamValue> = {}
   for (let k = grid.length - 1; k >= 0; k--) {
@@ -54,28 +54,28 @@ function nearest(a: GridAxis, v: ParamValue | undefined): number {
   return j < 0 ? 0 : j
 }
 
-/** Vị trí của bộ giá trị tham số trong lưới. */
+/** Index of a parameter value dictionary in the grid. */
 export function indexOf(grid: GridAxis[], values: Record<string, ParamValue>): number {
   let idx = 0
   for (const a of grid) idx = idx * a.values.length + nearest(a, values[a.name] ?? a.values[0])
   return idx
 }
 
-/** Giá trị lưới gần nhất (để thanh trượt "bắt" vào đúng điểm đã tính). */
+/** Nearest grid value (so sliders snap to precomputed points). */
 export function snap(grid: GridAxis[], name: string, v: number): number {
   const a = grid.find((g) => g.name === name); if (!a) return v
   const x = a.values[nearest(a, v)]
   return typeof x === 'number' ? x : v
 }
 
-// ---- Nén: JSON → gzip → base64 (trình duyệt tự làm bằng CompressionStream) ----
+// ---- Compression: JSON -> gzip -> base64 (native CompressionStream in browser) ----
 export async function encodeResults(results: unknown[]): Promise<{ payload: string; bytes: number }> {
   const { b64, bytes } = await packText(JSON.stringify(results))
   return { payload: b64, bytes }
 }
 
 const decoded = new Map<string, Promise<unknown[]>>()
-/** Giải nén một lần rồi nhớ lại (theo nội dung). */
+/** Decompress once and memoize by payload signature. */
 export function decodeResults(payload: string): Promise<unknown[]> {
   const key = payload.length + ':' + payload.slice(0, 48) + payload.slice(-48)
   if (!decoded.has(key)) {
@@ -86,12 +86,22 @@ export function decodeResults(payload: string): Promise<unknown[]> {
   return decoded.get(key)!
 }
 
-// ---- Dấu vân tay ----
+// ---- Fingerprint ----
 async function sha256(text: string) {
   const h = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text))
   return Array.from(new Uint8Array(h)).map((b) => b.toString(16).padStart(2, '0')).join('').slice(0, 16)
 }
-export const fingerprint = (fig: Pick<FigureNode, 'python'>, files: DataFile[], grid: GridAxis[]) =>
-  sha256(JSON.stringify({ code: fig.python, data: files.map((f) => [f.name, f.content.length, f.content]), grid }))
+export const fingerprint = (
+  fig: Pick<FigureNode, 'python' | 'js'>,
+  files: DataFile[],
+  grid: GridAxis[],
+  engine: ScenarioCache['engine'] = 'local',
+) =>
+  sha256(JSON.stringify({
+    engine: engine === 'js' ? 'js' : 'python',
+    code: engine === 'js' ? fig.js : fig.python,
+    data: files.map((f) => [f.name, f.content.length, f.content]),
+    grid,
+  }))
 
 export const formatBytes = (b: number) => (b > 1e6 ? (b / 1e6).toFixed(1) + ' MB' : b > 1e3 ? Math.ceil(b / 1e3) + ' KB' : b + ' B')

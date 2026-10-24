@@ -30,6 +30,20 @@ except ImportError:
     sys.modules["matplotlib.pyplot"] = _plt
     pd.Series.plot = property(lambda self: _Noop())
     pd.DataFrame.plot = property(lambda self: _Noop())
+try:
+    import geopandas
+except ImportError:
+    import types as _types
+    class _GeoDataFrame(pd.DataFrame):
+        @classmethod
+        def from_features(cls, features, crs=None):
+            feats = features.get("features", []) if isinstance(features, dict) else list(features)
+            rows = [{**(f.get("properties") or {}), "geometry": f.get("geometry")} for f in feats]
+            return cls(rows)
+    _gpd = _types.ModuleType("geopandas")
+    _gpd.GeoDataFrame = _GeoDataFrame
+    _gpd.points_from_xy = lambda x, y, z=None, crs=None: [{"type": "Point", "coordinates": [float(a), float(b)]} for a, b in zip(x, y)]
+    sys.modules["geopandas"] = _gpd
 
 def jsonable(v):
     mod = type(v).__module__ or ""
@@ -47,7 +61,7 @@ def jsonable(v):
         return [jsonable(x) for x in v]
     if isinstance(v, float) and (math.isnan(v) or math.isinf(v)):
         return None
-    return v
+    return jsonable(v.__geo_interface__) if hasattr(v, "__geo_interface__") else v
 
 out = sys.stdout
 job = json.loads(sys.stdin.read())
@@ -71,7 +85,7 @@ for i, combo in enumerate(job["combos"]):
     try:
         exec(code, g)
         sys.stdout = out
-        res = {"i": i, "ok": True, "value": jsonable(g["ket_qua"])} if "ket_qua" in g else {"i": i, "ok": False, "error": "The Python code did not assign the variable ket_qua."}
+        res = {"i": i, "ok": True, "value": jsonable(g["result" if "result" in g else "ket_qua"])} if ("result" in g or "ket_qua" in g) else {"i": i, "ok": False, "error": "The Python code did not assign the variable result."}
     except BaseException as e:
         sys.stdout = out
         tb = [fr for fr in traceback.extract_tb(e.__traceback__) if fr.filename == "<python>"]

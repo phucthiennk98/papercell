@@ -18,7 +18,7 @@ Contents
 - **Entry point (`app/src/main.tsx`)**: Loads KaTeX CSS (`katex.min.css`), Tailwind (`index.css`), and figure CSS (`figure/papercell.css`, `figure/figure.css`), then renders `<App />`.
 - **Main shell (`app/src/App.tsx`)**:
   - Manages application-level state: current `docId` (initialized via `ensureFirstDoc()`), the `docs` list (`listDocs()`), left sidebar visibility (`sidebar`), article search query (`query`), table of contents (`headings`), the `editor` reference, and whether `AssistantPanel` is open (stored in `localStorage['papercell.assistant']`; automatically collapses `sidebar` when the screen is `< 1280px`).
-  - **Left sidebar**: Article search by title, document list (create a blank article with `emptyDoc()`, delete with `deleteDoc()`), table-of-contents tree (`Outline` jumps to blocks via `editor.api.toDOMNode`), and 2 buttons to quickly create sample articles (`makeSample()`, `makeGallery()`).
+  - **Left sidebar**: Article search by title, pinned documents section (`Pinned` with `togglePinDoc()`), document list (create a blank article with `emptyDoc()`, pin/unpin on hover, delete with confirmation via `AlertDialog` and `deleteDoc()`), table-of-contents tree (`Outline` jumps to blocks via `editor.api.toDOMNode`), and 2 buttons to quickly create sample articles (`makeSample()`, `makeGallery()`).
   - **`DocView`**: Initializes the editor with `usePlateEditor({ plugins: PapercellKit, value: initial.content })` (assigns `window.__editor = editor` in dev). Autosaves after 400ms (`persist`) when `meta`, `files`, or article content (`onChange`) changes. Synchronizes reading/editing mode (`readOnly`) with `location.hash` (`#read` / `#edit`).
   - **Three React Contexts wrap `<Plate>`**:
     1. `MetaContext` (`app/src/editor/DocHeader.tsx`): provides `{ meta, setMeta }` (title, authors, date) to `DocHeader` and the export button.
@@ -26,7 +26,7 @@ Contents
     3. `FigureNumbers` (`app/src/figure/FigureElement.tsx`): provides a figure number mapping (`scan(value).figs`) for automatic numbering.
   - **Synchronizing AI configuration into Plate**: `useEffect` in `DocView` registers `aiStore.subscribe` to inject `aiMode`, `agent`, `agentModel`, `agentEffort`, and `aiConfig` into `aiChatPlugin`'s `chatOptions.body` and `CopilotPlugin`'s `completeOptions.body`.
 - **`localStorage` storage (`app/src/docs/store.ts`)**:
-  - The article index is stored under `papercell.index.v1` (`DocEntry[]` containing `{ id, title, updated }`), newest first.
+  - The article index is stored under `papercell.index.v1` (`DocEntry[]` containing `{ id, title, updated, pinned? }`), newest first. `saveDoc` preserves `pinned`, and `togglePinDoc(id)` toggles pin state in place.
   - Each article's content is stored separately at `papercell.doc.<id>` (`PapercellDoc` format, `version: 3`). When read via `loadDoc(id)`, data passes through `upgradeDoc(d)` (`app/src/editor/upgrade.ts`) for backward compatibility.
   - `ensureFirstDoc()`: On first opening, automatically creates the chart test gallery (`papercell.gallery.v1`) and sample article (`makeSample()`).
 - **Plate plugin kit (`app/src/editor/papercell-kit.tsx`, `app/src/components/editor/editor-kit.tsx`)**:
@@ -60,7 +60,7 @@ Contents
 - **Local Python (`app/server/python/grid.ts`)**:
   - `pythonBin()` finds `python`, `py`, or `python3` (skips if `bin.shell === true`). `detectPython()` checks that `import sys, pandas` can execute and caches results for 60 seconds.
   - `runGrid(job, signal)`: Creates a temporary `papercell-grid-*` directory, writes data tables to `data_<i>.csv|json` and the `runner.py` script (the `RUNNER` constant), passes `{ code, files, combos }` via `stdin`.
-  - The `RUNNER` script preloads data with `pandas`, compiles code once (`compile(job["code"], "<python>", "exec")`), then iterates over parameter combinations `combos`: creates an independent copy of `data` (`v.copy()` / `copy.deepcopy`), executes `exec(code, g)`, collects the `ket_qua` variable (converts DataFrame/Series/numpy/NaN to valid JSON via `jsonable()`), closes matplotlib figures, and prints JSONL lines (`application/x-ndjson`) back to the browser.
+  - The `RUNNER` script preloads data with `pandas`, compiles code once (`compile(job["code"], "<python>", "exec")`), then iterates over parameter combinations `combos`: creates an independent copy of `data` (`v.copy()` / `copy.deepcopy`), executes `exec(code, g)`, collects the `result` variable (falling back to `ket_qua` for legacy compatibility; converts DataFrame/Series/numpy/NaN to valid JSON via `jsonable()`), closes matplotlib figures, and prints JSONL lines (`application/x-ndjson`) back to the browser.
 
 ### 3. Browser-side AI Assistant and the AI prompt field in CodeEditor
 
@@ -83,10 +83,11 @@ Contents
 ### 4. Plate component customizations
 
 - **`app/src/components/ui/dropdown-menu.tsx`**: In `DropdownMenuContent`, removed the class forcing the menu to match the trigger width (`w-(--radix-dropdown-menu-trigger-width)`), keeping only `min-w-32` so dropdowns (such as Figure, Export, Turn into) expand to fit their content.
-- **`app/src/components/ui/block-draggable.tsx` & `app/src/editor/side-drop.ts`**:
-  - **Lark-style insertion line (`InsertGap`)**: At the top edge of each block (outside tables); hovering in the gap between two blocks shows a horizontal line with a `+` button to quickly insert an empty paragraph (particularly useful between consecutive figures, tables, or column groups).
+- **`app/src/components/ui/block-draggable.tsx`, `app/src/components/ui/column-node.tsx` & `app/src/editor/side-drop.ts`**:
+  - **Lark-style insertion line (`InsertGap`)**: At the top edge of each block (outside tables), leaving a 92px right-corner clearance (`right: 92px; z-index: 20`) so hovering the top-right AI/Delete buttons (`.text-cell-tools`, `z-index: 35`) never triggers accidental block insertion.
   - **`+` button next to the drag handle (`openInsertMenu`)**: Clicking `+` in a block's left margin moves to the current blank line (or creates one immediately below), then automatically types `/` to open the block insertion menu.
-  - **Side drops create columns (`side-drop.ts`)**: In the innermost block's `onDragOver`, `sideOf(clientX, rect)` checks whether the cursor is in the left/right edge zone (`20%` of block width, up to `90px`). If valid (`canDropSide`, at most `MAX_COLUMNS = 4`), shows a vertical brand-colored line; on drop, `dropToSide(editor, ids, side.id, side.side)` groups the two blocks into a `column_group` (or adds a column to an existing group), then calls `equalize()` to distribute `%` widths equally.
+  - **Column block reordering & ungrouping (`column-node.tsx`, `side-drop.ts`)**: `KEYS.columnGroup` remains wrapped in `BlockDraggable` so the entire multi-column group keeps its own `+ / ⋮⋮` drag handle and AI/Delete toolbar (hidden via `.group\/container:has(.group:hover) > .slate-gutterLeft` when hovering inner column cells). Inner column cells reorder vertically without triggering side-drops (`canDropSide` returns `false` for same-column siblings and `sideOf` only activates in the middle vertical band `0.22..0.78`). Dragging a column's top-center `ColumnDragHandle` (`:::`) swaps columns horizontally within the same `column_group`, or drops onto `ColumnGroupEdgeDrop` or any top-level block in the article (`moveToColumnGroupEdge` in `side-drop.ts`) to move all blocks of that column out to full-width blocks and automatically unwrap single-column groups.
+  - **Side drops create columns (`side-drop.ts`)**: In the innermost block's `onDragOver`, `sideOf(clientX, rect)` checks whether the cursor is in the left/right edge zone (`20%` of block width, at most `90px`). If valid (`canDropSide`, at most `MAX_COLUMNS = 4`), shows a vertical brand-colored line; on drop, `dropToSide(editor, ids, side.id, side.side)` groups the two blocks into a `column_group` (or adds a column to an existing group), then calls `equalize()` to distribute `%` widths equally.
 - **`app/src/components/ui/column-node.tsx`**: Adds a vertical `.col-resize-handle` at the boundary between two columns (`!readOnly && !isLast`). `startResize` directly updates `style.width` on the two adjacent columns while dragging (keeping each column `>= 10%`), and only calls `editor.tf.setNodes` inside `editor.tf.withoutNormalizing` on release to create exactly one undo step.
 - **Figure menu, `/` menu, and HTML export**:
   - `app/src/components/ui/figure-toolbar-button.tsx`: `FigureToolbarButton` (on `FixedToolbarButtons` in `app/src/components/ui/fixed-toolbar-buttons.tsx`) displays a 4-column grid of chart types from data (`CHART_TYPES` → `insertChart`) and a list of code templates (`FIGURE_TEMPLATES` → `insertFigure`, with a separate `controls-*` group for reader controls).
@@ -161,10 +162,10 @@ Alongside single-query mode (`/api/agents/chat`, `agentChat` in `local.ts`), ses
 - `app/src/figure/runtime.ts`: `dataKey` removes the extension, replaces invalid characters with `_`, and prefixes a leading digit with `_`; `labelsOf` converts labels into a map keyed by that dataset key.
 - `parseData` creates `Dataset = Record<string, unknown>`: CSV through `d3.csvParse(..., d3.autoType)`, JSON through `JSON.parse`, parse errors become `null`.
 - `DataContext` contains `{ files, data, setFiles }`; this is runtime data in the React session, distinct from the `DataFile[]` array serialized in the document.
-- `ChartSpec` in `app/src/figure/builder.ts` is stored at `FigureNode.spec`: `data`, `type`, channels `x/y/color/size/facet/lat/lon`, `agg`, `bins`, `sort`, `xLabel/yLabel`, `scheme`, `basemap`.
+- `ChartSpec` in `app/src/figure/builder.ts` is stored at `FigureNode.spec`: `data`, `type`, channels `x/y/color/size/facet/lat/lon`, optional `filters?: string[]` (dataset columns exposed as interactive reader filter controls), `agg`, `bins`, `sort`, `xLabel/yLabel`, `scheme`, `basemap`.
 - `ChartType` currently has 12 types: bar, barh, line, area, scatter, histogram, box, heatmap, table, map-points, map-heat, map-regions.
-- `ScenarioCache` in `app/src/figure/scenarios.ts` is stored at `FigureNode.scenarios`: `grid`, `payload`, `count`, `bytes`, `fingerprint`, `engine`, `at`, `seconds`, `failed`.
-- Each `GridAxis = { name, values: ParamValue[] }`; `payload` is an array of Python results in combination order, JSON → gzip → base64; `bytes` is the compressed byte count.
+- `ScenarioCache` in `app/src/figure/scenarios.ts` is stored at `FigureNode.scenarios`: `grid`, `payload`, `count`, `bytes`, `fingerprint`, `engine` (`'local' | 'js' | 'pyodide'`), `at`, `seconds`, `failed`.
+- Each `GridAxis = { name, values: ParamValue[] }`; `payload` is an array of precomputed results (`ket_qua` from Local Python or `expose(value)` from JS) in combination order, JSON → gzip → base64; `bytes` is the compressed byte count.
 - `app/src/docs/store.ts`: localStorage holds the `papercell.index.v1` index, each article at `papercell.doc.<id>`, and the flag for adding the gallery once at `papercell.gallery.v1`.
 - `loadDoc` only accepts version 3 with array content, then calls `upgradeDoc`; `saveDoc` writes the entire doc and updates its title/timestamp in the index.
 - `emptyDoc` creates an empty paragraph; `ensureFirstDoc` adds the gallery once and a sample article when needed. localStorage write errors are caught and not reported to the user here.
@@ -186,30 +187,30 @@ Alongside single-query mode (`/api/agents/chat`, `agentChat` in `local.ts`), ses
 - `insertNode` replaces the current empty paragraph; otherwise inserts a node with `select: true`. Each new figure has `newId()` and an empty text child.
 - `app/src/editor/papercell-kit.tsx`: `FigurePlugin` registers key `figure`, `isElement: true`, `isVoid: true`, component `FigureElement`; `PapercellKit` combines it with `EditorKit` and `DocHeaderPlugin`.
 - `app/src/figure/FigureElement.tsx`: `FigureElement` finds the node path, then updates via `editor.tf.setNodes`; deletion uses removeNodes, and the Undo toast calls `editor.undo()`.
-- `FigureCard` is shared by editor and viewer: renders the chart, controls, caption, inline code, and a button to open `FigureDialog`; `FigureNumbers` provides label strings by id.
+- `FigureCard` is shared by editor and viewer: renders the chart, controls, caption, inline code, hover badges (`JS` and `Python` buttons opening the Code tab in their respective languages), and a button to open `FigureDialog`; `FigureNumbers` provides label strings by id.
 - The card keeps parameters being dragged in state; the editor writes back to the node only on commit, while readers change session state. The `latestParams` ref prevents committing stale values after dropdown/toggle changes.
 - `autoOpen` opens the Design tab once, then is removed from the node; the edit button opens Design when a spec is still attached, JS for other figures; clicking/expanding a figure opens the Figure tab.
 - `app/src/figure/FigureView.tsx` measures width with ResizeObserver, rounded to 10 px increments with a minimum of 200; code does not run before width is available.
 - The View reruns `runFigure` when JS, parameter names/values, data, width, scenario payload, or labels change; discards outdated asynchronous results.
 - DOM results are appended, HTML strings assigned to `innerHTML`, and errors placed in `.fig-error`; React does not directly draw Plot/MapLibre content.
 - Before replacing output and on unmount, the View calls `__pcCleanup` on child elements; `releaseNode` also cleans the root node of late-arriving results.
-- `app/src/figure/runtime.ts::runFigure` creates an `AsyncFunction`, passing `Plot`, `d3`, `data`, `width`, `expose`, `params`, `pc`, `ket_qua`, then each parameter by name.
+- `app/src/figure/runtime.ts::runFigure` creates an `AsyncFunction`, passing `Plot`, `d3`, `data`, `width`, `expose`, `params`, `pc`, `result`, `ket_qua` (legacy alias), then each parameter by name.
 - `params` is a name → value object; each name is also a direct variable. `expose(v)` records the last value for verification and returns v itself.
 - `pc.map(options)` calls `makeMap({ width, ...options })`, so figure code can override width; `pc.esc` escapes HTML; `pc.label` looks up a column's display name.
-- `ket_qua` is the nearest cache entry for the parameters, or `undefined` when there is no cache; runFigure does not automatically run Python.
+- `result` (and legacy alias `ket_qua`) is the nearest cache entry for the parameters, or `undefined` when there is no cache; runFigure does not automatically run Python.
 - `RunOutput` contains `{ node, html, exposed, error }`; only accepts a Node or HTML string as the return value; compilation/runtime errors are caught as messages.
 - Despite its legacy name, `ParamSliders` renders all four kinds; range snaps to the grid using `snap`, select/radio return the original option, toggle returns a boolean and commits immediately after a change.
 
 ### 4. Popup and code editor
 
-- `app/src/figure/FigureDialog.tsx`: `DialogTab` includes design, figure, js, python, params, verify, scenarios, settings; the popup portals into `document.body`.
-- The **Design** tab uses `DesignTab`; the **Figure** tab uses a large `FigureView` and `ParamSliders`; parameter state is shared with the card.
-- **JS code** / **Original Python** tabs use `CodeTab`, preview, and `CodeAssist`; the Python preview still renders from JS and does not automatically run Python while typing.
+- `app/src/figure/FigureDialog.tsx`: `DialogTab` includes `design`, `figure`, `code` (plus legacy `'js' | 'python'` normalized to `'code'`), `params`, `verify`, `scenarios`, `settings`; the popup portals into `document.body`.
+- The **Design** tab uses `DesignTab` (including interactive **Scenario / filter controls** toggled from dataset columns); the **Figure** tab uses a large `FigureView` and `ParamSliders`; parameter state is shared with the card.
+- The **Code** tab uses `CodeTab` with a segmented language switcher between **JavaScript (Draws figure)** and **Python (Verify & precompute)**, alongside live preview and `CodeAssist`.
 - `CodeTab` keeps a draft and updates the node after a 400 ms debounce; JS still attached to Design goes through `syncFromCode`, while Python is saved directly.
-- The **Parameters** tab uses `ParamsTab`: edit a draft, then Save parameters; validates identifiers and duplicate names, range max > min/step > 0, and at least two options for choices.
+- The **Parameters** tab uses `ParamsTab`: edit a draft or pick **+ Add from data column…** (`paramFromColumn`) to populate options/ranges directly from any uploaded dataset column, then click Save parameters.
 - `parseOptions` converts true/false strings to booleans and numeric strings to numbers; toggles store booleans. Preserve this rule so the string "false" is not treated as truthy.
-- The **Verify** tab uses `VerifyTab`/`verifyFigure`, saving `VerifyResult`; **Precompute** uses `ScenarioTab`; **Settings** edits padding/display/label/codeAccess.
-- Read-only mode has only Figure and code tabs allowed by `visibleCode`; empty Python does not become a tab. `visibleCode` also determines inline code in the card when reading.
+- The **Verify & Precompute** tab (`ComputeTab` in `FigureDialog.tsx`) combines local Python/JS verification (`VerifyTab`/`verifyFigure` against `/api/python/grid`, saving `VerifyResult`) and parameter-grid precomputation (`ScenarioTab`, running either Local Python `result` or JavaScript `expose(value)`) with a segmented mode switcher; **Settings** edits padding/display/label/codeAccess.
+- Read-only mode has only Figure and the unified Code tab (with language switcher when both JS and Python are allowed by `visibleCode`). `visibleCode` also determines inline code in the card when reading.
 - The popup locks scrolling with `modal-open`, keeps the close callback in a ref, focuses once on opening, and restores focus on closing; avoid rerunning effects that steal focus from someone typing.
 - `app/src/figure/CodeEditor.tsx`: CodeMirror 6 for JS/Python; `useCodeHints` gets datasets/columns/params/labels from context; Ctrl+Space suggests Plot, d3, data, and parameter variables.
 - External value changes dispatch the smallest diff to preserve caret/scroll and undo; code editor keystrokes do not propagate to Plate.
@@ -219,7 +220,7 @@ Alongside single-query mode (`/api/agents/chat`, `agentChat` in `local.ts`), ses
 ### 5. Design, codegen, and document compatibility
 
 - `app/src/figure/builder.ts`: `CHART_TYPES` holds icon/label/channels/required metadata and agg/bins/sort/map flags; `typeInfo`, `missingChannels`, and the UI rely on this list.
-- `defaultSpec` defaults to bar/count, 20 bins, no sorting, blues, light; `specParams` currently only creates a `so_cot` slider for histograms.
+- `defaultSpec` defaults to bar/count, 20 bins, no sorting, blues, light; `SCHEMES` / `SCHEME_META` provide named color palettes alongside custom `#hex` / `#hex1,#hex2,...` multi-stop palettes (`isCustomScheme`, `parseCustomColors`, `customScaleColors`); `specParams` creates a `so_cot` slider for histograms plus filter controls from `spec.filters`.
 - `codegen` generates readable JS: Plot for charts, HTML tables for tables, `pc.map` for maps; missing required datasets/channels return an HTML message instead of rendering.
 - Axis/legend/table labels are looked up at runtime through `pc.label`; line/area sort by X before connecting points; layout computes margin/rotate/facet from the data.
 - `chartLine` writes exactly one `const chart = {...}` line; `SPEC_KEYS` is a whitelist of configuration fields to serialize/read back, not an arbitrary entire object.
@@ -237,24 +238,19 @@ Alongside single-query mode (`/api/agents/chat`, `agentChat` in `local.ts`), ses
 - For the Vietnamese gallery previously overwritten by Design: retrieves originals from `app/src/legacy/gallery-vi.ts` by caption, restores handwritten figures where appropriate, and keeps existing ids.
 - `app/src/gallery.ts::makeGallery` creates synthetic data and spec/code/template figures; `app/src/demo-params.ts` contains `PARAMS_DEMO_ID`, `CONTROLS_ID_PREFIX`, and control demos used for new articles and upgrades.
 
-### 6. Python precomputation and verification
+### 6. Precomputation (Local Python or JavaScript) and verification
 
 - `app/src/figure/scenarios.ts::axisValues`: range enumerates min to max by step, choice uses every option, toggle uses `[false, true]`; even without params there is one combination.
 - `comboCount`, `comboAt`, `indexOf` share an ordering where the last parameter changes fastest; numeric lookup selects the nearest point, other types compare via String and fall back to the first item.
 - `snap` uses the same nearest-point selection; `encodeResults`/`decodeResults` compress/decompress via `app/src/lib/pack.ts`, with decoded results memoized by a shortened payload key.
-- `fingerprint` takes 16 hex characters from the SHA-256 of Python + file names/contents + grid; excludes JS and labels because they are not Python computation inputs.
-- `app/src/figure/ScenarioTab.tsx` defaults to the local engine, probes with GET `/api/python`; retries once on request failure, falls back to Pyodide if local is unavailable.
-- The grid can use a larger step than the slider to reduce computations; warns above 2,000 combinations, blocks above 50,000; requires nonempty Python that assigns `ket_qua`.
+- `fingerprint` takes 16 hex characters from the SHA-256 of engine + source code (`fig.js` when `engine === 'js'`, otherwise `fig.python`) + file names/contents + grid.
+- `app/src/figure/ScenarioTab.tsx` offers two engines under **Run with**: **Local Python (`result`)** (runs `fig.python` on the server via `POST /api/python/grid`) and **JavaScript (`expose(value)`)** (runs `fig.js` in the browser for each combination via `runFigure` and caches `res.exposed` into `result`). Browser Pyodide has been removed from the Precompute and Verify UI.
+- The grid can use a larger step than the slider to reduce computations; warns above 2,000 combinations, blocks above 50,000.
 - Local POST `/api/python/grid` sends `{ code, files: [{ key, kind, content }], combos }`, receives streaming JSONL `{ i, ok, value?, error? }` or `{ fatal }`.
-- `readJsonLines` retains partial lines between chunks and processes the final line; AbortController stops local requests. This report confirms the client-side contract; it did not read the out-of-scope server implementation.
-- Pyodide calls `kernel.runGrid` and receives items through a callback; Stop uses `kernel.cancel()` to terminate the worker, rejecting pending tasks.
+- `readJsonLines` retains partial lines between chunks and processes the final line; AbortController stops in-flight local Python or JS runs.
 - A new cache is written only after all items arrive and not all have failed; failed items remain `null`, with a failed count; stopping/errors preserve the old cache.
-- Staleness is reported by comparing fingerprints using `cache.grid`; changing the planned grid configuration in the UI or parameter definitions does not automatically delete the existing cache.
-- `app/src/python/kernel.ts`: singleton `kernel` lazily creates a module Worker using `new URL('./worker.ts', import.meta.url)`; seq/pending/gridHandlers match responses to requests and emit status to subscribers.
-- `app/src/python/worker.ts` loads Pyodide from jsDelivr according to `PYODIDE_VERSION`, loads pandas and GLUE; `loadPackagesFromImports` handles additional imports; a chain serializes requests.
-- GLUE `__pc_load` reads CSV into DataFrames, JSON into objects; `__pc_run_one` puts `data` and params into globals, captures stdout, runs code, and catches errors with `<python>` line information.
-- Data is copied for each combination; `ket_qua` results pass through `__pc_jsonable` to convert Series/DataFrame/numpy/containers/NaN; matplotlib uses the agg backend and closes figures after each run.
-- `app/src/figure/verify.ts::verifyFigure` runs JS at width 600 without passing a scenario cache, retrieves `expose`, and first calls `POST /api/python/grid` (local or Docker server Python) with a single-item combo, falling back to `kernel.verify` (Pyodide) only when server Python is unavailable.
+- Staleness is reported by comparing fingerprints using `cache.grid` and `cache.engine`.
+- `app/src/figure/verify.ts::verifyFigure` runs JS at width 600 without passing a scenario cache, retrieves `expose`, and calls `POST /api/python/grid` on the local/Docker Python server with a single-item combo.
 - Comparison flattens objects with sorted keys; supports Map/Date on the JS side, numbers within tolerance `1e-9 + 1e-6 * max(abs(a), abs(b))`; verifies only the current parameter set.
 
 ### 7. HTML export and viewer

@@ -42,14 +42,14 @@ export async function runFigure(js: string, params: FigureParam[], data: Dataset
   const expose = (v: unknown) => { exposed = v; return v }
   const names = params.map((p) => p.name)
   try {
-    const fn = new AsyncFunction('Plot', 'd3', 'data', 'width', 'expose', 'params', 'pc', 'ket_qua', ...names, js)
+    const fn = new AsyncFunction('Plot', 'd3', 'data', 'width', 'expose', 'params', 'pc', 'result', 'ket_qua', ...names, js)
     const values = Object.fromEntries(params.map((p) => [p.name, p.value]))
     // Kết quả Python đã tính sẵn cho tổ hợp tham số gần nhất (nếu có)
     const ketQua = scenarios ? (await decodeResults(scenarios.payload))[indexOf(scenarios.grid, values)] : undefined
     // pc.label(dataset, column): the column's display name set in the Data panel, or the column name itself
     const label = (ds: string, col: string) => labels[ds]?.[col]?.trim() || col
     const pc = { map: (o: MapOptions) => makeMap({ width, ...o }), esc, label }
-    const r = await fn(Plot, d3, data, width, expose, values, pc, ketQua, ...params.map((p) => p.value))
+    const r = await fn(Plot, d3, data, width, expose, values, pc, ketQua, ketQua, ...params.map((p) => p.value))
     if (r instanceof Node) return { node: r, html: null, exposed, error: null }
     if (typeof r === 'string') return { node: null, html: r, exposed, error: null }
     return { node: null, html: null, exposed, error: 'The code must return a figure (Plot.plot(...)) or an HTML string.' }

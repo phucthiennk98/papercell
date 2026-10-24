@@ -221,7 +221,7 @@
 
 .katex-display {
   max-width: 100%;
-  overflow-x: auto;
-  overflow-y: hidden;
+  overflow: visible;
   padding: 2px 0;
+  margin: 0.35em 0;
 }

@@ -2,8 +2,9 @@
 
 import * as React from 'react';
 
-import { DndPlugin, useDraggable, useDropLine } from '@platejs/dnd';
-import { canDropSide, dropToSide, sideOf, sideTarget, useSideTarget } from '@/editor/side-drop';
+import { DndPlugin, onHoverNode, useDraggable, useDropLine } from '@platejs/dnd';
+import { canDropSide, dropToSide, moveToColumnGroupEdge, sideOf, sideTarget, useSideTarget } from '@/editor/side-drop';
+import { newId } from '@/editor/types';
 import { expandListItemsWithChildren } from '@platejs/list';
 import { BlockSelectionPlugin } from '@platejs/selection/react';
 import { GripVertical, Plus, Sparkles, Trash2 } from 'lucide-react';
@@ -80,15 +81,106 @@ function Draggable(props: PlateElementProps) {
   const { isAboutToDrag, isDragging, nodeRef, previewRef, handleRef } =
     useDraggable({
       element,
-      onDropHandler: (_, { dragItem }) => {
+      drop: {
+        accept: path.length === 1 ? ['block', 'column', '__NATIVE_FILE__'] : ['block', '__NATIVE_FILE__'],
+        hover: (dragItem: any, monitor: any) => {
+          if (sideTarget.get()?.id === element.id) {
+            editor.setOption(DndPlugin, 'dropTarget', { id: null, line: '' });
+            return;
+          }
+          const dragEl = dragItem && 'element' in dragItem ? (dragItem.element as TElement | undefined) : undefined;
+          const dragPath = dragEl ? editor.api.findPath(dragEl) : undefined;
+          const hoveredPath = editor.api.findPath(element);
+          if (dragPath && hoveredPath && PathApi.equals(dragPath, hoveredPath)) {
+            const dt = editor.getOption(DndPlugin, 'dropTarget');
+            if (dt?.id === element.id) {
+              editor.setOption(DndPlugin, 'dropTarget', { id: null, line: '' });
+            }
+            return;
+          }
+          if (dragEl?.type === KEYS.column || (dragPath?.length === 3 && path.length === 1)) {
+            if (dragPath && hoveredPath && PathApi.isAncestor(hoveredPath, dragPath)) {
+              return;
+            }
+            const rect = (nodeRef.current as HTMLElement | null)?.getBoundingClientRect();
+            const clientOffset = monitor.getClientOffset();
+            if (!rect || !clientOffset) return;
+            const line = clientOffset.y < (rect.top + rect.bottom) / 2 ? 'top' : 'bottom';
+            editor.setOption(DndPlugin, 'dropTarget', { id: element.id as string, line });
+            return;
+          }
+          if (element.type === KEYS.columnGroup) {
+            if (dragPath && hoveredPath && PathApi.isAncestor(hoveredPath, dragPath)) {
+              return;
+            }
+            const rect = (nodeRef.current as HTMLElement | null)?.getBoundingClientRect();
+            const clientOffset = monitor.getClientOffset();
+            if (!rect || !clientOffset) return;
+            if (clientOffset.y >= rect.top + 24 && clientOffset.y <= rect.bottom - 24 && !monitor.isOver({ shallow: true })) {
+              return;
+            }
+          }
+          onHoverNode(editor, {
+            dragItem,
+            element,
+            monitor,
+            nodeRef,
+            orientation: 'vertical',
+          });
+        },
+      },
+      onDropHandler: (_, { dragItem, monitor }) => {
+        if (monitor.didDrop()) return true;
         const id = (dragItem as { id: string[] | string }).id;
+        const ids = (Array.isArray(id) ? id : id ? [id] : []).filter(Boolean) as string[];
         // Dropped on the left/right edge: put the blocks side by side in columns
         const side = sideTarget.get();
         sideTarget.set(null);
         if (side && side.id === element.id) {
-          const ids = Array.isArray(id) ? id : [id];
           if (dropToSide(editor, ids, side.id, side.side)) {
             resetPreview();
+            return true;
+          }
+        }
+
+        const dragEl = 'element' in dragItem ? (dragItem.element as TElement | undefined) : undefined;
+        const dragPath = dragEl ? editor.api.findPath(dragEl) : undefined;
+        const hoveredPath = editor.api.findPath(element);
+
+        if (dragPath && hoveredPath && PathApi.equals(dragPath, hoveredPath)) {
+          resetPreview();
+          return true;
+        }
+
+        if (dragEl?.type === KEYS.column || (dragPath?.length === 3 && path.length === 1)) {
+          if (dragPath && hoveredPath && PathApi.isAncestor(hoveredPath, dragPath)) {
+            return false;
+          }
+          const dt = editor.getOption(DndPlugin, 'dropTarget');
+          const rect = (nodeRef.current as HTMLElement | null)?.getBoundingClientRect();
+          const clientOffset = monitor.getClientOffset();
+          const line: 'top' | 'bottom' =
+            dt?.id === element.id && (dt?.line === 'top' || dt?.line === 'bottom')
+              ? dt.line
+              : rect && clientOffset && clientOffset.y < (rect.top + rect.bottom) / 2
+                ? 'top'
+                : 'bottom';
+          if (moveToColumnGroupEdge(editor, ids, element, line)) {
+            editor.setOption(DndPlugin, 'dropTarget', { id: null, line: '' });
+            if (blockSelectionApi && dragEl?.type !== KEYS.column) blockSelectionApi.add(id);
+            resetPreview();
+            return true;
+          }
+          return false;
+        }
+
+        if (element.type === KEYS.columnGroup) {
+          if (dragPath && hoveredPath && PathApi.isAncestor(hoveredPath, dragPath)) {
+            return false;
+          }
+          const rect = (nodeRef.current as HTMLElement | null)?.getBoundingClientRect();
+          const clientOffset = monitor.getClientOffset();
+          if (rect && clientOffset && clientOffset.y >= rect.top + 24 && clientOffset.y <= rect.bottom - 24 && !monitor.isOver({ shallow: true })) {
             return true;
           }
         }
@@ -211,8 +303,10 @@ function Draggable(props: PlateElementProps) {
           const ev = e.nativeEvent as DragEvent & { __pcSide?: boolean };
           if (ev.__pcSide || !editor.getOption(DndPlugin, 'isDragging')) return;
           ev.__pcSide = true;
-          const side = sideOf(e.clientX, (nodeRef.current as HTMLElement).getBoundingClientRect());
-          sideTarget.set(side && element.id && canDropSide(editor, element.id as string) ? { id: element.id as string, side } : null);
+          const rawDrag = editor.getOption(DndPlugin, 'draggingId');
+          const dragIds = (Array.isArray(rawDrag) ? rawDrag : rawDrag ? [rawDrag] : []).filter(Boolean) as string[];
+          const side = sideOf(e.clientX, e.clientY, (nodeRef.current as HTMLElement).getBoundingClientRect());
+          sideTarget.set(side && element.id && canDropSide(editor, element.id as string, dragIds) ? { id: element.id as string, side } : null);
         }}
         onContextMenu={(event) =>
           editor
@@ -267,13 +361,13 @@ function removeBlock(editor: PlateEditor, element: TElement) {
   });
 }
 
-function InsertGap({ editor, element }: { editor: PlateEditor; element: TElement }) {
+export function InsertGap({ editor, element }: { editor: PlateEditor; element: TElement }) {
   const insert = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
     const path = editor.api.findPath(element);
     if (!path) return;
-    editor.tf.insertNodes({ type: KEYS.p, children: [{ text: '' }] } as TElement, { at: path, select: true });
+    editor.tf.insertNodes({ type: KEYS.p, id: newId(), children: [{ text: '' }] } as TElement, { at: path, select: true });
     editor.tf.focus();
   };
   return (
@@ -291,7 +385,7 @@ function openInsertMenu(editor: PlateEditor, element: TElement) {
   if (element.type === KEYS.p && editor.api.isEmpty(element)) {
     editor.tf.select(editor.api.start(path)!);
   } else {
-    editor.tf.insertNodes({ type: KEYS.p, children: [{ text: '' }] } as TElement, { at: PathApi.next(path), select: true });
+    editor.tf.insertNodes({ type: KEYS.p, id: newId(), children: [{ text: '' }] } as TElement, { at: PathApi.next(path), select: true });
   }
   editor.tf.focus();
   editor.tf.insertText('/');
@@ -455,10 +549,10 @@ const DropLine = React.memo(function DropLine({
       {...props}
       className={cn(
         'slate-dropLine',
-        'absolute inset-x-0 h-0.5 opacity-100 transition-opacity',
-        'bg-brand/50',
-        dropLine === 'top' && '-top-px',
-        dropLine === 'bottom' && '-bottom-px',
+        'pointer-events-none absolute inset-x-0 z-50 h-1 rounded-full opacity-100 transition-opacity',
+        'bg-brand shadow-xs',
+        dropLine === 'top' && '-top-1.5',
+        dropLine === 'bottom' && '-bottom-1.5',
         className
       )}
     />

@@ -1,5 +1,4 @@
-// So kết quả của Python gốc (biến ket_qua) với JS (giá trị truyền vào expose()).
-import { kernel } from '../python/kernel'
+// Compare the original Python result (variable result) with the JS result passed to expose().
 import type { DataFile, FigureNode, ParamValue, VerifyResult } from '../editor/types'
 import { dataKey, labelsOf, parseData, runFigure } from './runtime'
 
@@ -60,11 +59,8 @@ export async function verifyFigure(fig: FigureNode, files: DataFile[]): Promise<
 
   const params = Object.fromEntries(fig.params.map((p) => [p.name, p.value]))
   const payloadFiles = files.map((f) => ({ key: dataKey(f.name), kind: f.kind, content: f.content }))
-  let py = await runServerVerify(fig.python, params, payloadFiles)
-  if (!py) {
-    try { py = await kernel.verify(fig.python, params, payloadFiles) }
-    catch (e) { return { ok: false, message: 'Could not run Python: ' + (e as Error).message, at } }
-  }
+  const py = await runServerVerify(fig.python, params, payloadFiles)
+  if (!py) return { ok: false, message: 'Could not reach the local Python server (/api/python). Make sure the Papercell server is running with Python 3.', at }
   if (py.error) return { ok: false, message: 'Python code error: ' + py.error, at }
 
   const a = flatten(py.value), b = flatten(js.exposed)

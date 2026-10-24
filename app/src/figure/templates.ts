@@ -3,7 +3,7 @@
 import { Database, ChartColumn, ChartLine, ChartScatter, ChartNoAxesColumn, Hexagon, Table2, SquareCode, FlaskConical, type LucideIcon } from 'lucide-react'
 import { newId, type FigureNode, type FigureParam } from '@/editor/types'
 import { codegen, defaultSpec, specParams, type ChartType } from './builder'
-import { CONTROL_TEMPLATES } from './control-templates'
+import { CONTROL_TEMPLATES, GEO_TEMPLATES } from './control-templates'
 
 export type FigureTemplate = { id: string; label: string; hint: string; icon: LucideIcon; keywords: string[]; js: string; python?: string; params?: FigureParam[]; caption?: string }
 
@@ -139,23 +139,23 @@ for step in range(40):
     adopted = adopted | (rng.random(n) < p)
     share.append(round(float(adopted.mean()), 4))
 
-ket_qua = [{"step": i + 1, "share": v} for i, v in enumerate(share)]
+result = [{"step": i + 1, "share": v} for i, v in enumerate(share)]
 `,
-    js: `// Draws from the precomputed Python result (ket_qua); nothing is recomputed in the browser.
-if (!ket_qua) return '<div class="fig-empty">Not precomputed yet. Open the figure (✎) → <b>Precompute</b> tab → press <b>Run</b>.</div>'
-expose(ket_qua)
+    js: `// Draws from the precomputed Python result (result); nothing is recomputed in the browser.
+if (!result) return '<div class="fig-empty">Not precomputed yet. Open the figure (✎) → <b>Precompute</b> tab → press <b>Run</b>.</div>'
+expose(result)
 return Plot.plot({
   width, height: 280,
   x: { label: "Step" },
   y: { grid: true, label: "Share adopted", percent: true, domain: [0, 100] },
   marks: [
-    Plot.areaY(ket_qua, { x: "step", y: "share", fill: "#2a78d6", fillOpacity: 0.12 }),
-    Plot.line(ket_qua, { x: "step", y: "share", stroke: "#2a78d6", strokeWidth: 2, tip: true }),
+    Plot.areaY(result, { x: "step", y: "share", fill: "#2a78d6", fillOpacity: 0.12 }),
+    Plot.line(result, { x: "step", y: "share", stroke: "#2a78d6", strokeWidth: 2, tip: true }),
     Plot.ruleY([0]),
   ],
 })`,
   },
-  ...CONTROL_TEMPLATES,
+  ...GEO_TEMPLATES, ...CONTROL_TEMPLATES,
   {
     id: 'blank', label: 'Blank figure', hint: 'Write your own code, or ask AI', icon: SquareCode, keywords: ['blank', 'code', 'js'],
     js: `${HEAD('Blank figure')}

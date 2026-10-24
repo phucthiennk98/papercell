@@ -122,7 +122,7 @@ function toFeatures(o: MapOptions): Feature[] {
   })
 }
 
-const interpolator = (scheme = 'blues') => (d3 as any)[`interpolate${scheme[0].toUpperCase()}${scheme.slice(1)}`] ?? d3.interpolateBlues
+const interpolator = (scheme = 'blues') => scheme.startsWith('#') ? d3.interpolateRgbBasis(scheme.includes(',') ? scheme.split(',').map((s) => s.trim()) : ['#e2e8f0', scheme.trim()]) : ((d3 as any)[`interpolate${scheme[0].toUpperCase()}${scheme.slice(1)}`] ?? d3.interpolateBlues)
 
 /** Tô màu và kích thước sẵn cho từng điểm; trả về chú giải. */
 function styleFeatures(fs: Feature[], o: MapOptions) {
@@ -138,11 +138,11 @@ function styleFeatures(fs: Feature[], o: MapOptions) {
       legend = `<div class="pcm-title">${esc(o.colorLabel ?? o.color)}</div><div class="pcm-ramp" style="background:linear-gradient(90deg,${stops})"></div><div class="pcm-ends"><span>${d3.format('~s')(ext[0])}</span><span>${d3.format('~s')(ext[1])}</span></div>`
     } else {
       const cats = [...new Set(vals.map(String))].slice(0, 10)
-      const sc = d3.scaleOrdinal<string, string>().domain(cats).range(d3.schemeTableau10)
+      const sc = d3.scaleOrdinal<string, string>().domain(cats).range(o.scheme?.startsWith('#') ? o.scheme.split(',').map((s) => s.trim()) : d3.schemeTableau10)
       fs.forEach((f) => { f.properties._c = cats.includes(String(f.properties[o.color!])) ? sc(String(f.properties[o.color!])) : '#bbbbbb' })
       legend = `<div class="pcm-title">${esc(o.colorLabel ?? o.color)}</div>` + cats.map((c) => `<div class="pcm-cat"><i style="background:${sc(c)}"></i>${esc(c)}</div>`).join('')
     }
-  } else fs.forEach((f) => { f.properties._c = '#2a78d6' })
+  } else { const c = o.scheme?.startsWith('#') ? o.scheme.split(',')[0].trim() : (({ blues: '#2a78d6', greens: '#16a34a', oranges: '#ea580c', reds: '#dc2626', purples: '#7c3aed', viridis: '#21918c', turbo: '#0284c7', ylorrd: '#e11d48', rdbu: '#2166ac', tableau10: '#4e79a7', observable10: '#4269d0', set2: '#66c2a5' } as Record<string, string>)[o.scheme ?? 'blues'] ?? '#2a78d6'); fs.forEach((f) => { f.properties._c = c }) }
   if (o.size) {
     const nums = fs.map((f) => num(f.properties[o.size!]))
     const sc = d3.scaleSqrt().domain([0, d3.max(nums.filter(isFinite)) ?? 1]).range([3, 16])

@@ -176,10 +176,30 @@ export function FigureToolbarButton(props: DropdownMenuProps) {
         </div>
         <DropdownMenuSeparator />
         <DropdownMenuLabel className="text-xs text-muted-foreground">
+          GeoPandas &amp; D3-Geo vector maps (offline SVG, with controls)
+        </DropdownMenuLabel>
+        {FIGURE_TEMPLATES.filter((t) => t.id.startsWith('geo-')).map((t) => (
+          <DropdownMenuItem
+            key={t.id}
+            className="items-start gap-3 py-1.5"
+            onSelect={() => {
+              insertFigure(editor, t.id);
+              editor.tf.focus();
+            }}
+          >
+            <t.icon className="mt-0.5 size-4 shrink-0 text-blue-600" />
+            <span className="flex flex-col">
+              <span className="font-medium">{t.label}</span>
+              <span className="text-xs text-muted-foreground">{t.hint}</span>
+            </span>
+          </DropdownMenuItem>
+        ))}
+        <DropdownMenuSeparator />
+        <DropdownMenuLabel className="text-xs text-muted-foreground">
           Code templates (sample data, with sliders)
         </DropdownMenuLabel>
         {FIGURE_TEMPLATES.filter(
-          (t) => t.id !== 'data' && !t.id.startsWith('controls-')
+          (t) => t.id !== 'data' && !t.id.startsWith('controls-') && !t.id.startsWith('geo-')
         ).map((t) => (
           <DropdownMenuItem
             key={t.id}

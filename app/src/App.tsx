@@ -1,8 +1,9 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Plate, usePlateEditor, type PlateEditor } from 'platejs/react'
 import { Toaster, toast } from 'sonner'
 import {
-  BookOpen, ChartColumn, Database, Sparkles, FileText, FolderOpen, ListTree, PanelLeftClose, PanelLeftOpen, PenLine, Plus, Save, Search, Trash2,
+  BookOpen, ChartColumn, Database, Sparkles, FileText, FolderOpen, ListTree, PanelLeftClose, PanelLeftOpen, PenLine, Pin, Plus, Save, Search, Trash2, X,
 } from 'lucide-react'
 import { CopilotPlugin } from '@platejs/ai/react'
 import { aiChatPlugin } from '@/components/editor/plugins/ai-kit'
@@ -13,7 +14,7 @@ import { fetchWithAIConfig, withAIRequestConfig } from '@/ai/request-config'
 import { Editor, EditorContainer } from '@/components/ui/editor'
 import { ExportToolbarButton } from '@/components/ui/export-toolbar-button'
 import { TooltipProvider } from '@/components/ui/tooltip'
-import { deleteDoc, emptyDoc, ensureFirstDoc, listDocs, loadDoc, newDocId, saveDoc, type DocEntry } from '@/docs/store'
+import { deleteDoc, emptyDoc, ensureFirstDoc, listDocs, loadDoc, newDocId, saveDoc, togglePinDoc, type DocEntry } from '@/docs/store'
 import { MetaContext } from '@/editor/DocHeader'
 import { PapercellKit } from '@/editor/papercell-kit'
 import type { DataFile, DocMeta, PapercellDoc } from '@/editor/types'
@@ -32,17 +33,28 @@ export default function App() {
   const [sidebar, setSidebar] = useState(() => typeof window === 'undefined' || window.innerWidth >= 900)
   const [query, setQuery] = useState('')
   const [headings, setHeadings] = useState<Heading[]>([])
+  const [confirmDelete, setConfirmDelete] = useState<DocEntry | null>(null)
   const editorRef = useRef<PlateEditor | null>(null)
   const [assistant, setAssistant] = useState(() => { try { return localStorage.getItem('papercell.assistant') === '1' && (typeof window === 'undefined' || window.innerWidth >= 900) } catch { return false } })
   useEffect(() => { try { localStorage.setItem('papercell.assistant', assistant ? '1' : '0') } catch { /* bỏ qua */ } }, [assistant])
   // Hai thanh bên cùng mở trên màn hình vừa sẽ ép hẹp vùng soạn bài: thu gọn thanh trái
   useEffect(() => { if (assistant && window.innerWidth < 1280) setSidebar(false) }, [assistant])
+  useEffect(() => {
+    if (!confirmDelete) return
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setConfirmDelete(null) }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [confirmDelete])
 
   const closeSidebarOnMobile = () => {
     if (typeof window !== 'undefined' && window.innerWidth < 900) setSidebar(false)
   }
   const refresh = () => setDocs(listDocs())
   const create = (doc: PapercellDoc) => { const id = newDocId(); saveDoc(id, doc); refresh(); setDocId(id); closeSidebarOnMobile() }
+  const togglePin = (entry: DocEntry) => {
+    togglePinDoc(entry.id)
+    refresh()
+  }
   const remove = (entry: DocEntry) => {
     const backup = loadDoc(entry.id)
     const wasActive = entry.id === docId
@@ -65,7 +77,7 @@ export default function App() {
             label: 'Undo',
             onClick: () => {
               if (fallbackId) deleteDoc(fallbackId)
-              saveDoc(entry.id, backup, entry.updated)
+              saveDoc(entry.id, backup, entry.updated, entry.pinned)
               refresh()
               if (wasActive) setDocId(entry.id)
             },
@@ -81,6 +93,43 @@ export default function App() {
     closeSidebarOnMobile()
   }
   const shown = docs.filter((d) => d.title.toLowerCase().includes(query.trim().toLowerCase()))
+  const pinnedDocs = shown.filter((d) => d.pinned)
+  const unpinnedDocs = shown.filter((d) => !d.pinned)
+
+  const renderDocRow = (d: DocEntry) => (
+    <div key={d.id} className={cn('group flex items-center gap-1.5 rounded-md px-2 py-1.5 hover:bg-accent', d.id === docId && 'bg-accent font-medium')}>
+      <FileText className="size-4 shrink-0 text-muted-foreground" />
+      <button className="min-w-0 flex-1 truncate text-left" onClick={() => { setDocId(d.id); closeSidebarOnMobile() }} title={d.title}>{d.title}</button>
+      <div className="hidden shrink-0 items-center gap-0.5 group-hover:flex max-[900px]:flex">
+        <button
+          type="button"
+          className={cn(
+            'rounded p-1 transition-colors hover:bg-background/80',
+            d.pinned ? 'text-primary hover:text-primary/80' : 'text-muted-foreground hover:text-foreground',
+          )}
+          aria-label={(d.pinned ? 'Unpin ' : 'Pin ') + d.title}
+          title={d.pinned ? 'Unpin document' : 'Pin document'}
+          onClick={(e) => { e.stopPropagation(); togglePin(d) }}
+        >
+          <Pin className={cn('size-3.5', d.pinned && 'rotate-45 fill-current')} />
+        </button>
+        <button
+          type="button"
+          className="rounded p-1 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+          aria-label={'Delete ' + d.title}
+          title="Delete document"
+          onClick={(e) => {
+            e.stopPropagation()
+            ;(document.activeElement as HTMLElement | null)?.blur?.()
+            editorRef.current?.tf.deselect()
+            setConfirmDelete(d)
+          }}
+        >
+          <Trash2 className="size-3.5" />
+        </button>
+      </div>
+    </div>
+  )
 
   return (
     <TooltipProvider>
@@ -102,20 +151,31 @@ export default function App() {
                 <input className="w-full bg-transparent outline-none placeholder:text-muted-foreground" placeholder="Search documents" value={query} onChange={(e) => setQuery(e.target.value)} />
               </label>
 
+              {pinnedDocs.length > 0 && (
+                <>
+                  <div className="flex items-center justify-between px-3 pt-2 pb-1 text-xs font-medium text-muted-foreground">
+                    <span className="flex items-center gap-1.5">
+                      <Pin className="size-3.5 rotate-45 text-primary/80" />
+                      Pinned
+                    </span>
+                    <span className="rounded-full bg-muted px-1.5 py-0.2 text-[10px] font-semibold text-muted-foreground">
+                      {pinnedDocs.length}
+                    </span>
+                  </div>
+                  <nav className="max-h-[24%] overflow-y-auto px-2 pb-1" aria-label="Pinned documents">
+                    {pinnedDocs.map(renderDocRow)}
+                  </nav>
+                </>
+              )}
+
               <div className="flex items-center justify-between px-3 pt-2 pb-1 text-xs font-medium text-muted-foreground">
                 <span>Documents</span>
                 <button className="rounded-md p-1 hover:bg-accent" aria-label="New document" title="New document" onClick={() => create(emptyDoc())}><Plus className="size-4" /></button>
               </div>
-              <nav className="max-h-[38%] overflow-y-auto px-2">
-                {shown.map((d) => (
-                  <div key={d.id} className={cn('group flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-accent', d.id === docId && 'bg-accent font-medium')}>
-                    <FileText className="size-4 shrink-0 text-muted-foreground" />
-                    <button className="min-w-0 flex-1 truncate text-left" onClick={() => { setDocId(d.id); closeSidebarOnMobile() }} title={d.title}>{d.title}</button>
-                    <button className="hidden rounded p-0.5 text-muted-foreground hover:text-destructive group-hover:block max-[900px]:block" aria-label={'Delete ' + d.title}
-                      onClick={() => remove(d)}><Trash2 className="size-3.5" /></button>
-                  </div>
-                ))}
+              <nav className="max-h-[38%] overflow-y-auto px-2" aria-label="Documents">
+                {unpinnedDocs.map(renderDocRow)}
                 {!shown.length && <p className="px-2 py-1 text-muted-foreground">No matching documents.</p>}
+                {shown.length > 0 && !unpinnedDocs.length && <p className="px-2 py-1 text-xs text-muted-foreground">All documents are pinned above.</p>}
               </nav>
 
               <div className="flex items-center gap-1 px-3 pt-4 pb-1 text-xs font-medium text-muted-foreground"><ListTree className="size-3.5" />Outline</div>
@@ -142,6 +202,49 @@ export default function App() {
           onSaved={refresh} onHeadings={setHeadings} onEditor={(e) => { editorRef.current = e }} onOpenFile={create}
           assistant={assistant} onToggleAssistant={() => setAssistant(!assistant)} />
       </div>
+      {confirmDelete && createPortal(
+        <div className="dlg-backdrop" style={{ zIndex: 80 }} onMouseDown={() => setConfirmDelete(null)}>
+          <div
+            className="dlg dlg-confirm"
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="delete-doc-title"
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            <header className="dlg-head">
+              <span id="delete-doc-title" className="dlg-title">Delete document</span>
+              <button type="button" className="pc-icon-btn" aria-label="Close" onClick={() => setConfirmDelete(null)}>
+                <X size={17} />
+              </button>
+            </header>
+            <div className="dlg-confirm-body">
+              <p className="dlg-confirm-lead">
+                Are you sure you want to delete <b>{confirmDelete.title || 'Untitled'}</b>?
+              </p>
+              <p className="hint">
+                Updated {new Date(confirmDelete.updated).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} · You can click <b>Undo</b> in the toast banner right after deleting.
+              </p>
+              <div className="dlg-confirm-actions">
+                <button type="button" className="btn" onClick={() => setConfirmDelete(null)}>
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="btn danger"
+                  onClick={() => {
+                    remove(confirmDelete)
+                    setConfirmDelete(null)
+                  }}
+                >
+                  <Trash2 size={14} />
+                  Delete
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>,
+        document.body,
+      )}
       <Toaster position="top-center" />
     </TooltipProvider>
   )

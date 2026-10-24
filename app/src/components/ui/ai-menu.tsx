@@ -757,7 +757,7 @@ const aiChatItems = {
         mode: 'insert',
         prompt:
           input.trim() ||
-          'Write or update the "python" verification script for this figure so it computes the exact same summary value (`ket_qua = ...`) as `expose(...)` in the JS code using the same dataset and parameter variables. Keep "caption", "params", and "js" consistent.',
+          'Write or update the "python" verification script for this figure so it computes the exact same summary value (`result = ...`) as `expose(...)` in the JS code using the same dataset and parameter variables. Keep "caption", "params", and "js" consistent.',
         toolName: 'generate',
       });
     },

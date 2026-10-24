@@ -463,6 +463,11 @@ export function renderInteractiveKatex(
   const displayMode = options.displayMode ?? true;
   if (!tex.trim()) return '';
 
+  const wrapMultiline = (s: string) =>
+    displayMode && /\\\\|\\newline\b/.test(s) && !/\\begin\s*\{/.test(s)
+      ? `\\begin{gathered}${s}\\end{gathered}`
+      : s;
+
   if (tokens.length > 0) {
     try {
       let instrumented = '';
@@ -480,7 +485,7 @@ export function renderInteractiveKatex(
       }
       instrumented += tex.slice(cursor);
 
-      return katex.renderToString(instrumented, {
+      return katex.renderToString(wrapMultiline(instrumented), {
         displayMode,
         errorColor: '#cc0000',
         fleqn: false,
@@ -497,7 +502,7 @@ export function renderInteractiveKatex(
   }
 
   try {
-    return katex.renderToString(tex, {
+    return katex.renderToString(wrapMultiline(tex), {
       displayMode,
       errorColor: '#cc0000',
       fleqn: false,

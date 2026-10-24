@@ -46,7 +46,7 @@ Schema for \`\`\`papercell-figure:
     }
   ],
   "js": "const rows = data.dataset_key.filter(d => d.distance <= max_distance);\\nexpose(rows.length);\\nreturn Plot.plot({ width, height: 280, x: { label: pc.label(\\"dataset_key\\", \\"column_x\\") }, y: { grid: true, label: \\"Count\\" }, marks: [Plot.barY(rows, Plot.groupX({ y: \\"count\\" }, { x: \\"column_x\\", fill: \\"#2a78d6\\", tip: true })), Plot.ruleY([0])] });",
-  "python": "df = data[\\"dataset_key\\"]\\nket_qua = int((df[\\"distance\\"] <= max_distance).sum())"
+  "python": "df = data[\\"dataset_key\\"]\\nresult = int((df[\\"distance\\"] <= max_distance).sum())"
 }
 \`\`\`
 
@@ -61,7 +61,7 @@ Rules for \`\`\`papercell-figure:
   - \`"unit"\`: optional unit string (e.g. \`"km"\`, \`"%"\`).
   - \`"options"\`: required array of >= 2 values for \`"select"\` or \`"radio"\`.
 - In \`"js"\`:
-  - The code is the body of an async function with \`Plot\`, \`d3\`, \`data\`, \`width\`, \`expose\`, \`params\`, \`pc\`, \`ket_qua\`, and every parameter name in scope as a variable (never redeclare parameter variables).
+  - The code is the body of an async function with \`Plot\`, \`d3\`, \`data\`, \`width\`, \`expose\`, \`params\`, \`pc\`, \`result\`, and every parameter name in scope as a variable (never redeclare parameter variables).
   - The code MUST end with \`return Plot.plot({ width, ... })\`, \`return pc.map({ ... })\`, or \`return "<table class=\\"fig-table\\">...</table>"\`.
   - If the document has datasets, use \`data.<dataset_key>\` and exact column names from the dataset list below. If the document has no datasets for the requested topic, or when the user asks to randomize/simulate data ("dữ liệu ngẫu nhiên", "random data"), generate deterministic synthetic data in JS using \`const rng = d3.randomLcg(42)\` with \`d3.randomNormal.source(rng)\` / \`d3.randomExponential.source(rng)\` / \`d3.range(...)\` while keeping existing parameter sliders active.
 - When editing an existing figure or a multi-column cell (\`column_group\`) containing multiple figures:

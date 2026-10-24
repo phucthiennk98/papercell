@@ -2,10 +2,10 @@
 
 import * as React from 'react';
 
-import type { TColumnElement } from 'platejs';
+import type { TColumnElement, TElement } from 'platejs';
 import type { PlateElementProps } from 'platejs/react';
 
-import { useDraggable, useDropLine } from '@platejs/dnd';
+import { DndPlugin, useDraggable, useDropLine } from '@platejs/dnd';
 import { setColumns } from '@platejs/layout';
 import { ResizableProvider } from '@platejs/resizable';
 import { BlockSelectionPlugin } from '@platejs/selection/react';
@@ -13,6 +13,8 @@ import { useComposedRef } from '@udecode/cn';
 import { type LucideProps, Trash2Icon } from 'lucide-react';
 import { GripHorizontal } from 'lucide-react';
 import { PathApi } from 'platejs';
+import { useDrop } from 'react-dnd';
+import { moveToColumnGroupEdge, sideTarget } from '@/editor/side-drop';
 import {
   PlateElement,
   useEditorRef,
@@ -149,7 +151,10 @@ const ColumnDragHandle = React.memo(function ColumnDragHandle() {
     <TooltipProvider>
       <Tooltip>
         <TooltipTrigger asChild>
-          <Button variant="ghost" className="!px-1 h-5">
+          <Button
+            variant="ghost"
+            className="!px-1.5 h-5 cursor-grab rounded-md border border-border bg-background/95 shadow-2xs hover:bg-accent active:cursor-grabbing"
+          >
             <GripHorizontal
               className="text-muted-foreground"
               onClick={(event) => {
@@ -160,7 +165,7 @@ const ColumnDragHandle = React.memo(function ColumnDragHandle() {
           </Button>
         </TooltipTrigger>
 
-        <TooltipContent>Drag to move column</TooltipContent>
+        <TooltipContent>Drag to swap columns or move column out</TooltipContent>
       </Tooltip>
     </TooltipProvider>
   );
@@ -186,12 +191,78 @@ function DropLine() {
 }
 
 export function ColumnGroupElement(props: PlateElementProps) {
+  const readOnly = useReadOnly();
   return (
-    <PlateElement className="mb-2" {...props}>
+    <PlateElement className={cn('relative mb-2', !readOnly && 'px-2 pt-3 pb-2')} {...props}>
+      {!readOnly && <ColumnGroupEdgeDrop element={props.element} edge="top" />}
       <ColumnFloatingToolbar>
         <div className="flex size-full flex-col rounded sm:flex-row">{props.children}</div>
       </ColumnFloatingToolbar>
+      {!readOnly && <ColumnGroupEdgeDrop element={props.element} edge="bottom" />}
     </PlateElement>
+  );
+}
+
+function ColumnGroupEdgeDrop({ element, edge }: { element: TElement; edge: 'top' | 'bottom' }) {
+  const editor = useEditorRef();
+  const isDragging = usePluginOption(DndPlugin, 'isDragging');
+  const draggingId = usePluginOption(DndPlugin, 'draggingId');
+  const ref = React.useRef<HTMLDivElement>(null);
+
+  const isDraggingChild = React.useMemo(() => {
+    if (!isDragging || !draggingId) return false;
+    const groupPath = editor.api.findPath(element);
+    if (!groupPath) return false;
+    const ids = (Array.isArray(draggingId) ? draggingId : [draggingId]).filter(Boolean) as string[];
+    if (!ids.length) return false;
+    return ids.every((id) => {
+      const entry = editor.api.node({ at: [], mode: 'all', match: (n: any) => n.id === id });
+      return !!entry && PathApi.isAncestor(groupPath, entry[1]);
+    });
+  }, [editor, element, isDragging, draggingId]);
+
+  const [{ isOver }, drop] = useDrop(
+    () => ({
+      accept: ['block', 'column'],
+      canDrop: () => isDraggingChild,
+      collect: (monitor) => ({ isOver: isDraggingChild && monitor.isOver({ shallow: true }) }),
+      hover: () => {
+        if (!isDraggingChild) return;
+        sideTarget.set(null);
+        editor.setOption(DndPlugin, 'dropTarget', { id: null, line: '' });
+      },
+      drop: (dragItem: { id?: string | string[] }) => {
+        if (!isDraggingChild) return;
+        sideTarget.set(null);
+        const rawId = dragItem?.id ?? editor.getOption(DndPlugin, 'draggingId');
+        const ids = (Array.isArray(rawId) ? rawId : rawId ? [rawId] : []).filter(Boolean) as string[];
+        if (ids.length) {
+          moveToColumnGroupEdge(editor, ids, element, edge);
+        }
+      },
+    }),
+    [editor, element, edge, isDraggingChild]
+  );
+  drop(ref);
+  if (!isDraggingChild) return null;
+  return (
+    <div
+      ref={ref}
+      contentEditable={false}
+      className={cn(
+        'absolute inset-x-0 z-40',
+        edge === 'top' ? '-top-2.5 h-5' : '-bottom-3.5 h-7'
+      )}
+    >
+      {isOver && (
+        <div
+          className={cn(
+            'pointer-events-none absolute inset-x-0 h-1 rounded-full bg-brand',
+            edge === 'top' ? 'top-1' : 'bottom-1'
+          )}
+        />
+      )}
+    </div>
   );
 }
 

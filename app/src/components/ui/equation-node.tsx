@@ -80,6 +80,7 @@ function InteractiveKatexSurface({
   texExpression: string;
   tokens: MathToken[];
 }) {
+  const hostRef = React.useRef<HTMLDivElement | null>(null);
   const containerRef = React.useRef<HTMLSpanElement | null>(null);
 
   const html = React.useMemo(
@@ -100,7 +101,9 @@ function InteractiveKatexSurface({
     nodes.forEach((node) => {
       const id = Number(node.dataset.eqtok);
       node.classList.remove('eq-token-active', 'eq-token-same');
-      node.title = 'Click to edit formula';
+      if (onSelectToken) {
+        node.title = 'Click to edit formula';
+      }
       if (activeToken && id === activeToken.id) {
         node.classList.add('eq-token-active');
       } else if (
@@ -111,12 +114,36 @@ function InteractiveKatexSurface({
         node.classList.add('eq-token-same');
       }
     });
-  }, [html, activeTokenId, highlightAllSame, tokens]);
+  }, [html, activeTokenId, highlightAllSame, onSelectToken, tokens]);
 
-  return (
+  React.useLayoutEffect(() => {
+    if (!displayMode) return;
+    const host = hostRef.current;
+    const el = containerRef.current;
+    if (!host || !el) return;
+
+    const fit = () => {
+      el.style.fontSize = '';
+      const avail = host.clientWidth - 8;
+      const katexEl = el.querySelector<HTMLElement>('.katex-html') ?? el;
+      const natural = katexEl.scrollWidth;
+      if (avail > 40 && natural > avail) {
+        const ratio = Math.max(0.45, (avail / natural) * 0.98);
+        el.style.fontSize = `${(ratio * 100).toFixed(1)}%`;
+      }
+    };
+
+    fit();
+    const ro = new ResizeObserver(fit);
+    ro.observe(host);
+    document.fonts?.ready.then(fit);
+    return () => ro.disconnect();
+  }, [html, displayMode]);
+
+  const inner = (
     <span
       ref={containerRef}
-      className={cn('eq-interactive', className)}
+      className={cn(onSelectToken ? 'eq-interactive' : '', !displayMode && className)}
       onClick={(e) => {
         if (!onSelectToken) return;
         const target = (e.target as HTMLElement | null)?.closest?.(
@@ -132,6 +159,540 @@ function InteractiveKatexSurface({
       dangerouslySetInnerHTML={{ __html: html }}
     />
   );
+
+  if (!displayMode) return inner;
+  return (
+    <div
+      ref={hostRef}
+      className={cn('flex w-full max-w-full items-center justify-center overflow-hidden', className)}
+    >
+      {inner}
+    </div>
+  );
+}
+
+const IGNORED_LATEX_COMMANDS = new Set([
+  'frac',
+  'dfrac',
+  'tfrac',
+  'sqrt',
+  'left',
+  'right',
+  'big',
+  'Big',
+  'bigg',
+  'Bigg',
+  'quad',
+  'qquad',
+  'text',
+  'textrm',
+  'textit',
+  'textbf',
+  'mathrm',
+  'mathbf',
+  'mathit',
+  'mathsf',
+  'mathcal',
+  'mathbb',
+  'begin',
+  'end',
+  'exp',
+  'ln',
+  'log',
+  'sin',
+  'cos',
+  'tan',
+  'cot',
+  'sec',
+  'csc',
+  'arcsin',
+  'arccos',
+  'arctan',
+  'sinh',
+  'cosh',
+  'tanh',
+  'min',
+  'max',
+  'sup',
+  'inf',
+  'lim',
+  'det',
+  'dim',
+  'ker',
+  'arg',
+  'deg',
+  'gcd',
+  'Pr',
+  'sum',
+  'prod',
+  'coprod',
+  'int',
+  'iint',
+  'iiint',
+  'oint',
+  'cdot',
+  'cdots',
+  'ldots',
+  'ddots',
+  'vdots',
+  'times',
+  'div',
+  'pm',
+  'mp',
+  'leq',
+  'le',
+  'geq',
+  'ge',
+  'neq',
+  'ne',
+  'approx',
+  'sim',
+  'simeq',
+  'cong',
+  'equiv',
+  'propto',
+  'to',
+  'rightarrow',
+  'leftarrow',
+  'leftrightarrow',
+  'Rightarrow',
+  'Leftarrow',
+  'Leftrightarrow',
+  'mapsto',
+  'in',
+  'notin',
+  'ni',
+  'subset',
+  'subseteq',
+  'supset',
+  'supseteq',
+  'cup',
+  'cap',
+  'setminus',
+  'emptyset',
+  'varnothing',
+  'forall',
+  'exists',
+  'nexists',
+  'neg',
+  'land',
+  'lor',
+  'partial',
+  'nabla',
+  'infty',
+  'square',
+  'newline',
+  'hat',
+  'bar',
+  'vec',
+  'tilde',
+  'dot',
+  'ddot',
+  'overline',
+  'underline',
+]);
+
+/** Extracts unique LaTeX variable and symbol expressions (including subscripts like \Delta T_0, f_c) from a formula. */
+export function extractFormulaVariablesLatex(tex: string): string[] {
+  const cleaned = tex
+    .replace(/\\(?:text|textrm|mathrm|textbf|textit)\s*\{[^{}]*\}/g, ' ')
+    .replace(/\\(?:begin|end)\s*\{[^{}]*\}/g, ' ');
+  const pattern =
+    /(?:\\(?:Delta|nabla|partial)\s*[A-Za-z]|\\[A-Za-z]+|[A-Za-z])(?:\s*_(?:\{[^{}]*\}|[A-Za-z0-9]))?(?:\s*\^(?:\{[^{}]*\}|[A-Za-z0-9]))?/g;
+  const result: string[] = [];
+  const seen = new Set<string>();
+  let match: RegExpExecArray | null;
+  while ((match = pattern.exec(cleaned)) !== null) {
+    const raw = match[0].trim().replace(/\s+/g, '');
+    const cmdMatch = /^\\([A-Za-z]+)$/.exec(raw.split(/[_^]/)[0]);
+    if (cmdMatch && IGNORED_LATEX_COMMANDS.has(cmdMatch[1])) continue;
+    const normalized = raw.replace(/^\\(Delta|nabla|partial)([A-Za-z])/, '\\$1 $2');
+    if (!seen.has(normalized)) {
+      seen.add(normalized);
+      result.push(normalized);
+    }
+  }
+  return result;
+}
+
+export type DescriptionListStyle = 'bullet' | 'circle' | 'square' | 'number' | 'alpha';
+export type DescriptionDisplayMode = 'inline' | 'popup' | 'none';
+
+const LIST_PREFIX_RE = /^(?:([•\-*])|([◦○])|([▪■□])|(\d+[.)])|([a-zA-Z][.)]))\s+(.*)$/;
+
+function stripListPrefix(line: string): string {
+  const m = LIST_PREFIX_RE.exec(line.trim());
+  return m ? m[6] : line.trim();
+}
+
+export function detectDescriptionListStyle(text: string): DescriptionListStyle {
+  const first = text
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .find(Boolean);
+  if (!first) return 'bullet';
+  const m = LIST_PREFIX_RE.exec(first);
+  if (!m) return 'bullet';
+  if (m[2]) return 'circle';
+  if (m[3]) return 'square';
+  if (m[4]) return 'number';
+  if (m[5]) return 'alpha';
+  return 'bullet';
+}
+
+export function formatDescriptionLinesWithStyle(
+  text: string,
+  style: DescriptionListStyle,
+  fallbackVariables: string[] = []
+): string {
+  let rawLines = text
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter(Boolean);
+  if (rawLines.length === 1 && rawLines[0].includes('; ')) {
+    rawLines = rawLines[0]
+      .split(/;\s+/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+  }
+  if (rawLines.length === 0) {
+    rawLines =
+      fallbackVariables.length > 0
+        ? fallbackVariables.map((v) => `$${v}$: `)
+        : [''];
+  }
+  return rawLines
+    .map((line, idx) => {
+      const body = stripListPrefix(line);
+      const prefix =
+        style === 'bullet'
+          ? '• '
+          : style === 'circle'
+            ? '◦ '
+            : style === 'square'
+              ? '▪ '
+              : style === 'number'
+                ? `${idx + 1}. `
+                : `${String.fromCharCode(97 + (idx % 26))}) `;
+      return `${prefix}${body}`;
+    })
+    .join('\n');
+}
+
+function renderInlineSegmentWithKatex(text: string): React.ReactNode[] {
+  const parts = text.split(/(\$[^$]+\$)/g);
+  return parts.map((part, idx) => {
+    if (part.startsWith('$') && part.endsWith('$') && part.length > 2) {
+      const math = part.slice(1, -1);
+      return (
+        <span
+          key={idx}
+          className="mx-0.5 inline-block align-baseline"
+          dangerouslySetInnerHTML={{ __html: renderMiniKatex(math) }}
+        />
+      );
+    }
+    return <React.Fragment key={idx}>{part}</React.Fragment>;
+  });
+}
+
+function parseVariableDefinitionLine(body: string): {
+  lhsLatex: string | null;
+  rhsText: string;
+} {
+  // 1. Explicit $...$: explanation or $...$ — explanation
+  const explicitMatch = /^\$([^$]+)\$\s*(?::|—|–|-)\s*(.*)$/.exec(body);
+  if (explicitMatch) {
+    return { lhsLatex: explicitMatch[1].trim(), rhsText: explicitMatch[2] };
+  }
+  // 2. Unwrapped LaTeX or short symbol before ':'
+  const colonIdx = body.indexOf(':');
+  if (colonIdx > 0 && colonIdx <= 42) {
+    const lhs = body.slice(0, colonIdx).trim();
+    const rhs = body.slice(colonIdx + 1).trim();
+    const looksLikeMath =
+      /[\\_^=<>~]/.test(lhs) ||
+      lhs.split(/\s+/).length <= 2;
+    if (looksLikeMath) {
+      return { lhsLatex: lhs.replace(/^\$|\$$/g, ''), rhsText: rhs };
+    }
+  }
+  return { lhsLatex: null, rhsText: body };
+}
+
+export interface DescriptionRowItem {
+  lhs: string;
+  rhs: string;
+}
+
+export function parseDescriptionRows(text: string): DescriptionRowItem[] {
+  let raw = text
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter(Boolean);
+  if (raw.length === 1 && raw[0].includes('; ')) {
+    raw = raw[0]
+      .split(/;\s+/)
+      .map((s) => `• ${s.trim()}`);
+  }
+  return raw.map((line) => {
+    const m = LIST_PREFIX_RE.exec(line);
+    const body = m ? m[6] : line;
+    const { lhsLatex, rhsText } = parseVariableDefinitionLine(body);
+    return { lhs: lhsLatex ?? '', rhs: rhsText };
+  });
+}
+
+export function serializeDescriptionRows(
+  style: DescriptionListStyle,
+  rows: DescriptionRowItem[]
+): string {
+  return rows
+    .map((r, idx) => {
+      const prefix =
+        style === 'bullet'
+          ? '• '
+          : style === 'circle'
+            ? '◦ '
+            : style === 'square'
+              ? '▪ '
+              : style === 'number'
+                ? `${idx + 1}. `
+                : `${String.fromCharCode(97 + (idx % 26))}) `;
+      const lhsClean = r.lhs.trim().replace(/^\$|\$$/g, '');
+      const body = lhsClean ? `$${lhsClean}$: ${r.rhs}` : r.rhs;
+      return `${prefix}${body}`;
+    })
+    .join('\n');
+}
+
+export function BlackListMarker({
+  index,
+  marker,
+  style,
+}: {
+  index?: number;
+  marker?: string;
+  style?: DescriptionListStyle;
+}) {
+  const effectiveStyle =
+    style ??
+    (marker === '◦'
+      ? 'circle'
+      : marker === '▪'
+        ? 'square'
+        : marker && /^\d/.test(marker)
+          ? 'number'
+          : marker && /^[a-zA-Z]/.test(marker)
+            ? 'alpha'
+            : 'bullet');
+
+  if (effectiveStyle === 'bullet') {
+    return (
+      <span className="inline-flex w-3.5 shrink-0 select-none items-center justify-center self-center">
+        <span
+          className="inline-block rounded-full bg-slate-950"
+          style={{ width: 3.5, height: 3.5 }}
+        />
+      </span>
+    );
+  }
+  if (effectiveStyle === 'circle') {
+    return (
+      <span className="inline-flex w-3.5 shrink-0 select-none items-center justify-center self-center">
+        <span
+          className="inline-block rounded-full border border-slate-950 bg-transparent"
+          style={{ width: 4, height: 4 }}
+        />
+      </span>
+    );
+  }
+  if (effectiveStyle === 'square') {
+    return (
+      <span className="inline-flex w-3.5 shrink-0 select-none items-center justify-center self-center">
+        <span
+          className="inline-block bg-slate-950"
+          style={{ width: 3.5, height: 3.5 }}
+        />
+      </span>
+    );
+  }
+  const label =
+    marker ||
+    (effectiveStyle === 'number'
+      ? `${(index ?? 0) + 1}.`
+      : `${String.fromCharCode(97 + ((index ?? 0) % 26))})`);
+  return (
+    <span className="min-w-[1.25rem] shrink-0 select-none text-right font-semibold text-slate-950">
+      {label}
+    </span>
+  );
+}
+
+export function FormattedFormulaDescription({
+  compact = false,
+  text,
+}: {
+  compact?: boolean;
+  text: string;
+}) {
+  const lines = React.useMemo(() => {
+    const raw = text
+      .split(/\r?\n/)
+      .map((l) => l.trim())
+      .filter(Boolean);
+    if (raw.length === 1 && raw[0].includes('; ')) {
+      return raw[0]
+        .split(/;\s+/)
+        .map((s) => `• ${s.trim()}`);
+    }
+    return raw;
+  }, [text]);
+
+  if (lines.length === 0) return null;
+
+  return (
+    <div className={cn('space-y-1.5 text-foreground', compact ? 'text-xs' : 'text-sm')}>
+      {lines.map((line, idx) => {
+        const m = LIST_PREFIX_RE.exec(line);
+        const marker = m
+          ? m[1]
+            ? '•'
+            : m[2]
+              ? '◦'
+              : m[3]
+                ? '▪'
+                : m[4] || m[5] || ''
+          : '';
+        const body = m ? m[6] : line;
+        const { lhsLatex, rhsText } = parseVariableDefinitionLine(body);
+
+        return (
+          <div
+            key={idx}
+            className="flex items-baseline gap-2 leading-relaxed break-words"
+          >
+            {marker && <BlackListMarker marker={marker} index={idx} />}
+            <div className="min-w-0 flex-1">
+              {lhsLatex ? (
+                <>
+                  <span
+                    className="inline-block align-baseline"
+                    dangerouslySetInnerHTML={{
+                      __html: renderMiniKatex(lhsLatex),
+                    }}
+                  />
+                  <span className="mx-1.5 text-muted-foreground">—</span>
+                  <span className="text-foreground/90">
+                    {renderInlineSegmentWithKatex(rhsText)}
+                  </span>
+                </>
+              ) : (
+                <span className="text-foreground/90">
+                  {renderInlineSegmentWithKatex(rhsText)}
+                </span>
+              )}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+export function EquationPreviewDialog({
+  description,
+  descriptionMode = 'inline',
+  onClose,
+  texExpression,
+  tokens,
+}: {
+  description?: string;
+  descriptionMode?: DescriptionDisplayMode;
+  onClose: () => void;
+  texExpression: string;
+  tokens: MathToken[];
+}) {
+  const [copied, setCopied] = React.useState(false);
+
+  React.useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    document.body.classList.add('modal-open');
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      document.body.classList.remove('modal-open');
+    };
+  }, [onClose]);
+
+  const copyLatex = () => {
+    navigator.clipboard?.writeText(texExpression);
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 1800);
+  };
+
+  const hasNotes =
+    descriptionMode !== 'none' && Boolean(description && description.trim());
+
+  return createPortal(
+    <div className="dlg-backdrop" onMouseDown={onClose}>
+      <div
+        className="dlg dlg-small"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Formula details"
+        onMouseDown={(e) => e.stopPropagation()}
+      >
+        <header className="dlg-head">
+          <div className="dlg-title flex items-center gap-2">
+            <span className="inline-flex size-6 items-center justify-center rounded-md bg-blue-50 text-blue-700">
+              <RadicalIcon className="size-4" />
+            </span>
+            <span>Formula Details</span>
+          </div>
+          <button type="button" className="btn" onClick={copyLatex}>
+            <Code2Icon className="size-3.5" />
+            <span>{copied ? 'Copied LaTeX' : 'Copy LaTeX'}</span>
+          </button>
+          <button
+            type="button"
+            className="pc-icon-btn"
+            aria-label="Close"
+            onClick={onClose}
+          >
+            <XIcon size={17} />
+          </button>
+        </header>
+        <div className="dlg-body flex flex-col gap-4 p-5">
+          <div className="flex min-h-[104px] items-center justify-center overflow-hidden rounded-xl border border-slate-200/80 bg-slate-50/70 px-6 py-5">
+            <InteractiveKatexSurface
+              texExpression={texExpression}
+              tokens={tokens}
+              activeTokenId={null}
+              displayMode
+              className="text-[1.35rem]"
+            />
+          </div>
+
+          {hasNotes ? (
+            <div className="rounded-xl border bg-background p-4 space-y-2.5">
+              <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Description &amp; Variable Notes
+              </div>
+              <FormattedFormulaDescription text={description!.trim()} />
+            </div>
+          ) : (
+            <p className="hint">
+              No variable notes attached to this formula cell. Switch to Edit mode if you want to add inline or popup LaTeX variable explanations.
+            </p>
+          )}
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
 }
 
 export function EquationElement(props: PlateElementProps<TEquationElement>) {
@@ -141,6 +702,16 @@ export function EquationElement(props: PlateElementProps<TEquationElement>) {
     typeof props.element.texExpression === 'boolean'
       ? String(props.element.texExpression)
       : '';
+  const description =
+    typeof (props.element as any).description === 'string'
+      ? (props.element as any).description
+      : '';
+  const descriptionMode: DescriptionDisplayMode =
+    (props.element as any).descriptionMode === 'none' ||
+    (props.element as any).descriptionMode === 'popup' ||
+    (props.element as any).descriptionMode === 'inline'
+      ? (props.element as any).descriptionMode
+      : 'inline';
   const selected = useSelected();
   const readOnly = useReadOnly();
   const [open, setOpen] = React.useState(false);
@@ -186,15 +757,24 @@ export function EquationElement(props: PlateElementProps<TEquationElement>) {
     <PlateElement className="my-1" {...props}>
       <div
         className={cn(
-          'group relative flex max-w-full cursor-pointer select-none items-center justify-center overflow-x-auto rounded-md border border-transparent transition-colors hover:border-border hover:bg-muted/60 data-[selected=true]:border-blue-300 data-[selected=true]:bg-primary/5',
+          'group relative flex max-w-full cursor-pointer select-none flex-col items-center justify-center overflow-hidden rounded-md border border-transparent transition-colors hover:border-border hover:bg-muted/60 data-[selected=true]:border-blue-300 data-[selected=true]:bg-primary/5',
           texExpression.length === 0 ? 'bg-muted p-3 pr-9' : 'px-3 py-2'
         )}
         data-selected={selected || open}
         contentEditable={false}
         role="button"
-        title={readOnly ? undefined : 'Click any number or symbol to open Formula Editor'}
+        title={
+          readOnly
+            ? 'Click to view formula details & variable explanations'
+            : 'Click any number or symbol to open Formula Editor'
+        }
         onClick={(e) => {
-          if (readOnly) return;
+          if (readOnly) {
+            if (texExpression.trim().length > 0) {
+              setOpen(true);
+            }
+            return;
+          }
           const tokEl = (e.target as HTMLElement | null)?.closest?.(
             '[data-eqtok]'
           ) as HTMLElement | null;
@@ -215,19 +795,32 @@ export function EquationElement(props: PlateElementProps<TEquationElement>) {
         }}
       >
         {texExpression.length > 0 ? (
-          <InteractiveKatexSurface
-            texExpression={texExpression}
-            tokens={tokens}
-            activeTokenId={open ? safeSelectedId : null}
-            highlightAllSame={open && syncAllMatching}
-            displayMode
-            onSelectToken={(id) => {
-              if (readOnly) return;
-              setSelectedTokenId(id);
-              setSelectionTick((t) => t + 1);
-              setOpen(true);
-            }}
-          />
+          <>
+            <InteractiveKatexSurface
+              texExpression={texExpression}
+              tokens={tokens}
+              activeTokenId={open && !readOnly ? safeSelectedId : null}
+              highlightAllSame={open && !readOnly && syncAllMatching}
+              displayMode
+              onSelectToken={(id) => {
+                if (readOnly) {
+                  setOpen(true);
+                  return;
+                }
+                setSelectedTokenId(id);
+                setSelectionTick((t) => t + 1);
+                setOpen(true);
+              }}
+            />
+            {descriptionMode === 'inline' && description.trim().length > 0 && (
+              <div className="mt-2 w-full text-left">
+                <FormattedFormulaDescription
+                  text={description.trim()}
+                  compact
+                />
+              </div>
+            )}
+          </>
         ) : (
           <div className="flex h-7 w-full items-center gap-2 whitespace-nowrap text-muted-foreground text-sm">
             <RadicalIcon className="size-6 text-muted-foreground/80" />
@@ -235,12 +828,16 @@ export function EquationElement(props: PlateElementProps<TEquationElement>) {
           </div>
         )}
 
-        {!readOnly && texExpression.length > 0 && (
+        {texExpression.length > 0 && (
           <button
             type="button"
             className="pc-icon-btn absolute right-2 bottom-1.5 opacity-0 transition-opacity group-hover:opacity-100"
-            aria-label="Open Formula Editor"
-            data-tip="Edit formula in large popup"
+            aria-label={readOnly ? 'View Formula Details' : 'Open Formula Editor'}
+            data-tip={
+              readOnly
+                ? 'View formula details & description'
+                : 'Edit formula in large popup'
+            }
             onClick={(e) => {
               e.stopPropagation();
               setOpen(true);
@@ -251,6 +848,16 @@ export function EquationElement(props: PlateElementProps<TEquationElement>) {
         )}
         {lineBreakBadge}
       </div>
+
+      {open && readOnly && (
+        <EquationPreviewDialog
+          texExpression={texExpression}
+          description={description}
+          descriptionMode={descriptionMode}
+          tokens={tokens}
+          onClose={() => setOpen(false)}
+        />
+      )}
 
       {open && !readOnly && (
         <EquationDialog
@@ -465,6 +1072,131 @@ const EquationDialog = ({
     [editor, element]
   );
 
+  const description: string =
+    typeof (element as any).description === 'string'
+      ? (element as any).description
+      : '';
+
+  const descriptionMode: DescriptionDisplayMode =
+    (element as any).descriptionMode === 'none' ||
+    (element as any).descriptionMode === 'popup' ||
+    (element as any).descriptionMode === 'inline'
+      ? (element as any).descriptionMode
+      : 'inline';
+
+  const [activeListStyle, setActiveListStyle] = React.useState<DescriptionListStyle>(() =>
+    detectDescriptionListStyle(description)
+  );
+  const [editingLhsIdx, setEditingLhsIdx] = React.useState<number | null>(null);
+  const [editingRhsIdx, setEditingRhsIdx] = React.useState<number | null>(null);
+
+  React.useEffect(() => {
+    if (description.trim()) {
+      setActiveListStyle(detectDescriptionListStyle(description));
+    }
+  }, [description]);
+
+  const descRows = React.useMemo(
+    () => parseDescriptionRows(description),
+    [description]
+  );
+
+  const updateDescription = React.useCallback(
+    (nextDesc: string) => {
+      editor.tf.setNodes(
+        { description: nextDesc } as any,
+        { at: element }
+      );
+    },
+    [editor, element]
+  );
+
+  const updateDescriptionMode = React.useCallback(
+    (nextMode: DescriptionDisplayMode) => {
+      editor.tf.setNodes(
+        { descriptionMode: nextMode } as any,
+        { at: element }
+      );
+    },
+    [editor, element]
+  );
+
+  const formulaVarsLatex = React.useMemo(
+    () => extractFormulaVariablesLatex(texExpression),
+    [texExpression]
+  );
+
+  const commitDescRows = React.useCallback(
+    (nextRows: DescriptionRowItem[], style = activeListStyle) => {
+      updateDescription(serializeDescriptionRows(style, nextRows));
+    },
+    [activeListStyle, updateDescription]
+  );
+
+  const handleApplyListStyle = (style: DescriptionListStyle) => {
+    setActiveListStyle(style);
+    if (descRows.length === 0) {
+      const initialRows =
+        formulaVarsLatex.length > 0
+          ? formulaVarsLatex.map((v) => ({ lhs: v, rhs: '' }))
+          : [{ lhs: '\\alpha', rhs: '' }];
+      commitDescRows(initialRows, style);
+      setEditingRhsIdx(0);
+    } else {
+      commitDescRows(descRows, style);
+    }
+  };
+
+  const handleUpdateRow = (idx: number, patch: Partial<DescriptionRowItem>) => {
+    const next = descRows.map((r, i) => (i === idx ? { ...r, ...patch } : r));
+    commitDescRows(next);
+  };
+
+  const handleAddRow = (afterIdx?: number) => {
+    const usedVars = new Set(descRows.map((r) => r.lhs.trim()));
+    const nextUnusedVar = formulaVarsLatex.find((v) => !usedVars.has(v)) ?? '';
+    const newRow: DescriptionRowItem = { lhs: nextUnusedVar, rhs: '' };
+    const insertAt =
+      afterIdx !== undefined ? afterIdx + 1 : descRows.length;
+    const next = [
+      ...descRows.slice(0, insertAt),
+      newRow,
+      ...descRows.slice(insertAt),
+    ];
+    commitDescRows(next);
+    if (nextUnusedVar) {
+      setEditingRhsIdx(insertAt);
+      setEditingLhsIdx(null);
+    } else {
+      setEditingLhsIdx(insertAt);
+      setEditingRhsIdx(null);
+    }
+  };
+
+  const handleRemoveRow = (idx: number) => {
+    const next = descRows.filter((_, i) => i !== idx);
+    commitDescRows(next);
+    if (editingLhsIdx === idx) setEditingLhsIdx(null);
+    if (editingRhsIdx === idx) setEditingRhsIdx(null);
+  };
+
+  const handleAutoFillVariables = () => {
+    const existingLhs = new Set(descRows.map((r) => r.lhs.trim()));
+    const missing = formulaVarsLatex.filter((v) => !existingLhs.has(v));
+    const toAdd = (missing.length > 0 ? missing : formulaVarsLatex).map(
+      (v) => ({ lhs: v, rhs: '' })
+    );
+    const next = [...descRows, ...toAdd];
+    commitDescRows(next);
+    setEditingRhsIdx(descRows.length);
+  };
+
+  const initialSnapshotRef = React.useRef({
+    texExpression,
+    description,
+    descriptionMode,
+  });
+
   const onClose = React.useCallback(() => {
     setOpen(false);
     if (isInline) {
@@ -476,8 +1208,16 @@ const EquationDialog = ({
     }
   }, [editor, element, isInline, setOpen]);
 
-  const closeRef = React.useRef(onClose);
-  closeRef.current = onClose;
+  const onCancel = React.useCallback(() => {
+    editor.tf.setNodes(
+      initialSnapshotRef.current as any,
+      { at: element }
+    );
+    onClose();
+  }, [editor, element, onClose]);
+
+  const closeRef = React.useRef(onCancel);
+  closeRef.current = onCancel;
 
   React.useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -643,7 +1383,7 @@ const EquationDialog = ({
     <div
       className="dlg-backdrop"
       onMouseDown={(e) => {
-        if (e.target === e.currentTarget) onClose();
+        if (e.target === e.currentTarget) onCancel();
       }}
     >
       <div
@@ -654,7 +1394,13 @@ const EquationDialog = ({
         aria-label="Formula Editor"
         tabIndex={-1}
         onMouseDown={(e) => e.stopPropagation()}
-        onKeyDown={(e) => e.stopPropagation()}
+        onKeyDown={(e) => {
+          if (e.key === 'Escape') {
+            e.preventDefault();
+            closeRef.current();
+          }
+          e.stopPropagation();
+        }}
       >
         {/* Dialog Header — matches FigureDialog */}
         <header className="dlg-head">
@@ -684,11 +1430,11 @@ const EquationDialog = ({
             ))}
           </nav>
 
-          <div className="flex items-center gap-1.5">
+          <div className="flex shrink-0 items-center gap-1.5">
             {!isInline && (
               <button
                 type="button"
-                className="pc-icon-btn ai-btn inline-flex items-center gap-1 px-2 text-xs font-medium"
+                className="inline-flex h-7 shrink-0 cursor-pointer items-center gap-1.5 rounded-md border border-blue-200 bg-blue-50/70 px-2.5 text-xs font-medium whitespace-nowrap text-[#1d5fd1] transition-colors hover:bg-blue-100/80"
                 data-tip="Ask AI to write or modify this formula"
                 onClick={() => {
                   onClose();
@@ -697,7 +1443,7 @@ const EquationDialog = ({
                   }, 40);
                 }}
               >
-                <SparklesIcon className="size-3.5" />
+                <SparklesIcon className="size-3.5 shrink-0" />
                 <span>Ask AI</span>
               </button>
             )}
@@ -712,8 +1458,8 @@ const EquationDialog = ({
             <button
               type="button"
               className="pc-icon-btn"
-              aria-label="Close"
-              onClick={onClose}
+              aria-label="Cancel and close"
+              onClick={onCancel}
             >
               <XIcon size={17} />
             </button>
@@ -722,20 +1468,51 @@ const EquationDialog = ({
 
         {/* Dialog Body */}
         <div className="dlg-body flex flex-col gap-3 bg-slate-50/50 p-3 sm:gap-4 sm:p-5">
-          {/* 1. Always-visible Interactive Formula Stage (NEVER covered by popovers!) */}
+          {/* 1. Unified Interactive Formula & Variable Notes Stage */}
           <div className="rounded-xl border bg-white p-3 shadow-2xs sm:p-4">
-            <div className="mb-2 flex items-center justify-between text-xs text-muted-foreground">
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
               <span className="font-medium">
                 Interactive Formula Preview — click any number, symbol, or variable to edit it directly:
               </span>
-              {tokens.length > 0 && (
-                <span>
-                  Part {clampedTokenId + 1} of {tokens.length}
-                </span>
-              )}
+              <div className="flex items-center gap-2">
+                {tokens.length > 0 && (
+                  <span>
+                    Part {clampedTokenId + 1} of {tokens.length}
+                  </span>
+                )}
+                {!isInline && (
+                  <div
+                    className="inline-flex rounded-lg border bg-slate-100/80 p-0.5 text-xs"
+                    role="group"
+                    aria-label="Variable notes display mode"
+                  >
+                    {(
+                      [
+                        { id: 'inline', label: 'Show Below Formula' },
+                        { id: 'popup', label: 'Popup Only' },
+                        { id: 'none', label: 'Off (Use Text Cell)' },
+                      ] as const
+                    ).map((mode) => (
+                      <button
+                        key={mode.id}
+                        type="button"
+                        onClick={() => updateDescriptionMode(mode.id)}
+                        className={cn(
+                          'rounded-md px-2 py-0.5 text-[11px] font-medium transition-colors',
+                          descriptionMode === mode.id
+                            ? 'bg-white text-blue-700 shadow-2xs font-semibold'
+                            : 'text-muted-foreground hover:text-foreground'
+                        )}
+                      >
+                        {mode.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
 
-            <div className="flex min-h-[110px] items-center justify-center overflow-x-auto rounded-lg border border-slate-200/80 bg-slate-50/70 px-6 py-5">
+            <div className="flex min-h-[110px] flex-col items-center justify-center overflow-hidden rounded-lg border border-slate-200/80 bg-slate-50/70 px-6 py-5">
               {texExpression.trim().length > 0 ? (
                 <InteractiveKatexSurface
                   texExpression={texExpression}
@@ -751,6 +1528,195 @@ const EquationDialog = ({
               ) : (
                 <div className="text-sm text-muted-foreground">
                   Empty formula — pick a template below or insert a structure to start
+                </div>
+              )}
+
+              {/* Direct Click-to-Edit KaTeX Variable Notes inside the same Formula Stage */}
+              {!isInline && descriptionMode !== 'none' && (
+                <div
+                  className="mt-3 w-full text-left"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div className="mb-2 flex flex-wrap items-center justify-between gap-1.5">
+                    <div className="flex flex-wrap items-center gap-1">
+                      <span className="mr-1 text-[11px] font-medium text-muted-foreground">
+                        Index style:
+                      </span>
+                      {(
+                        [
+                          { id: 'bullet', label: '• Disc' },
+                          { id: 'circle', label: '◦ Circle' },
+                          { id: 'square', label: '▪ Square' },
+                          { id: 'number', label: '1, 2, 3' },
+                          { id: 'alpha', label: 'a, b, c' },
+                        ] as const
+                      ).map((st) => (
+                        <button
+                          key={st.id}
+                          type="button"
+                          onClick={() => handleApplyListStyle(st.id)}
+                          className={cn(
+                            'inline-flex h-6 items-center gap-1 rounded border px-2 text-[11px] font-medium transition-colors',
+                            activeListStyle === st.id
+                              ? 'border-slate-900 bg-slate-900 text-white'
+                              : 'border-slate-200 bg-white text-foreground hover:border-slate-400'
+                          )}
+                          title={`Use ${st.label} markers`}
+                        >
+                          {st.label}
+                        </button>
+                      ))}
+                    </div>
+
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => handleAddRow()}
+                        className="inline-flex h-6 items-center gap-1 rounded border border-slate-300 bg-white px-2 text-[11px] font-medium text-foreground hover:bg-slate-100"
+                      >
+                        <PlusIcon className="size-3" /> Add Line
+                      </button>
+                      {formulaVarsLatex.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={handleAutoFillVariables}
+                          className="inline-flex h-6 items-center gap-1 rounded border border-dashed border-blue-400 bg-blue-50/70 px-2 text-[11px] font-medium text-blue-700 hover:bg-blue-100/80"
+                          title="Auto-populate rows from variables in the formula"
+                        >
+                          <PlusIcon className="size-3" /> Auto-list Variables (
+                          {formulaVarsLatex.length})
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {descRows.length > 0 ? (
+                    <div className="space-y-1.5">
+                      {descRows.map((row, idx) => (
+                        <div
+                          key={idx}
+                          className="group/row flex items-center gap-2 text-xs leading-relaxed"
+                        >
+                          <BlackListMarker
+                            style={activeListStyle}
+                            index={idx}
+                          />
+
+                          {/* Clickable KaTeX Variable / Symbol Pill */}
+                          {editingLhsIdx === idx ? (
+                            <input
+                              type="text"
+                              autoFocus
+                              value={row.lhs}
+                              placeholder="\alpha"
+                              onChange={(e) =>
+                                handleUpdateRow(idx, { lhs: e.target.value })
+                              }
+                              onBlur={() => setEditingLhsIdx(null)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter' || e.key === 'Tab') {
+                                  e.preventDefault();
+                                  setEditingLhsIdx(null);
+                                  setEditingRhsIdx(idx);
+                                }
+                              }}
+                              className="h-6 w-32 rounded border border-blue-500 bg-white px-2 font-mono text-xs text-foreground outline-none"
+                            />
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingLhsIdx(idx);
+                                setEditingRhsIdx(null);
+                              }}
+                              title="Click to edit LaTeX symbol"
+                              className="inline-flex min-h-[24px] shrink-0 items-center rounded px-1 py-0.5 hover:bg-blue-50/70 hover:ring-1 hover:ring-blue-300"
+                            >
+                              {row.lhs.trim() ? (
+                                <span
+                                  dangerouslySetInnerHTML={{
+                                    __html: renderMiniKatex(row.lhs.trim()),
+                                  }}
+                                />
+                              ) : (
+                                <span className="font-mono text-[11px] text-muted-foreground">
+                                  + symbol
+                                </span>
+                              )}
+                            </button>
+                          )}
+
+                          <span className="select-none text-muted-foreground">
+                            —
+                          </span>
+
+                          {/* Click-to-edit Explanation (renders $...$ KaTeX when not focused) */}
+                          {editingRhsIdx === idx || !row.rhs.trim() ? (
+                            <input
+                              type="text"
+                              autoFocus={editingRhsIdx === idx}
+                              value={row.rhs}
+                              placeholder="Type explanation (use $...$ for inline LaTeX math, e.g. $^\circ\text{C}$)…"
+                              onFocus={() => setEditingRhsIdx(idx)}
+                              onBlur={() => {
+                                if (editingRhsIdx === idx) {
+                                  setEditingRhsIdx(null);
+                                }
+                              }}
+                              onChange={(e) =>
+                                handleUpdateRow(idx, { rhs: e.target.value })
+                              }
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  e.preventDefault();
+                                  if (idx < descRows.length - 1) {
+                                    setEditingRhsIdx(idx + 1);
+                                  } else {
+                                    handleAddRow(idx);
+                                  }
+                                }
+                              }}
+                              className="h-7 min-w-0 flex-1 rounded border border-slate-300 bg-white px-2.5 text-xs text-foreground outline-none focus:border-blue-500"
+                            />
+                          ) : (
+                            <div
+                              role="button"
+                              tabIndex={0}
+                              onClick={() => {
+                                setEditingRhsIdx(idx);
+                                setEditingLhsIdx(null);
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter' || e.key === ' ') {
+                                  e.preventDefault();
+                                  setEditingRhsIdx(idx);
+                                }
+                              }}
+                              title="Click to edit explanation"
+                              className="min-w-0 flex-1 cursor-text rounded px-2 py-1 text-foreground/95 transition-colors hover:bg-white hover:ring-1 hover:ring-blue-300"
+                            >
+                              {renderInlineSegmentWithKatex(row.rhs)}
+                            </div>
+                          )}
+
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveRow(idx)}
+                            className="inline-flex size-6 shrink-0 items-center justify-center rounded text-muted-foreground opacity-0 transition-opacity hover:bg-slate-200/70 hover:text-foreground group-hover/row:opacity-100"
+                            title="Remove line"
+                          >
+                            <XIcon className="size-3.5" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-between rounded-md border border-dashed border-slate-300 bg-white/60 px-3 py-2 text-xs text-muted-foreground">
+                      <span>
+                        No variable explanations yet — click &ldquo;Auto-list Variables&rdquo; to generate rows from this formula.
+                      </span>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -984,14 +1950,24 @@ const EquationDialog = ({
                     ))}
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={() => handleInsertStructure('\\square')}
-                    className="inline-flex h-7 items-center gap-1 rounded-md border border-dashed border-blue-400 bg-blue-50/50 px-2.5 text-xs font-medium text-blue-700 hover:bg-blue-100/70"
-                    title="Append an editable placeholder slot □ to the formula"
-                  >
-                    <PlusIcon className="size-3.5" /> Add Slot □
-                  </button>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => handleInsertStructure('\\\\ ')}
+                      className="inline-flex h-7 items-center gap-1 rounded-md border border-slate-300 bg-slate-50 px-2.5 text-xs font-medium text-slate-700 hover:bg-slate-100"
+                      title="Break formula onto a new line (inserts \\)"
+                    >
+                      <CornerDownLeftIcon className="size-3.5" /> New Line
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleInsertStructure('\\square')}
+                      className="inline-flex h-7 items-center gap-1 rounded-md border border-dashed border-blue-400 bg-blue-50/50 px-2.5 text-xs font-medium text-blue-700 hover:bg-blue-100/70"
+                      title="Append an editable placeholder slot □ to the formula"
+                    >
+                      <PlusIcon className="size-3.5" /> Add Slot □
+                    </button>
+                  </div>
                 </div>
 
                 {paletteTab === 'structures' && (

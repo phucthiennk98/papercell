@@ -1,8 +1,10 @@
-// Trình tạo biểu đồ không cần code: chọn loại hình và các cột → sinh code Plot dễ đọc.
+// No-code chart builder: pick a chart type and columns -> generates readable Observable Plot / MapLibre JS code.
 import {
   AreaChart, ChartColumn, ChartLine, ChartScatter, ChartNoAxesColumn, BarChartHorizontal, Box, Grid3x3, Table2, MapPin, Flame, Map as MapIcon,
   type LucideIcon,
 } from 'lucide-react'
+import { asRows } from '@/data/import'
+import type { FigureParam } from '@/editor/types'
 import type { Basemap } from './map'
 
 export type ChartType = 'bar' | 'barh' | 'line' | 'area' | 'scatter' | 'histogram' | 'box' | 'heatmap' | 'table' | 'map-points' | 'map-heat' | 'map-regions'
@@ -13,6 +15,8 @@ export type ChartSpec = {
   data: string
   type: ChartType
   x?: string; y?: string; color?: string; size?: string; facet?: string; lat?: string; lon?: string
+  /** Optional dataset columns exposed as interactive scenario/filter controls on the figure. */
+  filters?: string[]
   agg: Agg
   bins: number
   sort: 'none' | 'asc' | 'desc'
@@ -42,13 +46,62 @@ export const CHART_TYPES: ChartTypeInfo[] = [
 ]
 
 export const AGG_LABEL: Record<Agg, string> = { none: 'None', count: 'Count', sum: 'Sum', mean: 'Mean', median: 'Median', min: 'Min', max: 'Max' }
-export const SCHEMES = ['blues', 'greens', 'oranges', 'reds', 'purples', 'viridis', 'turbo', 'ylorrd'] as const
+export const SCHEMES = [
+  'blues', 'greens', 'oranges', 'reds', 'purples',
+  'viridis', 'turbo', 'ylorrd', 'rdbu',
+  'tableau10', 'observable10', 'set2',
+] as const
+
+export const SCHEME_META: Record<string, { label: string; primary: string; swatches: string[] }> = {
+  blues:        { label: 'Blues',        primary: '#2a78d6', swatches: ['#bfdbfe', '#60a5fa', '#2a78d6', '#1e40af'] },
+  greens:       { label: 'Greens',       primary: '#16a34a', swatches: ['#bbf7d0', '#4ade80', '#16a34a', '#166534'] },
+  oranges:      { label: 'Oranges',      primary: '#ea580c', swatches: ['#fed7aa', '#fb923c', '#ea580c', '#9a3412'] },
+  reds:         { label: 'Reds',         primary: '#dc2626', swatches: ['#fecaca', '#f87171', '#dc2626', '#991b1b'] },
+  purples:      { label: 'Purples',      primary: '#7c3aed', swatches: ['#ddd6fe', '#a78bfa', '#7c3aed', '#4c1d95'] },
+  viridis:      { label: 'Viridis',      primary: '#21918c', swatches: ['#440154', '#31688e', '#35b779', '#fde725'] },
+  turbo:        { label: 'Turbo',        primary: '#0284c7', swatches: ['#30123b', '#28bbec', '#a2fc3c', '#7a0403'] },
+  ylorrd:       { label: 'YlOrRd',       primary: '#e11d48', swatches: ['#fed976', '#fd8d3c', '#e31a1c', '#800026'] },
+  rdbu:         { label: 'RdBu',         primary: '#2166ac', swatches: ['#b2182b', '#f4a582', '#92c5de', '#2166ac'] },
+  tableau10:    { label: 'Tableau 10',   primary: '#4e79a7', swatches: ['#4e79a7', '#f28e2c', '#e15759', '#76b7b2'] },
+  observable10: { label: 'Observable',   primary: '#4269d0', swatches: ['#4269d0', '#efb118', '#ff725c', '#6cc5b0'] },
+  set2:         { label: 'Set 2',        primary: '#66c2a5', swatches: ['#66c2a5', '#fc8d62', '#8da0cb', '#e78ac3'] },
+}
+
+export const isCustomScheme = (scheme?: string) => !!scheme && scheme.trim().startsWith('#')
+
+/** Parse a custom scheme string like "#2563eb" or "#2563eb,#8b5cf6,#ec4899" into valid hex stops. */
+export function parseCustomColors(scheme?: string): string[] {
+  if (!scheme) return ['#2a78d6']
+  const list = scheme
+    .split(',')
+    .map((s) => s.trim())
+    .filter((s) => /^#[0-9a-fA-F]{3,8}$/.test(s))
+  return list.length ? list : ['#2a78d6']
+}
+
+function tintHex(hex: string, t: number): string {
+  const clean = hex.replace('#', '')
+  const full = clean.length === 3 ? clean.split('').map((c) => c + c).join('') : clean.slice(0, 6)
+  const n = parseInt(full, 16)
+  if (isNaN(n)) return hex
+  const r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255
+  const mix = (c: number) => Math.round(t >= 0 ? c + (255 - c) * t : c * (1 + t))
+  return '#' + [mix(r), mix(g), mix(b)].map((x) => Math.max(0, Math.min(255, x)).toString(16).padStart(2, '0')).join('')
+}
+
+/** Return 2–5 hex stops suitable for categorical or continuous scales when using a custom color scheme. */
+export function customScaleColors(scheme?: string): string[] {
+  const cols = parseCustomColors(scheme)
+  if (cols.length >= 2) return cols
+  const base = cols[0]
+  return [tintHex(base, 0.72), tintHex(base, 0.35), base, tintHex(base, -0.35)]
+}
 
 export const typeInfo = (t: ChartType) => CHART_TYPES.find((c) => c.type === t)!
 
 export const defaultSpec = (data = ''): ChartSpec => ({ data, type: 'bar', agg: 'count', bins: 20, sort: 'none', scheme: 'blues', basemap: 'light' })
 
-/** Thiếu cột bắt buộc nào thì trả về tên để báo người dùng. */
+/** Return labels of any required channels that have not been assigned yet. */
 export function missingChannels(s: ChartSpec) {
   return typeInfo(s.type).channels.filter((c) => c.required && !s[c.channel]).map((c) => c.label)
 }
@@ -56,12 +109,24 @@ export function missingChannels(s: ChartSpec) {
 const q = (s?: string) => JSON.stringify(s ?? '')
 const prop = (s: string) => /^[A-Za-z_$][\w$]*$/.test(s) ? `d.${s}` : `d[${q(s)}]`
 
+const RESERVED_IDENTS = new Set([
+  'data', 'width', 'params', 'Plot', 'd3', 'pc', 'result', 'ket_qua', 'expose',
+  'so_cot', 'ds', 'rawDs', 'chart', 'sorted', 'table', 'cot', 'isNum',
+  'marginL', 'labelLen', 'rotate', 'nFacets',
+])
+
+/** Valid JS identifier for a filter parameter derived from a column name. */
+export function filterParamName(col: string): string {
+  const clean = col.replace(/[^A-Za-z0-9_$]+/g, '_').replace(/^(\d)/, '_$1') || 'filter'
+  return RESERVED_IDENTS.has(clean) ? `filter_${clean}` : clean
+}
+
 // ---- Chart settings line: `const chart = {...}` keeps the Design tab and the code in sync both ways ----
-const SPEC_KEYS: (keyof ChartSpec)[] = ['data', 'type', 'x', 'y', 'color', 'size', 'facet', 'lat', 'lon', 'agg', 'bins', 'sort', 'xLabel', 'yLabel', 'scheme', 'basemap']
+const SPEC_KEYS: (keyof ChartSpec)[] = ['data', 'type', 'x', 'y', 'color', 'size', 'facet', 'lat', 'lon', 'filters', 'agg', 'bins', 'sort', 'xLabel', 'yLabel', 'scheme', 'basemap']
 const CHART_LINE = /^const chart = (.*)$/m
 
 export const chartLine = (s: ChartSpec) =>
-  `const chart = ${JSON.stringify(Object.fromEntries(SPEC_KEYS.filter((k) => s[k] !== undefined && s[k] !== '').map((k) => [k, s[k]])))}`
+  `const chart = ${JSON.stringify(Object.fromEntries(SPEC_KEYS.filter((k) => s[k] !== undefined && s[k] !== '' && !(Array.isArray(s[k]) && (s[k] as unknown[]).length === 0)).map((k) => [k, s[k]])))}`
 
 /** Read the settings line back (JSON, or a plain JS object literal). Null if missing or not valid yet. */
 export function parseChartLine(js: string): ChartSpec | null {
@@ -92,7 +157,7 @@ export function syncFromCode(spec: ChartSpec, js: string): { spec: ChartSpec; js
   return { spec: next, js: codegen(next).replace(CHART_LINE, () => typed) }
 }
 
-/** Sinh code JS (Observable Plot hoặc bản đồ MapLibre) từ lựa chọn. */
+/** Generate JS code (Observable Plot or MapLibre map) from a ChartSpec. */
 export function codegen(s: ChartSpec): string {
   const info = typeInfo(s.type)
   /** Code that reads a column's display name (set in the Data panel) at run time. */
@@ -101,8 +166,13 @@ export function codegen(s: ChartSpec): string {
 // Edit the chart settings on the next line here or in the Design tab: the rest is regenerated.
 // Editing the code below the settings detaches it from the Design tab.
 ${chartLine(s)}`
-  const head = `${intro}
-const ds = data[${q(s.data)}] ?? []`
+  const activeFilters = (s.filters ?? []).filter(Boolean)
+  const filterExpr = activeFilters.length && s.type !== 'map-regions'
+    ? activeFilters.map((c) => `(${filterParamName(c)} === "All" || String(${prop(c)}) === String(${filterParamName(c)}))`).join(' && ')
+    : ''
+  const head = filterExpr
+    ? `${intro}\nconst ds = (data[${q(s.data)}] ?? []).filter((d) => ${filterExpr})`
+    : `${intro}\nconst ds = data[${q(s.data)}] ?? []`
   if (!s.data) return `${intro}\nreturn "<p>Pick a dataset in the Design tab.</p>"`
   const miss = missingChannels(s)
   if (miss.length) return `${head}\nreturn "<p>Pick columns for: ${miss.join(', ')}.</p>"`
@@ -131,7 +201,9 @@ return \`<table class="fig-table typed"><thead><tr><th>\${pc.esc(${L(s.x)})}</th
   }
 
   const facet = s.facet ? `fy: ${q(s.facet)}` : ''
-  const color = (key: 'fill' | 'stroke') => (s.color ? `${key}: ${q(s.color)}` : `${key}: "#2a78d6"`)
+  const custom = isCustomScheme(s.scheme)
+  const primaryHex = custom ? parseCustomColors(s.scheme)[0] : (SCHEME_META[s.scheme]?.primary ?? '#2a78d6')
+  const color = (key: 'fill' | 'stroke') => (s.color ? `${key}: ${q(s.color)}` : `${key}: ${q(primaryHex)}`)
   const join = (...xs: string[]) => xs.filter(Boolean).join(', ')
   const agg = s.agg === 'none' ? 'sum' : s.agg
   let marks = ''
@@ -154,8 +226,7 @@ return \`<table class="fig-table typed"><thead><tr><th>\${pc.esc(${L(s.x)})}</th
     case 'area': {
       const mark = s.type === 'line' ? 'lineY' : 'areaY'
       const key = s.type === 'line' ? 'stroke' : 'fill'
-      const opts = join(`x: ${q(s.x)}`, `y: ${q(s.y)}`, s.color ? `${key}: ${q(s.color)}` : `${key}: "#2a78d6"`, facet, 'tip: true')
-      // Đường nối điểm theo thứ tự dữ liệu: sắp theo trục X trước, nếu không sẽ thành hình zíc zắc
+      const opts = join(`x: ${q(s.x)}`, `y: ${q(s.y)}`, s.color ? `${key}: ${q(s.color)}` : `${key}: ${q(primaryHex)}`, facet, 'tip: true')
       marks = s.agg === 'none' ? `Plot.${mark}(sorted, { ${opts} })` : `Plot.${mark}(sorted, Plot.groupX({ y: ${q(agg === 'count' ? 'count' : agg)} }, { ${opts} }))`
       if (s.type === 'area') marks += ',\n    Plot.ruleY([0])'
       break
@@ -167,34 +238,35 @@ return \`<table class="fig-table typed"><thead><tr><th>\${pc.esc(${L(s.x)})}</th
       marks = `Plot.rectY(ds, Plot.binX({ y: "count" }, { ${join(`x: ${q(s.x)}`, color('fill'), facet, 'thresholds: so_cot', 'tip: true')} })),\n    Plot.ruleY([0])`
       break
     case 'box':
-      marks = `Plot.boxY(ds, { ${join(s.x ? `x: ${q(s.x)}` : '', `y: ${q(s.y)}`)} })`
+      marks = `Plot.boxY(ds, { ${join(s.x ? `x: ${q(s.x)}` : '', `y: ${q(s.y)}`, s.scheme && s.scheme !== 'blues' ? `fill: ${q(primaryHex)}` : '')} })`
       break
     case 'heatmap': {
       const reducer = !s.color || s.agg === 'count' ? `{ fill: "count" }` : `{ fill: ${q(agg)} }`
       marks = `Plot.cell(ds, Plot.group(${reducer}, { ${join(`x: ${q(s.x)}`, `y: ${q(s.y)}`, s.color && s.agg !== 'count' ? `fill: ${q(s.color)}` : '', 'tip: true')} }))`
-      extra = [`color: { scheme: ${q(s.scheme)}, legend: true, label: ${s.color && s.agg !== 'count' ? L(s.color) : q('Count')} }`, 'marginLeft: marginL']
+      const heatScale = custom ? `range: ${JSON.stringify(customScaleColors(s.scheme))}` : `scheme: ${q(s.scheme)}`
+      extra = [`color: { ${heatScale}, legend: true, label: ${s.color && s.agg !== 'count' ? L(s.color) : q('Count')} }`, 'marginLeft: marginL']
       break
     }
   }
-  // Màu: cột số thì dùng thang màu đã chọn, cột chữ (nhóm) thì dùng bảng màu phân biệt rõ
+  const colorScaleProp = custom
+    ? `range: ${JSON.stringify(customScaleColors(s.scheme))}`
+    : s.scheme && s.scheme !== 'blues'
+      ? `scheme: ${q(s.scheme)}`
+      : `scheme: typeof ds.find((d) => d[${q(s.color)}] != null)?.[${q(s.color)}] === "number" ? ${q(s.scheme)} : "tableau10"`
   const colorLegend = s.color && s.type !== 'heatmap'
-    ? [`color: { legend: true, label: ${L(s.color)}, scheme: typeof ds.find((d) => d[${q(s.color)}] != null)?.[${q(s.color)}] === "number" ? ${q(s.scheme)} : "tableau10" }`] : []
-  // Trục số hiển thị kiểu Việt Nam: 10.000 và 0,5
+    ? [`color: { legend: true, label: ${L(s.color)}, ${colorScaleProp} }`] : []
   const vn = 'tickFormat: (d) => typeof d === "number" ? d.toLocaleString("en-US") : d instanceof Date ? d.toLocaleDateString("en-US") : d'
   const xNumeric = s.type === 'barh' || s.type === 'scatter' || s.type === 'histogram' || s.type === 'line' || s.type === 'area'
   const yNumeric = s.type !== 'barh' && s.type !== 'heatmap'
-  // Trục X là nhóm chữ: nhãn dài thì xoay nghiêng cho khỏi chồng lên nhau
   const xCat = (s.type === 'bar' || s.type === 'box' || s.type === 'heatmap') && !!s.x
   const yCat = s.type === 'barh' || s.type === 'heatmap'
   const pre = [
     yCat ? `const marginL = Math.min(220, 16 + 6.5 * (d3.max(ds, (d) => String(d[${q(s.y)}] ?? "").length) ?? 0))` : '',
-    // Nhãn trục X quá dài so với chỗ trống thì xoay nghiêng
     xCat ? `const labelLen = d3.max(ds, (d) => String(d[${q(s.x)}] ?? "").length) ?? 0
 const rotate = labelLen * 7.5 * new Set(ds.map((d) => d[${q(s.x)}])).size > width - ${yCat ? 'marginL - 20' : '80'}` : '',
     s.type === 'line' || s.type === 'area' ? `const sorted = d3.sort(ds, (d) => d[${q(s.x)}])` : '',
     s.facet ? `const nFacets = new Set(ds.map((d) => d[${q(s.facet)}])).size` : '',
   ].filter(Boolean)
-  // Axis titles: the label typed in the Design tab, else the column's display name (counts keep Plot's default)
   const xCol = s.type === 'barh' ? (s.agg !== 'count' ? s.x : undefined) : s.x
   const yCol = s.type === 'bar' ? (s.agg !== 'count' ? s.y : undefined) : s.type === 'histogram' ? undefined : s.y
   const xLab = s.xLabel ? q(s.xLabel) : xCol ? L(xCol) : ''
@@ -222,7 +294,52 @@ return Plot.plot({
 })`
 }
 
-/** Các tham số (thanh trượt) mà loại hình này cần. */
-export function specParams(s: ChartSpec) {
-  return s.type === 'histogram' ? [{ name: 'so_cot', label: 'Bins', min: 5, max: 80, step: 1, value: s.bins }] : []
+/** Build a FigureParam from a dataset column's actual values. */
+export function paramFromColumn(
+  col: string,
+  rows: Record<string, unknown>[],
+  label?: string,
+  includeAll = true,
+): FigureParam {
+  const name = filterParamName(col)
+  const vals: (string | number | boolean)[] = []
+  const seen = new Set<string>()
+  for (const r of rows) {
+    const v = r[col]
+    if (v === null || v === undefined || v === '') continue
+    if (typeof v === 'number' || typeof v === 'string' || typeof v === 'boolean') {
+      const k = String(v)
+      if (!seen.has(k)) { seen.add(k); vals.push(v) }
+    }
+  }
+  const allNumbers = vals.length > 0 && vals.every((v) => typeof v === 'number')
+  if (allNumbers) vals.sort((a, b) => (a as number) - (b as number))
+
+  if (!includeAll && allNumbers && vals.length > 15) {
+    const nums = vals as number[]
+    const min = nums[0], max = nums[nums.length - 1]
+    const span = max - min || 1
+    const rawStep = span / 20
+    const mag = Math.pow(10, Math.floor(Math.log10(rawStep)))
+    const step = +(Math.max(mag, Math.round(rawStep / mag) * mag)).toPrecision(4)
+    return { name, label: label || col, kind: 'range', min, max, step, value: nums[Math.floor(nums.length / 2)] }
+  }
+
+  const options: (string | number | boolean)[] = includeAll ? ['All', ...vals.slice(0, 60)] : vals.slice(0, 60)
+  if (options.length === 0) options.push('All')
+  else if (options.length === 1 && !includeAll) options.push(options[0])
+  const kind = options.length <= 4 ? 'radio' : 'select'
+  return { name, label: label || col, kind, options, value: options[0], min: 0, max: 0, step: 1 }
+}
+
+/** Parameters (sliders / dropdowns / radio buttons) needed by a ChartSpec. */
+export function specParams(s: ChartSpec, raw?: unknown, labels?: Record<string, string>): FigureParam[] {
+  const out: FigureParam[] = s.type === 'histogram' ? [{ name: 'so_cot', label: 'Bins', min: 5, max: 80, step: 1, value: s.bins }] : []
+  const rows = raw ? asRows(raw) : []
+  for (const col of s.filters ?? []) {
+    if (!col) continue
+    const p = paramFromColumn(col, rows, labels?.[col] || col, true)
+    if (!out.some((x) => x.name === p.name)) out.push(p)
+  }
+  return out
 }

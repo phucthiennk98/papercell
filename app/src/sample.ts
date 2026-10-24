@@ -1,4 +1,4 @@
-import type { DataFile, FigureNode, PapercellDoc } from './editor/types'
+import { newId, type DataFile, type FigureNode, type PapercellDoc } from './editor/types'
 
 export const SAMPLE_TITLE = 'Urban Microclimate & Tree Canopy Cooling'
 export const LEGACY_SAMPLE_TITLE = 'Hành vi đi lại quanh một tuyến metro'
@@ -102,7 +102,7 @@ ax.plot(transects.x, transects.y, "o-", color="#0f172a")
 ax.set_xlabel("East transect coordinate (km)")
 ax.set_ylabel("North transect coordinate (km)")
 
-ket_qua = len(subset)`
+result = len(subset)`
 
 const HOURS_JS = `const subset = data.sensors.filter(d => d.distance_km <= buffer_km)
 const counts = d3.rollup(subset, v => v.length, d => d.hour)
@@ -126,7 +126,7 @@ ax = counts.plot.bar(color="#2563eb")
 ax.set_xlabel("Solar hour of day (local time)")
 ax.set_ylabel("Active thermal observations")
 
-ket_qua = counts`
+result = counts`
 
 const TABLE_JS = `const bands = [[0, 0.5, "0–0.5 km (Core corridor)"], [0.5, 1, "0.5–1.0 km (Inner buffer)"], [1, 2, "1.0–2.0 km (Urban matrix)"], [2, Infinity, "> 2.0 km (Dense built-up)"]]
 const total = data.sensors.length
@@ -154,7 +154,7 @@ table = sensors.groupby(zone, observed=False).agg(
 table.columns = ["zone", "observations", "mean_uhi_c"]
 table["share"] = (100 * table.observations / len(sensors)).round(1)
 
-ket_qua = table`
+result = table`
 
 const CITIES_JS = `const labels = {
   uhi_intensity: "Surface UHI intensity ΔT (°C)",
@@ -180,11 +180,15 @@ return Plot.plot({
 const CITIES_PY = `rows = data["cities"].copy()
 if sort_desc:
     rows = rows.sort_values(metric, ascending=False)
-ket_qua = rows[metric].head(top_n).tolist()`
+result = rows[metric].head(top_n).tolist()`
 
-const p = (text: string, extra: Record<string, unknown> = {}) => ({ type: 'p', ...extra, children: [{ text }] })
+const p = (text: string, extra: Record<string, unknown> = {}) => ({ type: 'p', id: newId(), ...extra, children: [{ text }] })
 const h = (level: 1 | 2 | 3, text: string, id: string) => ({ type: 'h' + level, id, children: [{ text }] })
-const cols = (widths: string[], ...columns: any[][]) => ({ type: 'column_group', children: columns.map((children, i) => ({ type: 'column', width: widths[i], children })) })
+const cols = (widths: string[], ...columns: any[][]) => ({
+  type: 'column_group',
+  id: newId(),
+  children: columns.map((children, i) => ({ type: 'column', id: newId(), width: widths[i], children })),
+})
 
 export function makeSample(): PapercellDoc {
   return {
@@ -204,6 +208,15 @@ export function makeSample(): PapercellDoc {
         type: 'equation',
         id: 'eq1',
         texExpression: String.raw`\Delta T(d, f_c) = \Delta T_0\,(1 - \alpha f_c)\,\exp\!\left(-\frac{d}{\lambda}\right) + \varepsilon, \qquad \lambda = 0.60\text{ km}`,
+        description: [
+          String.raw`• $\Delta T_0$: Baseline afternoon surface UHI amplitude ($^\circ\text{C}$) in treeless impervious blocks`,
+          String.raw`• $\alpha$: Empirical canopy cooling efficiency coefficient`,
+          String.raw`• $f_c \in [0, 1]$: Fractional tree canopy cover within the sensor footprint`,
+          String.raw`• $d$: Lateral distance from the vegetated greenway corridor axis ($\text{km}$)`,
+          String.raw`• $\lambda = 0.60\text{ km}$: Characteristic $e$-folding radiative–convective decay scale`,
+          String.raw`• $\varepsilon \sim \mathcal{N}(0, \sigma^2)$: Zero-mean microclimate residual`,
+        ].join('\n'),
+        descriptionMode: 'inline',
         children: [{ text: '' }],
       },
       cols(['42%', '58%'],
