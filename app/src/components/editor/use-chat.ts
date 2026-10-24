@@ -20,6 +20,7 @@ import { type TNode, KEYS, nanoid, NodeApi, TextApi } from 'platejs';
 import { type PlateEditor, useEditorRef, usePluginOption } from 'platejs/react';
 
 import { aiChatPlugin } from '@/components/editor/plugins/ai-kit';
+import { aiTaskStore } from '@/ai/ai-task-store';
 import { fetchWithAIConfig } from '@/ai/request-config';
 
 import { discussionPlugin } from './plugins/discussion-kit';
@@ -207,6 +208,12 @@ export const useChat = () => {
       }
     },
 
+    onError(error) {
+      toast.error(error.message || 'AI request failed.');
+      if (aiTaskStore.get().status === 'running') {
+        aiTaskStore.set({ status: 'error', error: error.message || 'AI request failed.' });
+      }
+    },
     ...options,
   });
 

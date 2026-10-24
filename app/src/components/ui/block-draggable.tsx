@@ -6,7 +6,9 @@ import { DndPlugin, useDraggable, useDropLine } from '@platejs/dnd';
 import { canDropSide, dropToSide, sideOf, sideTarget, useSideTarget } from '@/editor/side-drop';
 import { expandListItemsWithChildren } from '@platejs/list';
 import { BlockSelectionPlugin } from '@platejs/selection/react';
-import { GripVertical, Plus } from 'lucide-react';
+import { GripVertical, Plus, Sparkles, Trash2 } from 'lucide-react';
+import { toast } from 'sonner';
+import { openAIChatOnElement } from '@/components/editor/plugins/ai-kit';
 import { type TElement, getPluginByType, isType, KEYS, PathApi } from 'platejs';
 import {
   type PlateEditor,
@@ -219,6 +221,32 @@ function Draggable(props: PlateElementProps) {
         }
       >
         <MemoizedChildren>{children}</MemoizedChildren>
+        {!isInTable && element.type !== 'figure' && (
+            <div className="text-cell-tools" contentEditable={false}>
+              <button
+                type="button"
+                className="pc-icon-btn ai-btn"
+                aria-label="Ask AI"
+                data-tip="Ask AI"
+                data-plate-prevent-deselect
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => openAIChatOnElement(editor, element)}
+              >
+                <Sparkles size={15} />
+              </button>
+              <button
+                type="button"
+                className="pc-icon-btn danger"
+                aria-label="Delete block"
+                data-tip="Delete (Ctrl+Z to undo)"
+                data-plate-prevent-deselect
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => removeBlock(editor, element)}
+              >
+                <Trash2 size={15} />
+              </button>
+            </div>
+          )}
         {side ? <div className={cn('pointer-events-none absolute inset-y-0 z-50 w-1 rounded-full bg-brand', side === 'left' ? '-left-1' : '-right-1')} /> : <DropLine />}
       </div>
     </div>
@@ -230,6 +258,15 @@ function Draggable(props: PlateElementProps) {
  * clicking inserts an empty paragraph there (useful between figures, tables and column groups,
  * where there is nowhere to put the caret).
  */
+function removeBlock(editor: PlateEditor, element: TElement) {
+  const at = editor.api.findPath(element);
+  if (!at) return;
+  editor.tf.removeNodes({ at });
+  toast('Block deleted', {
+    action: { label: 'Undo', onClick: () => editor.undo() },
+  });
+}
+
 function InsertGap({ editor, element }: { editor: PlateEditor; element: TElement }) {
   const insert = (e: React.MouseEvent) => {
     e.preventDefault();

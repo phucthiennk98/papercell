@@ -1,7 +1,8 @@
 import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { PlateElement, type PlateElementProps, useReadOnly } from 'platejs/react'
-import { CircleCheck, CircleX, Maximize2, Pencil, Trash2 } from 'lucide-react'
+import { CircleCheck, CircleX, Maximize2, Pencil, Sparkles, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
+import { openAIChatOnElement } from '@/components/editor/plugins/ai-kit'
 import { CAPTION_LABEL, DEFAULT_FIG_PADDING, type FigureNode, type FigureParam, type ParamValue } from '../editor/types'
 import { MetaContext } from '../editor/DocHeader'
 import { captionKind, NEXT_CAPTION } from '../editor/scan'
@@ -36,9 +37,19 @@ export function FigureElement(props: PlateElementProps) {
     editor.tf.removeNodes({ at })
     toast('Figure deleted', { action: { label: 'Undo', onClick: () => editor.undo() } })
   }
+  const askAI = () => openAIChatOnElement(editor, props.element)
   return (
     <PlateElement {...props} className={figClass(fig, readOnly)}>
-      {readOnly && fig.display === 'hidden' ? null : <FigureCard fig={fig} readOnly={readOnly} update={update} remove={remove} applyPaddingAll={applyPaddingAll} />}
+      {readOnly && fig.display === 'hidden' ? null : (
+        <FigureCard
+          fig={fig}
+          readOnly={readOnly}
+          update={update}
+          remove={remove}
+          applyPaddingAll={applyPaddingAll}
+          onAskAI={readOnly ? undefined : askAI}
+        />
+      )}
       {props.children}
     </PlateElement>
   )
@@ -48,8 +59,13 @@ export const figClass = (fig: FigureNode, readOnly: boolean) =>
   readOnly && fig.display === 'hidden' ? 'fig-hidden' : 'fig' + (readOnly ? ' is-read' : ' is-edit') + (fig.display === 'hidden' ? ' is-hidden' : '')
 
 /** Thân thẻ hình (dùng chung cho editor và trang đọc tĩnh khi xuất HTML). */
-export function FigureCard({ fig, readOnly, update, remove, applyPaddingAll }: {
-  fig: FigureNode; readOnly: boolean; update: (p: Partial<FigureNode>) => void; remove?: () => void; applyPaddingAll?: (px: number) => void
+export function FigureCard({ fig, readOnly, update, remove, applyPaddingAll, onAskAI }: {
+  fig: FigureNode
+  readOnly: boolean
+  update: (p: Partial<FigureNode>) => void
+  remove?: () => void
+  applyPaddingAll?: (px: number) => void
+  onAskAI?: () => void
 }) {
   const no = useContext(FigureNumbers).get(fig.id)
   const { meta } = useContext(MetaContext)
@@ -83,9 +99,30 @@ export function FigureCard({ fig, readOnly, update, remove, applyPaddingAll }: {
         )}
         {/* Floating toolbar, shown on hover: status + actions */}
         <div className="fig-tools">
-          {!readOnly && fig.python.trim() && <span className="fig-badge" data-tip="Has original Python code">Python</span>}
+          {!readOnly && fig.python.trim() && (
+            <button
+              type="button"
+              className="fig-badge fig-badge-btn"
+              data-tip="Has original Python code (click to open)"
+              onClick={() => setDialog('python')}
+            >
+              Python
+            </button>
+          )}
           {!readOnly && fig.verify?.ok && <span className="fig-verify ok" data-tip={fig.verify.message}><CircleCheck size={13} />Verified</span>}
           {!readOnly && fig.scenarios && <span className="fig-badge" data-tip={`${fig.scenarios.count} combinations precomputed with Python`}>Precomputed {fig.scenarios.count.toLocaleString('en-US')}</span>}
+          {!readOnly && onAskAI && (
+            <button
+              type="button"
+              className="pc-icon-btn ai-btn"
+              aria-label="Ask AI about this figure"
+              data-tip="Ask AI to edit or explain figure"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={onAskAI}
+            >
+              <Sparkles size={15} />
+            </button>
+          )}
           {!readOnly && <button type="button" className="pc-icon-btn" aria-label="Edit figure and code" data-tip="Edit figure and code" onClick={() => setDialog(fig.spec && !fig.specDetached ? 'design' : 'js')}><Pencil size={15} /></button>}
           <button type="button" className="pc-icon-btn" aria-label="Enlarge" data-tip="Enlarge" onClick={() => setDialog('figure')}><Maximize2 size={15} /></button>
           {!readOnly && remove && <button type="button" className="pc-icon-btn danger" aria-label="Delete figure" data-tip="Delete (Ctrl+Z to undo)" onClick={remove}><Trash2 size={15} /></button>}

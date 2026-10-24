@@ -122,7 +122,8 @@ export function editorAgentCommand(
   messages: ChatMessage[],
   toolNameParam: unknown,
   complete: ReturnType<typeof prepareEditorAgent>,
-  signal: AbortSignal
+  signal: AbortSignal,
+  docData?: string
 ) {
   const isSelecting = editor.api.isExpanded();
   if (toolNameParam != null && !['generate', 'edit', 'comment'].includes(String(toolNameParam))) {
@@ -132,7 +133,8 @@ export function editorAgentCommand(
     Array.isArray(message.parts) && message.parts.some((part) => part.type === 'text' && part.text.trim()))) {
     throw new EditorAgentError('No question was sent.', 400);
   }
-  const doc = getMarkdown(editor, { type: 'editor' });
+  const baseDoc = getMarkdown(editor, { type: 'editor' });
+  const doc = docData?.trim() ? `${baseDoc}\n\n${docData.trim()}` : baseDoc;
   const stream = createUIMessageStream<ChatMessage>({
     onError: (error) => error instanceof Error ? error.message : 'Local agent request failed.',
     execute: async ({ writer }) => {
@@ -187,7 +189,7 @@ export function editorAgentCommand(
       } else {
         const [prompt, editType] = toolName === 'edit'
           ? getEditPrompt(editor, { isSelecting, messages })
-          : [getGeneratePrompt(editor, { isSelecting, messages }), undefined];
+          : [getGeneratePrompt(editor, { docData, isSelecting, messages }), undefined];
         if (editType === 'table') {
           const targets = new Set(getTableGridAbove(editor, { format: 'cell' }).map(([cell]) => cell.id).filter(Boolean));
           if (!targets.size) throw new EditorAgentError('No selected table cells were found.');

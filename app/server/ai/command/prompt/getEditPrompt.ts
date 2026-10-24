@@ -221,7 +221,7 @@ function buildEditSelectionPrompt(
 
 export function getEditPrompt(
   editor: SlateEditor,
-  { isSelecting, messages }: { isSelecting: boolean; messages: ChatMessage[] }
+  { isSelecting, messages }: { docData?: string; isSelecting: boolean; messages: ChatMessage[] }
 ): [string, 'table' | 'multi-block' | 'selection'] {
   if (!isSelecting)
     throw new Error('Edit tool is only available when selecting');

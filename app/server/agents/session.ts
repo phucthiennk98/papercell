@@ -1,6 +1,6 @@
 // Phiên chat giữ một tiến trình CLI và thư mục tài liệu riêng.
 import { randomUUID } from 'node:crypto'
-import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { DRIVERS } from './drivers'
@@ -25,7 +25,7 @@ export class SessionError extends Error {
 const sessions = new Map<string, Session>()
 const labels: Record<AgentId, string> = { claude: 'Claude Code', codex: 'Codex', agy: 'Antigravity' }
 const INSTRUCTIONS = `You are the writing assistant in Papercell. Read document.md in the current working directory when the question concerns the open document.
-Do not edit or create files. Reply in the user's language. When providing content to insert into the document, return only Markdown content without a preamble. Never invent data.`
+Do not edit or create files. Reply in the user's language. When providing content to insert into the document, return only Markdown content without a preamble. When asked to create or add a chart/figure/plot, output a fenced \`\`\`papercell-figure\`\`\` JSON block with "caption", "spec", "params", "js", and "python" following the rules in document.md. Never invent data.`
 const message = (e: unknown) => e instanceof Error ? e.message : String(e)
 const wait = (ms: number) => new Promise<void>((resolve) => { setTimeout(resolve, ms).unref() })
 let creating: Promise<unknown> = Promise.resolve()
@@ -74,7 +74,20 @@ export function listSessions() {
   return [...sessions.values()].map((s) => ({ ...info(s), alive: s.driver.alive(), busy: s.busy, lastUsed: s.lastUsed }))
 }
 
-export function runTurn(id: string, text: string, doc: string, signal: AbortSignal): ReadableStream<Uint8Array> {
+export type TurnAttachment = {
+  name?: string
+  kind?: 'image' | 'file'
+  dataUrl?: string
+  textContent?: string
+}
+
+export function runTurn(
+  id: string,
+  text: string,
+  doc: string,
+  signal: AbortSignal,
+  attachments: TurnAttachment[] = [],
+): ReadableStream<Uint8Array> {
   const s = get(id)
   if (s.busy) throw new SessionError('This agent session is already answering a question.', 409)
   s.busy = true
@@ -120,6 +133,27 @@ export function runTurn(id: string, text: string, doc: string, signal: AbortSign
       const work = (async () => {
         if (stopped) return
         await writeFile(path.join(s.cwd, 'document.md'), doc.slice(0, 500_000) || '(The document is empty.)', 'utf8')
+        const savedAttPaths: string[] = []
+        if (Array.isArray(attachments) && attachments.length > 0) {
+          const attDir = path.join(s.cwd, 'attachments')
+          await mkdir(attDir, { recursive: true })
+          for (let i = 0; i < attachments.length; i++) {
+            const att = attachments[i]
+            const safeName = `${i + 1}-${String(att.name || 'attachment').replace(/[^a-zA-Z0-9._-]/g, '_')}`
+            const fullPath = path.join(attDir, safeName)
+            if (att.kind === 'image' && typeof att.dataUrl === 'string') {
+              const commaIdx = att.dataUrl.indexOf(',')
+              if (commaIdx !== -1) {
+                const buf = Buffer.from(att.dataUrl.slice(commaIdx + 1), 'base64')
+                await writeFile(fullPath, buf)
+                savedAttPaths.push(`./attachments/${safeName} (image)`)
+              }
+            } else if (typeof att.textContent === 'string') {
+              await writeFile(fullPath, att.textContent.slice(0, 100_000), 'utf8')
+              savedAttPaths.push(`./attachments/${safeName} (reference file)`)
+            }
+          }
+        }
         if (stopped) return
         if (s.restart || !s.driver.alive()) {
           await s.driver.close()
@@ -131,7 +165,11 @@ export function runTurn(id: string, text: string, doc: string, signal: AbortSign
           if (stopped) return
           emit({ type: 'step', text: `Restarted ${labels[s.agent]} (earlier context is lost)` })
         }
-        const prompt = s.firstTurn ? `${INSTRUCTIONS}\n\n${text}` : text
+        const attNotice = savedAttPaths.length
+          ? `Attached reference files saved in your working directory (inspect/read them directly):\n${savedAttPaths.map((p) => `- ${p}`).join('\n')}\n\n`
+          : ''
+        const fullText = `${attNotice}${text}`
+        const prompt = s.firstTurn ? `${INSTRUCTIONS}\n\n${fullText}` : fullText
         s.firstTurn = false
         await s.driver.send(prompt, emit)
       })().catch((e) => {

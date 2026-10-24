@@ -2,7 +2,7 @@
 // Agent làm việc trong một thư mục tạm chứa bai-viet.md, ở chế độ chỉ đọc / lập kế hoạch.
 import { type ChildProcess, spawn } from 'node:child_process'
 import { existsSync } from 'node:fs'
-import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { homedir, tmpdir } from 'node:os'
 import path from 'node:path'
 
@@ -163,9 +163,36 @@ export async function detectAgents(force = false): Promise<AgentInfo[]> {
 
 const INSTRUCTIONS = `You are the writing assistant in Papercell. The open document is in document.md in the current working directory; read it when the question is about the document.
 Do not edit or create any files. Reply in the language the user writes in.
-When asked to write or edit content, return only that content in Markdown so it can be inserted directly, with no preamble. Never invent data.`
+When asked to write or edit content, return only that content in Markdown so it can be inserted directly, with no preamble. When asked to create or add a chart/figure/plot, output a fenced \`\`\`papercell-figure\`\`\` JSON block with "caption", "spec", "params", "js", and "python" following the rules in document.md. Never invent data.`
 
 type Msg = { role: 'user' | 'assistant'; content: string }
+
+async function materializeEmbeddedImages(rawPrompt: string, dir: string): Promise<string> {
+  const tagRegex = /<attached_image\s+name="([^"]*)"\s+data_url="(data:image\/[^"]+)"\s*\/>/g
+  if (!tagRegex.test(rawPrompt)) return rawPrompt
+  tagRegex.lastIndex = 0
+  const attDir = path.join(dir, 'attachments')
+  await mkdir(attDir, { recursive: true })
+  let idx = 0
+  let out = ''
+  let last = 0
+  let m: RegExpExecArray | null
+  while ((m = tagRegex.exec(rawPrompt)) !== null) {
+    out += rawPrompt.slice(last, m.index)
+    idx++
+    const safeName = `${idx}-${(m[1] || 'image.png').replace(/[^a-zA-Z0-9._-]/g, '_')}`
+    const dataUrl = m[2]
+    const comma = dataUrl.indexOf(',')
+    if (comma !== -1) {
+      const buf = Buffer.from(dataUrl.slice(comma + 1), 'base64')
+      await writeFile(path.join(attDir, safeName), buf)
+      out += `[Attached reference image saved at ./attachments/${safeName} — inspect this image file directly]`
+    }
+    last = m.index + m[0].length
+  }
+  out += rawPrompt.slice(last)
+  return out
+}
 
 /** Chạy một agent cục bộ, trả về stream chữ; lỗi được gửi sau errorMark. */
 export async function agentChat(agentId: string, messages: Msg[], doc: string, signal: AbortSignal, errorMark: string, progressMark: string, opts: ChatOptions = {}): Promise<Response> {
@@ -178,12 +205,13 @@ export async function agentChat(agentId: string, messages: Msg[], doc: string, s
     return Response.json({ error: 'Invalid model or reasoning effort.' }, { status: 400 })
   }
 
-  const history = messages.slice(0, -1).map((m) => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`).join('\n\n')
-  const question = messages[messages.length - 1]?.content ?? ''
-  const prompt = `${INSTRUCTIONS}\n\n${history ? `Earlier conversation:\n${history}\n\n` : ''}Current question:\n${question}`
-
   const dir = await mkdtemp(path.join(tmpdir(), 'papercell-agent-'))
   await writeFile(path.join(dir, 'document.md'), doc || '(The document is empty.)', 'utf8')
+
+  const history = messages.slice(0, -1).map((m) => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`).join('\n\n')
+  const rawQuestion = messages[messages.length - 1]?.content ?? ''
+  const question = await materializeEmbeddedImages(rawQuestion, dir)
+  const prompt = `${INSTRUCTIONS}\n\n${history ? `Earlier conversation:\n${history}\n\n` : ''}Current question:\n${question}`
 
   const enc = new TextEncoder()
   const stream = new ReadableStream<Uint8Array>({

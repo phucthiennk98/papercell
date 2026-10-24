@@ -44,7 +44,7 @@ export const suggestionVariants = cva(
       },
       remove: {
         false: '',
-        true: 'bg-red-100 text-red-700',
+        true: 'bg-red-100 text-red-700 line-through decoration-red-700/70',
       },
       removeActive: {
         false: '',

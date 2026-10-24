@@ -46,7 +46,16 @@ export async function closeSession(id: string): Promise<void> {
 
 export async function runTurn(
   id: string,
-  turn: { text: string; doc: string },
+  turn: {
+    text: string
+    doc: string
+    attachments?: {
+      name: string
+      kind: 'image' | 'file'
+      dataUrl?: string
+      textContent?: string
+    }[]
+  },
   { signal, onEvent }: { signal: AbortSignal; onEvent: (event: AgentEvent) => void },
 ): Promise<void> {
   const response = await request(`/sessions/${encodeURIComponent(id)}/turn`, { ...json(turn), signal })

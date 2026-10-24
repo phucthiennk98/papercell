@@ -11,6 +11,7 @@
   - For Precompute, `ket_qua` is what the JS reads as `ket_qua` to draw the figure, so return exactly the rows the chart needs (e.g. a list of dicts).
 - Do not modify `data` in place in a way later runs depend on (each run gets a fresh copy anyway). No file or network access.
 - Be deterministic: seed randomness (`np.random.default_rng(7)`).
+- When the user asks for synthetic/random data in a figure, use `rng = np.random.default_rng(42)` in Python to generate matching synthetic series/tables and assign `ket_qua`.
 
 ## Conventions
 - Use only columns that exist in the datasets listed below; spell them exactly.

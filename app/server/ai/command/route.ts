@@ -3,7 +3,6 @@ import type {
   ToolName,
 } from '@/components/editor/use-chat';
 
-
 import {
   type LanguageModel,
   type UIMessageStreamWriter,
@@ -32,9 +31,29 @@ import {
   getGeneratePrompt,
 } from './prompt';
 
+function buildUserMessageWithEmbeddedImages(rawPrompt: string) {
+  const tagRegex = /<attached_image\s+name="([^"]*)"\s+data_url="(data:image\/[^"]+)"\s*\/>/g;
+  const images: string[] = [];
+  const cleanedText = rawPrompt.replace(tagRegex, (_, name: string, dataUrl: string) => {
+    images.push(dataUrl);
+    return `[Attached reference image: ${name || 'image'}]`;
+  });
+  if (images.length === 0) {
+    return { role: 'user' as const, content: rawPrompt };
+  }
+  return {
+    role: 'user' as const,
+    content: [
+      { type: 'text' as const, text: cleanedText },
+      ...images.map((img) => ({ type: 'image' as const, image: img })),
+    ],
+  };
+}
+
 export async function POST(req: Request, allowLocalAgent = false, runner?: EditorAgentRunner) {
   const body = await req.json();
   const { ctx, messages: messagesRaw } = body;
+  const docData = typeof body.docData === 'string' ? body.docData.slice(0, 50_000) : undefined;
 
   if (body.aiMode === 'agent') {
     try {
@@ -45,7 +64,7 @@ export async function POST(req: Request, allowLocalAgent = false, runner?: Edito
         selection: ctx.selection,
         value: structuredClone(ctx.children),
       });
-      return editorAgentCommand(editor, messagesRaw, ctx.toolName, complete, req.signal);
+      return editorAgentCommand(editor, messagesRaw, ctx.toolName, complete, req.signal, docData);
     } catch (error) { return editorAgentError(error); }
   }
 
@@ -65,7 +84,6 @@ export async function POST(req: Request, allowLocalAgent = false, runner?: Edito
   });
 
   const isSelecting = editor.api.isExpanded();
-
 
   try {
     const stream = createUIMessageStream<ChatMessage>({
@@ -125,11 +143,10 @@ export async function POST(req: Request, allowLocalAgent = false, runner?: Edito
 
             if (toolName === 'edit') {
               const [editPrompt, editType] = getEditPrompt(editor, {
-                isSelecting,
+                docData, isSelecting,
                 messages: messagesRaw,
               });
 
-              // Table editing uses the table tool
               if (editType === 'table') {
                 return {
                   ...step,
@@ -140,35 +157,21 @@ export async function POST(req: Request, allowLocalAgent = false, runner?: Edito
               return {
                 ...step,
                 activeTools: [],
-                model:
-                  editType === 'selection'
-                    ? //The selection task is more challenging, so we chose to use Gemini 2.5 Flash.
-                      llm
-                    : llm,
-                messages: [
-                  {
-                    content: editPrompt,
-                    role: 'user',
-                  },
-                ],
+                model: llm,
+                messages: [buildUserMessageWithEmbeddedImages(editPrompt)],
               };
             }
 
             if (toolName === 'generate') {
               const generatePrompt = getGeneratePrompt(editor, {
-                isSelecting,
+                docData, isSelecting,
                 messages: messagesRaw,
               });
 
               return {
                 ...step,
                 activeTools: [],
-                messages: [
-                  {
-                    content: generatePrompt,
-                    role: 'user',
-                  },
-                ],
+                messages: [buildUserMessageWithEmbeddedImages(generatePrompt)],
                 model: llm,
               };
             }

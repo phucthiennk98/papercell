@@ -5,17 +5,62 @@ import { ConfigError, readConfig, resolveModel } from './provider'
 const SYSTEM = `You are the writing assistant in Papercell, an editor for scientific papers with figures drawn in JS and the author's original Python code.
 Reply in the language the user writes in. Write clearly, in an academic register when drafting document content.
 When asked to write or edit content, return only that content in Markdown so it can be inserted directly, with no preamble.
+When asked to create, add, or insert a chart/figure/plot, output a fenced \`\`\`papercell-figure\`\`\` JSON block with "caption", "spec", "params" (interactive controls/sliders), "js" (Observable Plot / D3 code reading data.<dataset> and params.<key>), and "python" so clicking Insert creates a live interactive FigureNode card in the document.
+When asked to write or edit a mathematical formula/equation, output a display math block wrapped in \`$$ ... $$\` using clean KaTeX syntax with explicit braces around fractions (\`\\frac{a}{b}\`), superscripts (\`x^{n}\`), subscripts (\`x_{i}\`), and roots (\`\\sqrt{x}\`) so every number and symbol is directly clickable in Papercell's Visual Formula Editor.
 When asked about code, explain briefly and give complete code.
 Never invent data or references; if the document has no data for something, say so.`
 
-type Msg = { role: 'user' | 'assistant'; content: string }
+type RawAttachment = {
+  name?: string
+  kind?: 'image' | 'file'
+  mimeType?: string
+  dataUrl?: string
+  textContent?: string
+}
+
+type Msg = {
+  role: 'user' | 'assistant'
+  content: string
+  attachments?: RawAttachment[]
+}
 
 export async function assistantChat(req: Request) {
   const body = await req.json()
-  const messages = (Array.isArray(body.messages) ? body.messages : []).filter(
-    (m: Msg) => (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string' && m.content.trim(),
+  const rawMessages = (Array.isArray(body.messages) ? body.messages : []).filter(
+    (m: Msg) =>
+      (m.role === 'user' || m.role === 'assistant') &&
+      ((typeof m.content === 'string' && m.content.trim()) ||
+        (Array.isArray(m.attachments) && m.attachments.length > 0)),
   ) as Msg[]
-  if (!messages.length) return Response.json({ error: 'No question was sent.' }, { status: 400 })
+  if (!rawMessages.length) return Response.json({ error: 'No question was sent.' }, { status: 400 })
+
+  const messages = rawMessages.map((m) => {
+    const atts = Array.isArray(m.attachments) ? m.attachments : []
+    if (m.role !== 'user' || atts.length === 0) {
+      return { role: m.role, content: m.content }
+    }
+    const fileBlocks = atts
+      .filter((a) => a.kind === 'file' && typeof a.textContent === 'string' && a.textContent.trim())
+      .map((a) => `<reference_file name="${a.name || 'file'}">\n${a.textContent!.slice(0, 40_000)}\n</reference_file>`)
+    const fullText = [
+      ...fileBlocks,
+      m.content?.trim() || 'Analyze the attached reference(s).',
+    ].join('\n\n')
+
+    const images = atts.filter(
+      (a) => a.kind === 'image' && typeof a.dataUrl === 'string' && a.dataUrl.startsWith('data:image/'),
+    )
+    if (images.length === 0) {
+      return { role: 'user' as const, content: fullText }
+    }
+    return {
+      role: 'user' as const,
+      content: [
+        { type: 'text' as const, text: fullText },
+        ...images.map((img) => ({ type: 'image' as const, image: img.dataUrl! })),
+      ],
+    }
+  })
 
   let model
   try { model = resolveModel(readConfig(body)) }

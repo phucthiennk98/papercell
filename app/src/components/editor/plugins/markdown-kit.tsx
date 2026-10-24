@@ -21,6 +21,21 @@ export const MarkdownKit = [
         remarkMdx,
         remarkMention,
       ],
+      rules: {
+        figure: {
+          serialize: (node: any) => ({
+            type: 'code',
+            lang: 'papercell-figure',
+            value: JSON.stringify({
+              caption: node.caption ?? '',
+              ...(node.spec ? { spec: node.spec } : {}),
+              params: node.params ?? [],
+              js: node.js ?? '',
+              ...(node.python ? { python: node.python } : {}),
+            }),
+          }),
+        },
+      },
     },
   }),
 ];

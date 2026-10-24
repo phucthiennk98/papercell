@@ -56,9 +56,16 @@ app.post('/api/agents/sessions', async (c) => {
 app.post('/api/agents/sessions/:id/turn', async (c) => {
   if (!isLocal(c)) return c.json({ error: 'Local agents can only be used from the computer running the server.' }, 403)
   const b = await c.req.json().catch(() => null)
-  if (!b || typeof b.text !== 'string' || !b.text.trim()) return c.json({ error: 'No question was sent.' }, 400)
+  const hasAttachments = Array.isArray(b?.attachments) && b.attachments.length > 0
+  if (!b || ((typeof b.text !== 'string' || !b.text.trim()) && !hasAttachments)) return c.json({ error: 'No question was sent.' }, 400)
   try {
-    const stream = runTurn(c.req.param('id'), b.text, typeof b.doc === 'string' ? b.doc.slice(0, 500_000) : '', c.req.raw.signal)
+    const stream = runTurn(
+      c.req.param('id'),
+      typeof b.text === 'string' && b.text.trim() ? b.text : 'Analyze the attached reference files.',
+      typeof b.doc === 'string' ? b.doc.slice(0, 500_000) : '',
+      c.req.raw.signal,
+      hasAttachments ? b.attachments : [],
+    )
     return new Response(stream, { headers: { 'content-type': 'application/x-ndjson; charset=utf-8', 'cache-control': 'no-cache' } })
   } catch (e) { return c.json({ error: errorMessage(e) }, e instanceof SessionError ? e.status : 500) }
 })

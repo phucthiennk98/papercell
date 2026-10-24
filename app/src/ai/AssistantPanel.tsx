@@ -1,64 +1,156 @@
-import { useEffect, useRef, useState } from 'react'
+import { useContext, useEffect, useRef, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import remarkMath from 'remark-math'
 import rehypeKatex from 'rehype-katex'
 import type { PlateEditor } from 'platejs/react'
-import { Bot, Check, ClipboardCopy, Eye, EyeOff, KeyRound, Laptop, Loader2, RefreshCw, Settings2, Sparkles, Square, TextCursorInput, X } from 'lucide-react'
+import {
+  Bot,
+  ChartColumn,
+  Check,
+  ClipboardCopy,
+  Eye,
+  EyeOff,
+  FileText,
+  History,
+  KeyRound,
+  Laptop,
+  Loader2,
+  MessageSquare,
+  Paperclip,
+  Plus,
+  RefreshCw,
+  Settings2,
+  SlidersHorizontal,
+  Sparkles,
+  Square,
+  TextCursorInput,
+  Trash2,
+  X,
+} from 'lucide-react'
+import type { FigureNode, FigureParam, ParamValue } from '@/editor/types'
+import { FigureView, ParamSliders } from '@/figure/FigureView'
+import { DataContext } from '@/figure/runtime'
 import { cn } from '@/lib/utils'
 import { PROVIDERS, defaultConfig, type ProviderId } from './config'
 import { aiStore, useAI } from './store'
 import { parseStream } from './ask'
-import { AgentSessionError, closeSession, createSession, fetchAgentModels, interruptSession, runTurn, type AgentModel, type AgentSession } from './agent-session'
+import {
+  AgentSessionError,
+  closeSession,
+  createSession,
+  fetchAgentModels,
+  interruptSession,
+  runTurn,
+  type AgentModel,
+  type AgentSession,
+} from './agent-session'
+import {
+  buildPromptWithAttachments,
+  createEmptyThread,
+  deleteDocThread,
+  loadDocThreads,
+  readClipboardAttachments,
+  readFileListAttachments,
+  saveDocThread,
+  type AIAttachment,
+  type ChatHistoryMsg,
+  type DocChatThread,
+} from './chat-history'
+import {
+  deserializeMarkdownWithFigures,
+  docAsContextMarkdown,
+  extractFigureSegments,
+  normalizeMath,
+} from './figure-nodes'
+
+export { normalizeMath }
 
 type AgentInfo = { id: string; label: string; available: boolean; version?: string; note: string }
-
-type Msg = {
-  role: 'user' | 'assistant'
-  content: string
-  error?: boolean
-  /** Bước đang làm (đọc file, suy nghĩ…) khi agent chưa trả lời xong. */
-  progress?: string
-  /** Ai trả lời và mất bao lâu, hiện dưới câu trả lời. */
-  by?: string
-  startedAt?: number
-  ms?: number
-  steps?: { name: string; detail?: string }[]
-  notice?: string
-  failure?: string
-}
-
-/** Model hay viết công thức bằng \( \) và \[ \]; đổi sang $ và $$ để Markdown không nuốt dấu \ và để vẽ bằng KaTeX. */
-export function normalizeMath(md: string) {
-  return md
-    .replace(/\\\[([\s\S]+?)\\\]/g, (_, m: string) => '\n$$\n' + m.trim() + '\n$$\n')
-    .replace(/\\\(([\s\S]+?)\\\)/g, (_, m: string) => '$' + m.trim() + '$')
-}
+type Msg = ChatHistoryMsg
 
 const STOPPED = '_Stopped._'
 
 const seconds = (ms: number) => `${Math.max(1, Math.round(ms / 1000))}s`
 
-const SUGGESTIONS = [
-  'Summarize this document in 3 sentences',
-  'Write a Conclusion based on the Results',
-  'Check spelling and grammar',
-  'Suggest a figure for the Results section',
-]
-
-/** Nội dung bài dạng Markdown để làm ngữ cảnh; thẻ hình JS được thay bằng chú thích + code. */
-function docAsMarkdown(editor: PlateEditor) {
-  const parts: string[] = []
-  const text = (n: any): string => (typeof n.text === 'string' ? n.text : (n.children ?? []).map(text).join(''))
-  for (const node of editor.children as any[]) {
-    if (node.type === 'figure') { parts.push(`[Figure: ${node.caption || 'no caption'}]\n\`\`\`js\n${node.js}\n\`\`\``); continue }
-    try { parts.push((editor.api as any).markdown.serialize({ value: [node] })) }
-    catch { parts.push(text(node)) }
+function formatShortTime(ts: number): string {
+  try {
+    return new Date(ts).toLocaleString(undefined, {
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    })
+  } catch {
+    return ''
   }
-  return parts.join('\n\n')
 }
 
-export function AssistantPanel({ editor, onClose }: { editor: PlateEditor | null; onClose: () => void }) {
+const SUGGESTIONS = [
+  'Create an interactive figure from the document data',
+  'Write a math formula for this section',
+  'Summarize this document in 3 sentences',
+  'Write a Conclusion based on the Results',
+]
+
+function AssistantFigurePreview({ fig, onInsert }: { fig: FigureNode; onInsert: (f: FigureNode) => void }) {
+  const [params, setParams] = useState<FigureParam[]>(fig.params)
+  useEffect(() => { setParams(fig.params) }, [fig.params])
+  const slide = (name: string, v: ParamValue) =>
+    setParams((ps) => ps.map((p) => (p.name === name ? { ...p, value: v } : p)))
+
+  return (
+    <div className="rounded-lg border border-blue-200 bg-blue-50/40 p-2.5 text-xs space-y-2">
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-1.5 font-semibold text-foreground">
+            <ChartColumn className="size-3.5 shrink-0 text-blue-600" />
+            <span>Papercell Figure Card</span>
+            {fig.spec && <span className="rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-medium text-blue-800">{fig.spec.type} · {fig.spec.data}</span>}
+          </div>
+          {fig.caption && <p className="mt-1 text-muted-foreground">{fig.caption}</p>}
+        </div>
+        <button className="flex shrink-0 items-center gap-1 rounded-md bg-blue-600 px-2.5 py-1 font-medium text-white hover:bg-blue-700" onClick={() => onInsert({ ...fig, params })}>
+          <TextCursorInput className="size-3.5" />Insert figure
+        </button>
+      </div>
+      <div className="rounded-md border bg-background p-2 overflow-x-auto">
+        <FigureView js={fig.js} params={params} />
+      </div>
+      {params.length > 0 && (
+        <div className="rounded-md border bg-background px-2.5 py-1.5">
+          <ParamSliders params={params} onChange={slide} idPrefix={'chat-' + fig.id} />
+        </div>
+      )}
+      {params.length > 0 && (
+        <div className="flex flex-wrap items-center gap-1">
+          <SlidersHorizontal className="size-3 text-muted-foreground" />
+          {params.map((d) => (
+            <span key={d.name} className="rounded border bg-background px-1.5 py-0.5 text-[11px] text-muted-foreground">
+              <b className="text-foreground">{d.label || d.name}</b>: {String(d.value)}
+              {d.kind === 'range' ? ` (${d.min}..${d.max}${d.unit ? ' ' + d.unit : ''})` : ''}
+            </span>
+          ))}
+        </div>
+      )}
+      <details className="rounded border bg-background px-2 py-1 text-[11px]">
+        <summary className="cursor-pointer font-medium text-muted-foreground">View figure JS &amp; Python code</summary>
+        <pre className="mt-1.5 max-h-40 overflow-auto whitespace-pre-wrap font-mono text-[11px]">{fig.js}</pre>
+      </details>
+    </div>
+  )
+}
+
+export function AssistantPanel({
+  docId = 'default',
+  editor,
+  onClose,
+}: {
+  docId?: string
+  editor: PlateEditor | null
+  onClose: () => void
+}) {
+  const { files, data } = useContext(DataContext)
   const { config, remember, mode, agent, agentSettings } = useAI()
   const { model: agentModel, effort: agentEffort } = agentSettings[agent] ?? {}
   const info = PROVIDERS[config.provider]
@@ -70,6 +162,7 @@ export function AssistantPanel({ editor, onClose }: { editor: PlateEditor | null
   const hasKey = !!config.apiKey || !!serverKeys[config.provider] || !!info.keyOptional
   const ready = mode === 'agent' ? !!current : hasKey
   const [settings, setSettings] = useState(mode === 'api' ? !config.apiKey : !agent)
+  const [historyOpen, setHistoryOpen] = useState(false)
   const [showKey, setShowKey] = useState(false)
   const [models, setModels] = useState<string[]>([])
   const [modelsMsg, setModelsMsg] = useState('')
@@ -82,15 +175,47 @@ export function AssistantPanel({ editor, onClose }: { editor: PlateEditor | null
   const session = useRef<AgentSession | null>(null)
   const generation = useRef(0)
   const selectedModel = localModels.find((m) => agentModel ? m.id === agentModel : m.isDefault)
-  const [messages, setMessages] = useState<Msg[]>([])
+
+  // Per-document chat threads
+  const [threads, setThreads] = useState<DocChatThread[]>(() => loadDocThreads(docId))
+  const [activeThread, setActiveThread] = useState<DocChatThread>(() => {
+    const loaded = loadDocThreads(docId)
+    return loaded[0] ?? createEmptyThread(docId)
+  })
+  const [messages, setMessages] = useState<Msg[]>(() => activeThread.messages)
   const [input, setInput] = useState('')
+  const [attachments, setAttachments] = useState<AIAttachment[]>([])
   const [busy, setBusy] = useState(false)
   const [copied, setCopied] = useState<number | null>(null)
   const abort = useRef<AbortController | null>(null)
   const list = useRef<HTMLDivElement>(null)
+  const attachInputRef = useRef<HTMLInputElement | null>(null)
   // Đồng hồ đếm giây khi đang chờ trả lời
   const [now, setNow] = useState(Date.now())
   useEffect(() => { if (!busy) return; const t = setInterval(() => setNow(Date.now()), 500); return () => clearInterval(t) }, [busy])
+
+  // Reload threads when switching documents
+  useEffect(() => {
+    const loaded = loadDocThreads(docId)
+    const initial = loaded[0] ?? createEmptyThread(docId)
+    setThreads(loaded)
+    setActiveThread(initial)
+    setMessages(initial.messages)
+    setAttachments([])
+  }, [docId])
+
+  // Persist current thread whenever messages change
+  useEffect(() => {
+    const nextThread: DocChatThread = {
+      ...activeThread,
+      docId,
+      messages,
+    }
+    setActiveThread(nextThread)
+    const updatedThreads = saveDocThread(docId, nextThread)
+    setThreads(updatedThreads)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages, docId])
 
   const detect = async (refresh = false) => {
     setDetecting(true)
@@ -139,13 +264,43 @@ export function AssistantPanel({ editor, onClose }: { editor: PlateEditor | null
     abort.current?.abort()
     if (session.current) void interruptSession(session.current.id).catch(() => {})
     else if (mode === 'agent') {
-      // Session creation can still be waiting for the CLI handshake; close a late result.
       generation.current++; abort.current = null; setBusy(false)
       setMessages((m) => m.length ? [...m.slice(0, -1), { ...m[m.length - 1], content: m[m.length - 1].content || STOPPED, progress: '' }] : m)
     }
   }
+
   const newChat = () => {
-    discardSession(); setBusy(false); setMessages([]); setSessionNote('')
+    discardSession()
+    setBusy(false)
+    const fresh = createEmptyThread(docId)
+    setActiveThread(fresh)
+    setMessages([])
+    setAttachments([])
+    setSessionNote('')
+    setHistoryOpen(false)
+  }
+
+  const selectThread = (thread: DocChatThread) => {
+    if (busy) stop()
+    discardSession()
+    setActiveThread(thread)
+    setMessages(thread.messages)
+    setAttachments([])
+    setHistoryOpen(false)
+    setSessionNote('')
+  }
+
+  const removeThread = (threadId: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+    const nextList = deleteDocThread(docId, threadId)
+    setThreads(nextList)
+    if (activeThread.id === threadId) {
+      discardSession()
+      setBusy(false)
+      const fallback = nextList[0] ?? createEmptyThread(docId)
+      setActiveThread(fallback)
+      setMessages(fallback.messages)
+    }
   }
 
   const refreshModels = async () => {
@@ -158,10 +313,18 @@ export function AssistantPanel({ editor, onClose }: { editor: PlateEditor | null
     } catch (e) { setModelsMsg((e as Error).message) } finally { setLoadingModels(false) }
   }
 
-  const send = async (text: string) => {
-    const q = text.trim(); if (!q || busy || abort.current) return
+  const send = async (text: string, customAttachments = attachments) => {
+    const q = text.trim()
+    if ((!q && customAttachments.length === 0) || busy || abort.current) return
     if (!ready) { setSettings(true); return }
-    const next: Msg[] = [...messages.filter((m) => !m.error), { role: 'user', content: q }]
+
+    const userMsg: Msg = {
+      role: 'user',
+      content: q,
+      ...(customAttachments.length > 0 ? { attachments: customAttachments } : {}),
+    }
+    const priorMessages = messages.filter((m) => !m.error)
+    const next: Msg[] = [...priorMessages, userMsg]
     const by = mode === 'agent' ? `${current?.label ?? 'Agent'} · ${agentModel || 'CLI default'}` : config.model
     const startedAt = Date.now()
     const ctl = new AbortController(); abort.current = ctl
@@ -173,10 +336,24 @@ export function AssistantPanel({ editor, onClose }: { editor: PlateEditor | null
       setMessages((m) => [...m.slice(0, -1), { ...m[m.length - 1], ...patch }])
     }
     setMessages([...next, { role: 'assistant', content: '', by, startedAt, progress: mode === 'agent' ? `Starting ${by}…` : 'Sending…' }])
-    setInput(''); setBusy(true); setSettings(false)
+    setInput('')
+    setAttachments([])
+    setBusy(true)
+    setSettings(false)
+    setHistoryOpen(false)
     try {
-      const doc = editor ? docAsMarkdown(editor) : ''
+      const doc = editor ? docAsContextMarkdown(editor, files, data) : ''
       if (mode === 'agent') {
+        const promptText = buildPromptWithAttachments(q, customAttachments)
+        // If continuing a restored thread from history on a brand-new CLI session, include prior turns
+        const historyPrefix =
+          !session.current && priorMessages.length > 0
+            ? `Earlier conversation in this thread:\n${priorMessages
+                .slice(-8)
+                .map((m) => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`)
+                .join('\n\n')}\n\nCurrent request:\n`
+            : ''
+
         for (let attempt = 0; attempt < 2; attempt++) {
           let content = ''
           const steps: NonNullable<Msg['steps']> = []
@@ -191,15 +368,28 @@ export function AssistantPanel({ editor, onClose }: { editor: PlateEditor | null
               session.current = created
             }
             ctl.signal.throwIfAborted()
-            await runTurn(session.current.id, { text: q, doc }, {
-              signal: ctl.signal,
-              onEvent: (event) => {
-                if (event.type === 'text') { content += event.delta; update({ content, progress: '' }) }
-                else if (event.type === 'step') update({ progress: event.text })
-                else if (event.type === 'tool') { steps.push({ name: event.name, detail: event.detail }); update({ steps: [...steps] }) }
-                else if (event.type === 'done') update({ by: `${current?.label ?? 'Agent'} · ${event.model || agentModel || 'CLI default'}`, progress: '', ms: Date.now() - startedAt })
+            await runTurn(
+              session.current.id,
+              {
+                text: `${historyPrefix}${promptText}`,
+                doc,
+                attachments: customAttachments.map((a) => ({
+                  name: a.name,
+                  kind: a.kind,
+                  dataUrl: a.dataUrl,
+                  textContent: a.textContent,
+                })),
               },
-            })
+              {
+                signal: ctl.signal,
+                onEvent: (event) => {
+                  if (event.type === 'text') { content += event.delta; update({ content, progress: '' }) }
+                  else if (event.type === 'step') update({ progress: event.text })
+                  else if (event.type === 'tool') { steps.push({ name: event.name, detail: event.detail }); update({ steps: [...steps] }) }
+                  else if (event.type === 'done') update({ by: `${current?.label ?? 'Agent'} · ${event.model || agentModel || 'CLI default'}`, progress: '', ms: Date.now() - startedAt })
+                },
+              },
+            )
             break
           } catch (e) {
             if (ctl.signal.aborted || turnGeneration !== generation.current) throw e
@@ -237,12 +427,20 @@ export function AssistantPanel({ editor, onClose }: { editor: PlateEditor | null
       else update({ content: (e as Error).message, error: true, progress: '' })
     } finally { if (abort.current === ctl) { setBusy(false); abort.current = null } }
   }
-  const insert = (md: string) => {
-    if (!editor) return
-    const nodes = (editor.api as any).markdown.deserialize(normalizeMath(md))
+
+  const insertNodesAtCursor = (nodes: any[]) => {
+    if (!editor || !nodes.length) return
     const top = editor.selection ? editor.api.block({ highest: true }) : undefined
     editor.tf.insertNodes(nodes, { at: top ? [top[1][0] + 1] : [editor.children.length], select: true })
     editor.tf.focus()
+  }
+  const insert = (md: string) => {
+    if (!editor) return
+    insertNodesAtCursor(deserializeMarkdownWithFigures(editor, md))
+  }
+  const insertFigure = (fig: FigureNode) => {
+    const fresh: FigureNode = { ...fig, id: 'fig-' + Math.random().toString(36).slice(2, 8), children: [{ text: '' }] }
+    insertNodesAtCursor([fresh])
   }
   const copy = async (i: number, t: string) => { try { await navigator.clipboard.writeText(t); setCopied(i); setTimeout(() => setCopied(null), 1500) } catch { /* bỏ qua */ } }
 
@@ -251,14 +449,105 @@ export function AssistantPanel({ editor, onClose }: { editor: PlateEditor | null
     <aside className="flex w-[360px] max-w-full shrink-0 flex-col border-l bg-muted/20 text-sm max-[900px]:absolute max-[900px]:inset-y-0 max-[900px]:right-0 max-[900px]:z-40 max-[900px]:bg-background max-[900px]:shadow-2xl" aria-label="AI Assistant">
       <div className="flex h-12 items-center justify-between border-b px-3">
         <span className="flex items-center gap-2 font-semibold"><Sparkles className="size-4" />AI Assistant</span>
-        <button className="rounded-md p-1 text-muted-foreground hover:bg-accent" aria-label="Close assistant" onClick={() => { discardSession(); onClose() }}><X className="size-4" /></button>
+        <div className="flex items-center gap-1">
+          <button
+            className="flex items-center gap-1 rounded-md border px-2 py-1 text-xs text-muted-foreground hover:bg-accent hover:text-foreground"
+            onClick={newChat}
+            title="Start a new chat conversation"
+          >
+            <Plus className="size-3.5" />
+            New chat
+          </button>
+          <button
+            className={cn(
+              'flex items-center gap-1 rounded-md border px-2 py-1 text-xs hover:bg-accent',
+              historyOpen ? 'border-foreground bg-accent text-foreground font-medium' : 'text-muted-foreground'
+            )}
+            aria-label="Chat history"
+            aria-expanded={historyOpen}
+            title="View saved conversations for this document"
+            onClick={() => {
+              setHistoryOpen((v) => !v)
+              if (!historyOpen) setSettings(false)
+            }}
+          >
+            <History className="size-3.5" />
+            <span>History</span>
+            {threads.length > 0 && (
+              <span className="rounded-full bg-muted px-1.5 text-[10px] font-semibold text-foreground">
+                {threads.length}
+              </span>
+            )}
+          </button>
+          <button className="rounded-md p-1 text-muted-foreground hover:bg-accent" aria-label="Close assistant" onClick={() => { discardSession(); onClose() }}><X className="size-4" /></button>
+        </div>
       </div>
 
-      <div className="flex items-center justify-between gap-2 border-b px-3 py-2 text-xs text-muted-foreground">
+      <div className="flex items-center justify-between gap-2 border-b px-3 py-1.5 text-xs text-muted-foreground">
         <span className="min-w-0 flex-1 truncate">{mode === 'agent' ? (current ? `${current.label} · ${agentModel || 'CLI default'}` : 'No local agent selected') : `${info.label} · ${config.model || 'no model selected'}`}</span>
-        {mode === 'agent' && <button className="shrink-0 rounded-md border px-2 py-1 hover:bg-accent" onClick={newChat}>New chat</button>}
-        <button className={cn('rounded-md p-1 hover:bg-accent', settings && 'bg-accent text-foreground')} aria-label="Provider settings" aria-expanded={settings} onClick={() => setSettings(!settings)}><Settings2 className="size-4" /></button>
+        <button className={cn('rounded-md p-1 hover:bg-accent', settings && 'bg-accent text-foreground')} aria-label="Provider settings" aria-expanded={settings} onClick={() => { setSettings(!settings); if (!settings) setHistoryOpen(false) }}><Settings2 className="size-4" /></button>
       </div>
+
+      {/* Per-document Chat History Drawer */}
+      {historyOpen && (
+        <div className="max-h-72 space-y-2 overflow-y-auto border-b bg-background/95 px-3 py-2.5">
+          <div className="flex items-center justify-between text-xs font-medium text-muted-foreground">
+            <span>Saved conversations for this document ({threads.length})</span>
+            <button
+              type="button"
+              onClick={newChat}
+              className="flex items-center gap-1 rounded px-1.5 py-0.5 text-blue-600 hover:bg-blue-50"
+            >
+              <Plus className="size-3" />
+              New chat
+            </button>
+          </div>
+
+          {threads.length === 0 ? (
+            <p className="py-3 text-center text-xs text-muted-foreground">
+              No saved conversations for this document yet.
+            </p>
+          ) : (
+            <div className="space-y-1">
+              {threads.map((t) => {
+                const isCurrent = t.id === activeThread.id
+                return (
+                  <div
+                    key={t.id}
+                    onClick={() => selectThread(t)}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') selectThread(t) }}
+                    className={cn(
+                      'group flex cursor-pointer items-center justify-between gap-2 rounded-md border px-2.5 py-1.5 text-xs transition-colors',
+                      isCurrent
+                        ? 'border-blue-400 bg-blue-50/60 font-medium text-foreground'
+                        : 'bg-background hover:bg-accent/70'
+                    )}
+                  >
+                    <MessageSquare className="size-3.5 shrink-0 text-muted-foreground" />
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate">{t.title}</div>
+                      <div className="text-[10px] text-muted-foreground">
+                        {t.messages.length} {t.messages.length === 1 ? 'message' : 'messages'} · {formatShortTime(t.updatedAt)}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      aria-label={`Delete conversation "${t.title}"`}
+                      title="Delete conversation"
+                      onClick={(e) => removeThread(t.id, e)}
+                      className="rounded p-1 text-muted-foreground hover:bg-red-50 hover:text-red-600"
+                    >
+                      <Trash2 className="size-3.5" />
+                    </button>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      )}
 
       {settings && (
         <div className="flex gap-1 border-b px-3 pt-3 pb-2" role="radiogroup" aria-label="How to run AI">
@@ -320,7 +609,7 @@ export function AssistantPanel({ editor, onClose }: { editor: PlateEditor | null
           <div className="space-y-1 text-xs text-muted-foreground">
             {agentNote && <p className="text-amber-600">{agentNote}</p>}
             <p>Uses the account already signed in to the agent; no key needed.</p>
-            <p>The agent runs in read-only mode and remembers this chat until you start a new chat or close the assistant. Each message includes the current document.</p>
+            <p>The agent runs in read-only mode and remembers this chat until you start a new chat or close the assistant. Each message includes the current document and datasets.</p>
             {agents && !agents.some((a) => a.available) && <p className="text-amber-600">No agents found. Install Claude Code, Codex or Antigravity, then click Rescan.</p>}
           </div>
         </div>
@@ -357,7 +646,7 @@ export function AssistantPanel({ editor, onClose }: { editor: PlateEditor | null
           <div className="space-y-1 text-xs text-muted-foreground">
             <p>{info.note}</p>
             <p>{remember ? 'The key is stored in this browser.' : 'The key is kept for this session only; closing the tab forgets it.'} You can also set <code>{info.envVar}</code> on the server instead.</p>
-            <p>Each question sends the open document to the selected provider.</p>
+            <p>Each question sends the open document and dataset schema to the selected provider.</p>
             {info.keyUrl && <a className="text-blue-600 hover:underline" href={info.keyUrl} target="_blank" rel="noreferrer">Get a key</a>}
             {!hasKey && <p className="text-amber-600">Enter an API key to use the assistant.</p>}
             <p>The in-document AI menu (Space on an empty line, Ctrl+J) uses these settings too.</p>
@@ -369,7 +658,7 @@ export function AssistantPanel({ editor, onClose }: { editor: PlateEditor | null
         {mode === 'agent' && sessionNote && <p className="text-xs text-muted-foreground" role="status">{sessionNote}</p>}
         {!messages.length && (
           <div className="space-y-3">
-            <p className="text-muted-foreground">Ask about the document, or have it write, edit or summarize. The assistant reads the document to answer; click <b>Insert</b> to put an answer at the cursor.</p>
+            <p className="text-muted-foreground">Ask about the document, paste a screenshot (<b>Ctrl+V</b>), attach reference files, or generate interactive figures and math formulas. Click <b>Insert</b> to put results at the cursor.</p>
             <div className="flex flex-wrap gap-1.5">
               {SUGGESTIONS.map((s) => <button key={s} className="rounded-full border px-2.5 py-1 text-xs hover:bg-accent" onClick={() => send(s)}>{s}</button>)}
             </div>
@@ -377,8 +666,37 @@ export function AssistantPanel({ editor, onClose }: { editor: PlateEditor | null
         )}
         {messages.map((m, i) => {
           const live = busy && i === messages.length - 1
-          if (m.role === 'user') return <div key={i} className="chat-in ml-8 whitespace-pre-wrap break-words rounded-2xl rounded-br-sm bg-foreground/[.06] px-3 py-2">{m.content}</div>
+          if (m.role === 'user') {
+            return (
+              <div key={i} className="chat-in ml-8 space-y-1.5 rounded-2xl rounded-br-sm bg-foreground/[.06] px-3 py-2">
+                {!!m.attachments?.length && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {m.attachments.map((att) =>
+                      att.kind === 'image' && att.dataUrl ? (
+                        <img
+                          key={att.id}
+                          src={att.dataUrl}
+                          alt={att.name}
+                          className="max-h-28 max-w-[180px] rounded border object-cover"
+                        />
+                      ) : (
+                        <span
+                          key={att.id}
+                          className="inline-flex items-center gap-1 rounded border bg-background px-2 py-0.5 text-[11px] font-medium"
+                        >
+                          <FileText className="size-3 text-blue-600" />
+                          {att.name}
+                        </span>
+                      )
+                    )}
+                  </div>
+                )}
+                {m.content && <div className="whitespace-pre-wrap break-words">{m.content}</div>}
+              </div>
+            )
+          }
           if (m.error) return <div key={i} className="chat-in rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-red-700">{m.content}</div>
+          const parsed = m.content ? extractFigureSegments(m.content) : null
           return (
             <div key={i} className="chat-in space-y-2">
               {m.notice && <p className="text-xs text-amber-600" role="status">{m.notice}</p>}
@@ -389,9 +707,15 @@ export function AssistantPanel({ editor, onClose }: { editor: PlateEditor | null
                   <span className="ml-auto shrink-0 tabular-nums">{m.startedAt ? seconds(now - m.startedAt) : ''}</span>
                 </div>
               )}
-              {m.content && (
-                <div className={cn('chat-md rounded-lg border bg-background px-3 py-2 leading-relaxed', live && 'is-streaming')}>
-                  <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}>{normalizeMath(m.content)}</ReactMarkdown>
+              {parsed && (
+                <div className={cn('space-y-2', live && 'is-streaming')}>
+                  {parsed.segments.map((seg, idx) => seg.type === 'md' ? (
+                    <div key={idx} className="chat-md rounded-lg border bg-background px-3 py-2 leading-relaxed">
+                      <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}>{normalizeMath(seg.text)}</ReactMarkdown>
+                    </div>
+                  ) : (
+                    <AssistantFigurePreview key={idx} fig={seg.node} onInsert={insertFigure} />
+                  ))}
                 </div>
               )}
               {!!m.steps?.length && (
@@ -406,7 +730,9 @@ export function AssistantPanel({ editor, onClose }: { editor: PlateEditor | null
               {!live && (m.content || m.ms !== undefined) && m.content !== STOPPED && (
                 <div className="flex items-center gap-1.5 text-xs">
                   {m.content && <>
-                    <button className="flex items-center gap-1 rounded-md border px-2 py-1 hover:bg-accent" onClick={() => insert(m.content)}><TextCursorInput className="size-3.5" />Insert</button>
+                    <button className="flex items-center gap-1 rounded-md border px-2 py-1 hover:bg-accent" onClick={() => insert(m.content)}>
+                      <TextCursorInput className="size-3.5" />{parsed && parsed.figures.length > 0 ? 'Insert all' : 'Insert'}
+                    </button>
                     <button className="flex items-center gap-1 rounded-md border px-2 py-1 hover:bg-accent" onClick={() => copy(i, m.content)}>{copied === i ? <Check className="size-3.5" /> : <ClipboardCopy className="size-3.5" />}{copied === i ? 'Copied' : 'Copy'}</button>
                   </>}
                   {m.ms !== undefined && <span className="ml-auto text-muted-foreground">{m.by} · {seconds(m.ms)}</span>}
@@ -417,15 +743,105 @@ export function AssistantPanel({ editor, onClose }: { editor: PlateEditor | null
         })}
       </div>
 
-      <div className="border-t p-3">
-        <textarea className="min-h-[64px] w-full resize-none rounded-md border bg-background px-2.5 py-2 outline-none focus:border-ring" value={input}
-          placeholder="Ask about the document, or ask for a paragraph…" aria-label="Message to the assistant"
+      <div className="border-t p-3 space-y-2">
+        {/* Pending Attachments Preview Strip */}
+        {attachments.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 rounded-md border bg-background p-1.5">
+            {attachments.map((att) => (
+              <div
+                key={att.id}
+                className="relative flex items-center gap-1.5 rounded border bg-muted/40 p-1 pr-6 text-xs"
+              >
+                {att.kind === 'image' && att.dataUrl ? (
+                  <img
+                    src={att.dataUrl}
+                    alt={att.name}
+                    className="size-10 rounded object-cover"
+                  />
+                ) : (
+                  <FileText className="size-4 shrink-0 text-blue-600" />
+                )}
+                <span className="max-w-[120px] truncate text-[11px] font-medium">
+                  {att.name}
+                </span>
+                <button
+                  type="button"
+                  aria-label={`Remove ${att.name}`}
+                  onClick={() =>
+                    setAttachments((prev) => prev.filter((x) => x.id !== att.id))
+                  }
+                  className="absolute top-1 right-1 rounded-full bg-background/90 p-0.5 text-muted-foreground hover:text-foreground"
+                >
+                  <X className="size-3" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <textarea
+          className="min-h-[64px] w-full resize-none rounded-md border bg-background px-2.5 py-2 outline-none focus:border-ring"
+          value={input}
+          placeholder="Ask about the document, paste an image (Ctrl+V), or attach reference files…"
+          aria-label="Message to the assistant"
           onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); send(input) } }} />
-        <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
-          <span>Enter to send, Shift+Enter for a new line</span>
-          {busy ? <button className="flex items-center gap-1 rounded-md border px-3 py-1.5 text-foreground hover:bg-accent" onClick={stop}><Square className="size-3.5" />Stop</button>
-            : <button className="rounded-md bg-foreground px-4 py-1.5 font-medium text-background disabled:opacity-40" disabled={!input.trim()} onClick={() => send(input)}>Send</button>}
+          onPaste={async (e) => {
+            const pasted = await readClipboardAttachments(e.clipboardData)
+            if (pasted.length > 0) {
+              setAttachments((prev) => [...prev, ...pasted])
+            }
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
+              e.preventDefault()
+              void send(input)
+            }
+          }}
+        />
+        <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => attachInputRef.current?.click()}
+              className="flex items-center gap-1 rounded-md border bg-background px-2 py-1 text-foreground hover:bg-accent"
+              title="Attach image or reference file (CSV, Excel, Markdown, code, text)"
+            >
+              <Paperclip className="size-3.5" />
+              <span>Attach</span>
+            </button>
+            <input
+              ref={attachInputRef}
+              type="file"
+              multiple
+              hidden
+              accept="image/*,.csv,.tsv,.json,.xlsx,.xls,.txt,.md,.py,.js,.ts,.tex"
+              onChange={async (e) => {
+                const added = await readFileListAttachments(e.target.files)
+                if (added.length > 0) {
+                  setAttachments((prev) => [...prev, ...added])
+                }
+                e.target.value = ''
+              }}
+            />
+            <span className="truncate text-[11px]">Ctrl+V image or attach file</span>
+          </div>
+          {busy ? (
+            <button
+              className="flex items-center gap-1 rounded-md border px-3 py-1.5 text-foreground hover:bg-accent"
+              onClick={stop}
+            >
+              <Square className="size-3.5" />
+              Stop
+            </button>
+          ) : (
+            <button
+              className="rounded-md bg-foreground px-4 py-1.5 font-medium text-background disabled:opacity-40"
+              disabled={!input.trim() && attachments.length === 0}
+              onClick={() => void send(input)}
+            >
+              Send
+            </button>
+          )}
         </div>
       </div>
     </aside>

@@ -7,6 +7,7 @@ import {
 import { CopilotPlugin } from '@platejs/ai/react'
 import { aiChatPlugin } from '@/components/editor/plugins/ai-kit'
 import { AssistantPanel } from '@/ai/AssistantPanel'
+import { describeDocData, FIGURE_PROMPT_GUIDE } from '@/ai/figure-nodes'
 import { aiStore } from '@/ai/store'
 import { fetchWithAIConfig, withAIRequestConfig } from '@/ai/request-config'
 import { Editor, EditorContainer } from '@/components/ui/editor'
@@ -31,7 +32,6 @@ export default function App() {
   const [query, setQuery] = useState('')
   const [headings, setHeadings] = useState<Heading[]>([])
   const editorRef = useRef<PlateEditor | null>(null)
-  const [editor, setEditor] = useState<PlateEditor | null>(null)
   const [assistant, setAssistant] = useState(() => { try { return localStorage.getItem('papercell.assistant') === '1' } catch { return false } })
   useEffect(() => { try { localStorage.setItem('papercell.assistant', assistant ? '1' : '0') } catch { /* bỏ qua */ } }, [assistant])
   // Hai thanh bên cùng mở trên màn hình vừa sẽ ép hẹp vùng soạn bài: thu gọn thanh trái
@@ -103,9 +103,8 @@ export default function App() {
           </aside>
         )}
         <DocView key={docId} docId={docId} sidebar={sidebar} onShowSidebar={() => setSidebar(true)}
-          onSaved={refresh} onHeadings={setHeadings} onEditor={(e) => { editorRef.current = e; setEditor(e) }} onOpenFile={create}
+          onSaved={refresh} onHeadings={setHeadings} onEditor={(e) => { editorRef.current = e }} onOpenFile={create}
           assistant={assistant} onToggleAssistant={() => setAssistant(!assistant)} />
-        {assistant && <AssistantPanel editor={editor} onClose={() => setAssistant(false)} />}
       </div>
       <Toaster />
     </TooltipProvider>
@@ -142,15 +141,16 @@ function DocView({ docId, sidebar, onShowSidebar, onSaved, onHeadings, onEditor,
   useEffect(() => { persist() }, [meta, files])
   // Menu AI trong bài của Plate dùng chung cài đặt với sidebar Trợ lý AI.
   useEffect(() => {
+    const docData = `${describeDocData(files, dataCtx.data)}\n\n${FIGURE_PROMPT_GUIDE}`
     const sync = () => {
       const chat = editor.getOption(aiChatPlugin, 'chatOptions') ?? {}
-      editor.setOption(aiChatPlugin, 'chatOptions', { ...chat, body: withAIRequestConfig(chat.body) })
+      editor.setOption(aiChatPlugin, 'chatOptions', { ...chat, body: { ...withAIRequestConfig(chat.body), docData } })
       const comp = editor.getOption(CopilotPlugin, 'completeOptions') ?? {}
       editor.setOption(CopilotPlugin, 'completeOptions', { ...comp, body: withAIRequestConfig(comp.body), fetch: fetchWithAIConfig })
     }
     sync()
     return aiStore.subscribe(sync)
-  }, [editor])
+  }, [editor, files, dataCtx.data])
   useEffect(() => { location.hash = readOnly ? 'read' : 'edit' }, [readOnly])
 
   const download = () => {
@@ -190,6 +190,7 @@ function DocView({ docId, sidebar, onShowSidebar, onSaved, onHeadings, onEditor,
               <Editor variant="demo" placeholder="Type / to insert a block, or press Space on an empty line to ask AI…" />
             </EditorContainer>
           </main>
+          {assistant && <AssistantPanel docId={docId} editor={editor} onClose={onToggleAssistant} />}
           {dataOpen && <DataPanel onChange={setFiles} onClose={() => setDataOpen(false)} />}
         </Plate>
       </FigureNumbers.Provider>

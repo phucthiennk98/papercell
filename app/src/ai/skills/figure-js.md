@@ -14,7 +14,7 @@
   - `ket_qua`: the precomputed Python result for the current slider values, or `undefined` if not precomputed. Guard it: `if (!ket_qua) return '<div class="fig-empty">…</div>'`.
   - `pc.label("<dataset>", "<column>")`: the column's display name chosen by the author (falls back to the column name). Use it for axis titles, legend titles and table headers instead of raw column names, e.g. `x: { label: pc.label("survey", "income") }`.
   - `pc.map({ data, kind: "points" | "heat" | "regions", lat, lon, color, size, basemap: "light" | "streets" | "bright" | "dark", width })` returns an interactive MapLibre map. Use `kind: "regions"` with GeoJSON polygons.
-- No network access: never `fetch`, never import modules. Everything comes from `data`.
+- No network access: never `fetch`, never import modules. Everything comes from `data` or deterministic in-memory generation (`d3.randomLcg`).
 
 ## Conventions
 - Use only columns that exist in the datasets listed below; spell them exactly.
@@ -24,6 +24,14 @@
 - Categorical colors: `scheme: "tableau10"`. Sequential: `"blues"`, `"viridis"`, `"ylorrd"`. Diverging: `"rdbu"` with a symmetric domain.
 - Long category labels: `marginLeft` / `marginBottom` and `tickRotate: -30`.
 - Keep the code short and readable; comment only non-obvious steps. Keep existing parameter names.
+
+## Synthetic / Random Data & Editing Existing Figures
+- When the user asks to randomize, simulate, or replace data inside a figure ("dữ liệu ngẫu nhiên", "random data", "synthetic data"):
+  - Generate deterministic seeded data directly in `"js"` using `const rng = d3.randomLcg(seed)` with `d3.randomNormal.source(rng)`, `d3.randomUniform.source(rng)`, or `d3.randomExponential.source(rng)` and `d3.range(n, ...)`.
+  - Keep all existing parameter variables (e.g. `ban_kinh_km`, `o_luoi`, `bins`) wired into the calculation or filter so the sliders continue to work.
+  - Preserve the original figure's visual form (`Plot.plot` mark type, `height`, `aspectRatio`, or `<table class="fig-table">` HTML table) and its `"id"` unless the user explicitly asks to change the chart type.
+- When editing a multi-column cell (`column_group`) containing multiple figures:
+  - Output one `papercell-figure` JSON block per figure in the exact same order, preserving each figure's `"id"`, so each figure stays in its side-by-side column.
 
 ## Example
 ```js

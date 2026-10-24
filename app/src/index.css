@@ -136,3 +136,85 @@
     @apply font-sans;
     }
 }
+
+@keyframes ai-cell-shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+.ai-cell-menu-target {
+  position: relative;
+  border-radius: 0.5rem;
+  box-shadow: 0 0 0 2px rgba(68, 104, 235, 0.45);
+}
+
+.ai-cell-active {
+  position: relative;
+  border-radius: 0.5rem;
+  min-height: 2.5rem;
+  box-shadow: 0 0 0 2px rgba(68, 104, 235, 0.65), 0 4px 16px -4px rgba(68, 104, 235, 0.25);
+  background: linear-gradient(
+    90deg,
+    rgba(68, 104, 235, 0.05) 0%,
+    rgba(139, 92, 246, 0.14) 50%,
+    rgba(68, 104, 235, 0.05) 100%
+  );
+  background-size: 200% 100%;
+  animation: ai-cell-shimmer 1.8s linear infinite;
+  transition: box-shadow 0.2s ease, background 0.2s ease;
+}
+
+.ai-cell-active::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 15;
+  background: linear-gradient(
+    90deg,
+    rgba(68, 104, 235, 0.03) 0%,
+    rgba(139, 92, 246, 0.16) 50%,
+    rgba(68, 104, 235, 0.03) 100%
+  );
+  background-size: 200% 100%;
+  animation: ai-cell-shimmer 1.8s linear infinite;
+}
+
+.ai-cell-review {
+  position: relative;
+  border-radius: 0.5rem;
+  padding: 0.25rem 0.5rem;
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.55);
+  background-color: rgba(16, 185, 129, 0.03);
+  transition: box-shadow 0.2s ease, background-color 0.2s ease;
+}
+
+.eq-interactive [data-eqtok] {
+  border-radius: 4px;
+  padding: 0 2px;
+  margin: 0 -1px;
+  cursor: pointer;
+  transition: background-color 0.12s ease, box-shadow 0.12s ease, color 0.12s ease;
+}
+
+.eq-interactive [data-eqtok]:hover {
+  background-color: rgba(37, 99, 235, 0.14);
+  box-shadow: 0 0 0 1.5px rgba(37, 99, 235, 0.55);
+  color: #1d4ed8;
+}
+
+.eq-interactive [data-eqtok].eq-token-active {
+  background-color: rgba(37, 99, 235, 0.2);
+  box-shadow: 0 0 0 2px #2563eb;
+  color: #1e40af;
+}
+
+.eq-interactive [data-eqtok].eq-token-same {
+  background-color: rgba(37, 99, 235, 0.09);
+  box-shadow: 0 0 0 1px dashed rgba(37, 99, 235, 0.55);
+}

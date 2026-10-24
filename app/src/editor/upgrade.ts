@@ -7,6 +7,29 @@ import { CONTROLS_ID_PREFIX, PARAMS_DEMO_ID, controlsSection, paramsDemo } from 
 
 /** Title of the old Vietnamese chart gallery. */
 const LEGACY_GALLERY_TITLE = 'Bộ thử biểu đồ'
+const SAMPLE_TITLE = 'Hành vi đi lại quanh một tuyến metro'
+
+/** Re-wraps two top-level figures in the sample article if an earlier AI edit unwrapped their 2-column group. */
+function repairSampleColumnGroup(content: any[]): any[] {
+  const out: any[] = []
+  for (let i = 0; i < content.length; i++) {
+    const cur = content[i]
+    const next = content[i + 1]
+    if (cur?.type === 'figure' && next?.type === 'figure') {
+      out.push({
+        type: 'column_group',
+        children: [
+          { type: 'column', width: '55%', children: [cur] },
+          { type: 'column', width: '45%', children: [next] },
+        ],
+      })
+      i++
+      continue
+    }
+    out.push(cur)
+  }
+  return out
+}
 
 function mapFigures(nodes: any[], fn: (f: FigureNode) => FigureNode): any[] {
   return nodes.map((n) => (n.type === 'figure' ? fn(n as FigureNode) : n.children ? { ...n, children: mapFigures(n.children, fn) } : n))
@@ -41,6 +64,7 @@ function addControlsSection(content: any[]): any[] {
 }
 
 export function upgradeDoc(doc: PapercellDoc): PapercellDoc {
+  if (doc.meta.title === SAMPLE_TITLE) doc = { ...doc, content: repairSampleColumnGroup(doc.content) }
   if (doc.meta.title === GALLERY_TITLE || doc.meta.title === LEGACY_GALLERY_TITLE) doc = { ...doc, content: addControlsSection(doc.content) }
   if (doc.meta.title === GALLERY_TITLE) doc = { ...doc, content: addParamsDemo(doc.content, 'en') }
   if (doc.meta.title === LEGACY_GALLERY_TITLE) doc = { ...doc, content: addParamsDemo(doc.content, 'vi') }
