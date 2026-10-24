@@ -42,9 +42,9 @@ export function createSession(opts: Options) {
   // Serialize creation so simultaneous requests cannot exceed the session limit.
   const result = creating.then(async () => {
     if (exiting) throw new SessionError('The server is shutting down.', 503)
-    if (sessions.size >= 4) {
+    if (sessions.size >= 8) {
       const oldest = [...sessions.values()].filter((s) => !s.busy).sort((a, b) => a.lastUsed - b.lastUsed)[0]
-      if (!oldest) throw new SessionError('All four agent sessions are busy. Close a session or wait for a turn to finish.', 409)
+      if (!oldest) throw new SessionError('All eight agent sessions are busy. Close a session or wait for a turn to finish.', 409)
       await closeSession(oldest.id)
     }
     const cwd = await mkdtemp(path.join(tmpdir(), 'papercell-session-'))

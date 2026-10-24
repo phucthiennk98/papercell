@@ -49,6 +49,7 @@ import {
   buildPromptWithAttachments,
   createEmptyThread,
   deleteDocThread,
+  deriveThreadTitle,
   loadDocThreads,
   readClipboardAttachments,
   readFileListAttachments,
@@ -92,6 +93,89 @@ const SUGGESTIONS = [
   'Summarize this document in 3 sentences',
   'Write a Conclusion based on the Results',
 ]
+
+// ---- Parallel background thread execution manager ----
+type ThreadRunState = {
+  threadId: string
+  docId: string
+  title: string
+  startedAt: number
+  abort: AbortController
+}
+
+/** Active in-flight turns keyed by threadId (continues running even when switching to New chat). */
+const activeRuns = new Map<string, ThreadRunState>()
+/** Persistent CLI agent sessions keyed by threadId so each parallel thread keeps its own session. */
+const threadSessions = new Map<string, AgentSession>()
+/** In-memory mirror of threads being streamed so rapid chunk updates never read stale state. */
+const threadMemories = new Map<string, DocChatThread>()
+const runListeners = new Set<() => void>()
+
+function notifyRunListeners() {
+  runListeners.forEach((fn) => fn())
+}
+
+function updateThreadInBackground(
+  docId: string,
+  baseThread: DocChatThread,
+  updater: (prev: Msg[]) => Msg[]
+): DocChatThread {
+  const existing = threadMemories.get(baseThread.id) ?? baseThread
+  const nextMessages = updater(existing.messages)
+  const updated: DocChatThread = {
+    ...existing,
+    docId,
+    title: deriveThreadTitle(nextMessages),
+    updatedAt: Date.now(),
+    messages: nextMessages,
+  }
+  threadMemories.set(baseThread.id, updated)
+  saveDocThread(docId, updated)
+  const run = activeRuns.get(baseThread.id)
+  if (run) {
+    run.title = updated.title
+  }
+  notifyRunListeners()
+  return updated
+}
+
+function stopThreadRun(threadId: string, closeCliSession = false) {
+  const run = activeRuns.get(threadId)
+  if (run) {
+    run.abort.abort()
+    activeRuns.delete(threadId)
+  }
+  const sess = threadSessions.get(threadId)
+  if (sess) {
+    if (closeCliSession) {
+      threadSessions.delete(threadId)
+      void closeSession(sess.id).catch(() => {})
+    } else if (run) {
+      void interruptSession(sess.id).catch(() => {})
+    }
+  }
+  const mem = threadMemories.get(threadId)
+  if (mem && mem.messages.length > 0) {
+    const last = mem.messages[mem.messages.length - 1]
+    if (last.role === 'assistant' && last.ms === undefined && !last.error && !last.failure) {
+      updateThreadInBackground(mem.docId, mem, (prev) =>
+        prev.length
+          ? [
+              ...prev.slice(0, -1),
+              {
+                ...prev[prev.length - 1],
+                content: prev[prev.length - 1].content.trim()
+                  ? prev[prev.length - 1].content
+                  : STOPPED,
+                progress: '',
+              },
+            ]
+          : prev
+      )
+    }
+  }
+  notifyRunListeners()
+}
 
 function AssistantFigurePreview({ fig, onInsert }: { fig: FigureNode; onInsert: (f: FigureNode) => void }) {
   const [params, setParams] = useState<FigureParam[]>(fig.params)
@@ -172,50 +256,70 @@ export function AssistantPanel({
   const [loadingLocalModels, setLoadingLocalModels] = useState(false)
   const [sessionNote, setSessionNote] = useState('')
   const modelRequest = useRef(0)
-  const session = useRef<AgentSession | null>(null)
-  const generation = useRef(0)
   const selectedModel = localModels.find((m) => agentModel ? m.id === agentModel : m.isDefault)
 
   // Per-document chat threads
   const [threads, setThreads] = useState<DocChatThread[]>(() => loadDocThreads(docId))
   const [activeThread, setActiveThread] = useState<DocChatThread>(() => {
     const loaded = loadDocThreads(docId)
-    return loaded[0] ?? createEmptyThread(docId)
+    const first = loaded[0] ?? createEmptyThread(docId)
+    return threadMemories.get(first.id) ?? first
   })
   const [messages, setMessages] = useState<Msg[]>(() => activeThread.messages)
   const [input, setInput] = useState('')
   const [attachments, setAttachments] = useState<AIAttachment[]>([])
-  const [busy, setBusy] = useState(false)
   const [copied, setCopied] = useState<number | null>(null)
-  const abort = useRef<AbortController | null>(null)
+  const [runVersion, setRunVersion] = useState(0)
   const list = useRef<HTMLDivElement>(null)
   const attachInputRef = useRef<HTMLInputElement | null>(null)
-  // Đồng hồ đếm giây khi đang chờ trả lời
-  const [now, setNow] = useState(Date.now())
-  useEffect(() => { if (!busy) return; const t = setInterval(() => setNow(Date.now()), 500); return () => clearInterval(t) }, [busy])
 
-  // Reload threads when switching documents
+  const activeThreadIdRef = useRef(activeThread.id)
+  activeThreadIdRef.current = activeThread.id
+  const docIdRef = useRef(docId)
+  docIdRef.current = docId
+
+  // Subscribe to background thread streaming updates
+  useEffect(() => {
+    const onRunUpdate = () => {
+      setRunVersion((v) => v + 1)
+      const currentDoc = docIdRef.current
+      const curId = activeThreadIdRef.current
+      const mem = threadMemories.get(curId)
+      if (mem) {
+        setActiveThread(mem)
+        setMessages(mem.messages)
+      }
+      setThreads(loadDocThreads(currentDoc))
+    }
+    runListeners.add(onRunUpdate)
+    return () => {
+      runListeners.delete(onRunUpdate)
+    }
+  }, [])
+
+  const isCurrentThreadBusy = activeRuns.has(activeThread.id)
+  const docRunningRuns = [...activeRuns.values()].filter((r) => r.docId === docId)
+  const backgroundRunningRuns = docRunningRuns.filter((r) => r.threadId !== activeThread.id)
+  const anyRunning = activeRuns.size > 0
+
+  // Elapsed timer while any conversation is running
+  const [now, setNow] = useState(Date.now())
+  useEffect(() => {
+    if (!anyRunning) return
+    const t = setInterval(() => setNow(Date.now()), 500)
+    return () => clearInterval(t)
+  }, [anyRunning, runVersion])
+
+  // Reload threads when switching documents (without stopping any background chats!)
   useEffect(() => {
     const loaded = loadDocThreads(docId)
-    const initial = loaded[0] ?? createEmptyThread(docId)
+    const first = loaded[0] ?? createEmptyThread(docId)
+    const synced = threadMemories.get(first.id) ?? first
     setThreads(loaded)
-    setActiveThread(initial)
-    setMessages(initial.messages)
+    setActiveThread(synced)
+    setMessages(synced.messages)
     setAttachments([])
   }, [docId])
-
-  // Persist current thread whenever messages change
-  useEffect(() => {
-    const nextThread: DocChatThread = {
-      ...activeThread,
-      docId,
-      messages,
-    }
-    setActiveThread(nextThread)
-    const updatedThreads = saveDocThread(docId, nextThread)
-    setThreads(updatedThreads)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [messages, docId])
 
   const detect = async (refresh = false) => {
     setDetecting(true)
@@ -230,18 +334,6 @@ export function AssistantPanel({
   useEffect(() => { fetch('/api/ai/status').then((r) => r.json()).then((j) => setServerKeys(j.serverKeys ?? {})).catch(() => {}) }, [])
   useEffect(() => { list.current?.scrollTo({ top: list.current.scrollHeight }) }, [messages])
   useEffect(() => { setModels([]); setModelsMsg('') }, [config.provider])
-
-  const discardSession = () => {
-    generation.current++
-    abort.current?.abort(); abort.current = null
-    const old = session.current; session.current = null
-    if (old) void closeSession(old.id).catch(() => {})
-  }
-  useEffect(() => {
-    setBusy(false)
-    if (mode === 'agent') setSessionNote(`New session with ${agentModel || 'CLI default'}`)
-    return discardSession
-  }, [mode, agent, agentModel, agentEffort])
 
   const loadLocalModels = async (refresh = false) => {
     const request = ++modelRequest.current
@@ -260,19 +352,15 @@ export function AssistantPanel({
     return () => { modelRequest.current++ }
   }, [mode, agent])
 
-  const stop = () => {
-    abort.current?.abort()
-    if (session.current) void interruptSession(session.current.id).catch(() => {})
-    else if (mode === 'agent') {
-      generation.current++; abort.current = null; setBusy(false)
-      setMessages((m) => m.length ? [...m.slice(0, -1), { ...m[m.length - 1], content: m[m.length - 1].content || STOPPED, progress: '' }] : m)
-    }
+  /** Stop only the specified thread (defaults to currently viewed thread). */
+  const stop = (targetThreadId = activeThread.id) => {
+    stopThreadRun(targetThreadId, false)
   }
 
+  /** Start a fresh chat while letting any in-progress conversations continue running in parallel! */
   const newChat = () => {
-    discardSession()
-    setBusy(false)
     const fresh = createEmptyThread(docId)
+    threadMemories.set(fresh.id, fresh)
     setActiveThread(fresh)
     setMessages([])
     setAttachments([])
@@ -280,11 +368,11 @@ export function AssistantPanel({
     setHistoryOpen(false)
   }
 
+  /** Switch to any saved conversation without interrupting running threads. */
   const selectThread = (thread: DocChatThread) => {
-    if (busy) stop()
-    discardSession()
-    setActiveThread(thread)
-    setMessages(thread.messages)
+    const latest = threadMemories.get(thread.id) ?? thread
+    setActiveThread(latest)
+    setMessages(latest.messages)
     setAttachments([])
     setHistoryOpen(false)
     setSessionNote('')
@@ -292,14 +380,15 @@ export function AssistantPanel({
 
   const removeThread = (threadId: string, e: React.MouseEvent) => {
     e.stopPropagation()
+    stopThreadRun(threadId, true)
+    threadMemories.delete(threadId)
     const nextList = deleteDocThread(docId, threadId)
     setThreads(nextList)
     if (activeThread.id === threadId) {
-      discardSession()
-      setBusy(false)
       const fallback = nextList[0] ?? createEmptyThread(docId)
-      setActiveThread(fallback)
-      setMessages(fallback.messages)
+      const latest = threadMemories.get(fallback.id) ?? fallback
+      setActiveThread(latest)
+      setMessages(latest.messages)
     }
   }
 
@@ -315,7 +404,11 @@ export function AssistantPanel({
 
   const send = async (text: string, customAttachments = attachments) => {
     const q = text.trim()
-    if ((!q && customAttachments.length === 0) || busy || abort.current) return
+    const targetThread = activeThread
+    const targetThreadId = targetThread.id
+    const targetDocId = docId
+
+    if ((!q && customAttachments.length === 0) || activeRuns.has(targetThreadId)) return
     if (!ready) { setSettings(true); return }
 
     const userMsg: Msg = {
@@ -327,27 +420,62 @@ export function AssistantPanel({
     const next: Msg[] = [...priorMessages, userMsg]
     const by = mode === 'agent' ? `${current?.label ?? 'Agent'} · ${agentModel || 'CLI default'}` : config.model
     const startedAt = Date.now()
-    const ctl = new AbortController(); abort.current = ctl
-    const turnGeneration = generation.current
+    const ctl = new AbortController()
     let received = ''
-    const update = (patch: Partial<Msg>) => {
-      if (abort.current !== ctl || turnGeneration !== generation.current) return
-      if (patch.content !== undefined) received = patch.content
-      setMessages((m) => [...m.slice(0, -1), { ...m[m.length - 1], ...patch }])
+
+    const initialMessages: Msg[] = [
+      ...next,
+      {
+        role: 'assistant',
+        content: '',
+        by,
+        startedAt,
+        progress: mode === 'agent' ? `Starting ${by}…` : 'Sending…',
+      },
+    ]
+
+    const seededThread: DocChatThread = {
+      ...targetThread,
+      docId: targetDocId,
+      title: deriveThreadTitle(initialMessages),
+      updatedAt: startedAt,
+      messages: initialMessages,
     }
-    setMessages([...next, { role: 'assistant', content: '', by, startedAt, progress: mode === 'agent' ? `Starting ${by}…` : 'Sending…' }])
+    threadMemories.set(targetThreadId, seededThread)
+    saveDocThread(targetDocId, seededThread)
+
+    activeRuns.set(targetThreadId, {
+      threadId: targetThreadId,
+      docId: targetDocId,
+      title: seededThread.title,
+      startedAt,
+      abort: ctl,
+    })
+
+    setActiveThread(seededThread)
+    setMessages(initialMessages)
+    setThreads(loadDocThreads(targetDocId))
     setInput('')
     setAttachments([])
-    setBusy(true)
     setSettings(false)
     setHistoryOpen(false)
+    notifyRunListeners()
+
+    const update = (patch: Partial<Msg>) => {
+      if (activeRuns.get(targetThreadId)?.abort !== ctl) return
+      if (patch.content !== undefined) received = patch.content
+      updateThreadInBackground(targetDocId, seededThread, (m) =>
+        m.length ? [...m.slice(0, -1), { ...m[m.length - 1], ...patch }] : m
+      )
+    }
+
     try {
       const doc = editor ? docAsContextMarkdown(editor, files, data) : ''
       if (mode === 'agent') {
         const promptText = buildPromptWithAttachments(q, customAttachments)
-        // If continuing a restored thread from history on a brand-new CLI session, include prior turns
+        const existingSession = threadSessions.get(targetThreadId)
         const historyPrefix =
-          !session.current && priorMessages.length > 0
+          !existingSession && priorMessages.length > 0
             ? `Earlier conversation in this thread:\n${priorMessages
                 .slice(-8)
                 .map((m) => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`)
@@ -358,18 +486,30 @@ export function AssistantPanel({
           let content = ''
           const steps: NonNullable<Msg['steps']> = []
           try {
-            if (!session.current) {
+            let sess = threadSessions.get(targetThreadId)
+            if (
+              sess &&
+              (sess.agent !== agent ||
+                (sess.model ?? undefined) !== (agentModel ?? undefined) ||
+                (sess.effort ?? undefined) !== (agentEffort ?? undefined))
+            ) {
+              threadSessions.delete(targetThreadId)
+              void closeSession(sess.id).catch(() => {})
+              sess = undefined
+            }
+            if (!sess) {
               update({ progress: `Starting ${current?.label ?? 'agent'}…` })
               const created = await createSession({ agent, model: agentModel, effort: agentEffort })
-              if (turnGeneration !== generation.current) {
+              if (ctl.signal.aborted || activeRuns.get(targetThreadId)?.abort !== ctl) {
                 void closeSession(created.id).catch(() => {})
                 throw new DOMException('Stopped', 'AbortError')
               }
-              session.current = created
+              threadSessions.set(targetThreadId, created)
+              sess = created
             }
             ctl.signal.throwIfAborted()
             await runTurn(
-              session.current.id,
+              sess.id,
               {
                 text: `${historyPrefix}${promptText}`,
                 doc,
@@ -392,10 +532,11 @@ export function AssistantPanel({
             )
             break
           } catch (e) {
-            if (ctl.signal.aborted || turnGeneration !== generation.current) throw e
+            if (ctl.signal.aborted || activeRuns.get(targetThreadId)?.abort !== ctl) throw e
             const lost = e instanceof AgentSessionError && (e.status === 404 || e.fatal)
             if (lost) {
-              const old = session.current; session.current = null
+              const old = threadSessions.get(targetThreadId)
+              threadSessions.delete(targetThreadId)
               if (old) void closeSession(old.id).catch(() => {})
             }
             if (!lost || attempt > 0) throw e
@@ -425,7 +566,12 @@ export function AssistantPanel({
       if (ctl.signal.aborted || (e as Error).name === 'AbortError') update({ progress: '', ms: Date.now() - startedAt, content: received.trim() ? received : STOPPED })
       else if (mode === 'agent') update({ failure: (e as Error).message, progress: '', ms: Date.now() - startedAt })
       else update({ content: (e as Error).message, error: true, progress: '' })
-    } finally { if (abort.current === ctl) { setBusy(false); abort.current = null } }
+    } finally {
+      if (activeRuns.get(targetThreadId)?.abort === ctl) {
+        activeRuns.delete(targetThreadId)
+        notifyRunListeners()
+      }
+    }
   }
 
   const insertNodesAtCursor = (nodes: any[]) => {
@@ -453,7 +599,7 @@ export function AssistantPanel({
           <button
             className="flex items-center gap-1 rounded-md border px-2 py-1 text-xs text-muted-foreground hover:bg-accent hover:text-foreground"
             onClick={newChat}
-            title="Start a new chat conversation"
+            title="Start a new chat conversation (in-progress chats keep running in the background)"
           >
             <Plus className="size-3.5" />
             New chat
@@ -471,7 +617,11 @@ export function AssistantPanel({
               if (!historyOpen) setSettings(false)
             }}
           >
-            <History className="size-3.5" />
+            {backgroundRunningRuns.length > 0 ? (
+              <Loader2 className="size-3.5 animate-spin text-blue-600" />
+            ) : (
+              <History className="size-3.5" />
+            )}
             <span>History</span>
             {threads.length > 0 && (
               <span className="rounded-full bg-muted px-1.5 text-[10px] font-semibold text-foreground">
@@ -479,7 +629,7 @@ export function AssistantPanel({
               </span>
             )}
           </button>
-          <button className="rounded-md p-1 text-muted-foreground hover:bg-accent" aria-label="Close assistant" onClick={() => { discardSession(); onClose() }}><X className="size-4" /></button>
+          <button className="rounded-md p-1 text-muted-foreground hover:bg-accent" aria-label="Close assistant" onClick={onClose}><X className="size-4" /></button>
         </div>
       </div>
 
@@ -487,6 +637,62 @@ export function AssistantPanel({
         <span className="min-w-0 flex-1 truncate">{mode === 'agent' ? (current ? `${current.label} · ${agentModel || 'CLI default'}` : 'No local agent selected') : `${info.label} · ${config.model || 'no model selected'}`}</span>
         <button className={cn('rounded-md p-1 hover:bg-accent', settings && 'bg-accent text-foreground')} aria-label="Provider settings" aria-expanded={settings} onClick={() => { setSettings(!settings); if (!settings) setHistoryOpen(false) }}><Settings2 className="size-4" /></button>
       </div>
+
+      {/* Live Background Running Threads Banner */}
+      {backgroundRunningRuns.length > 0 && (
+        <div className="border-b bg-blue-50/70 px-3 py-1.5 text-xs">
+          <div className="mb-1 flex items-center justify-between text-[11px] font-medium text-blue-800">
+            <span className="flex items-center gap-1.5">
+              <Loader2 className="size-3 animate-spin text-blue-600" />
+              Running in background ({backgroundRunningRuns.length})
+            </span>
+            <span className="text-[10px] text-blue-600/80">Click to view</span>
+          </div>
+          <div className="flex flex-col gap-1">
+            {backgroundRunningRuns.map((run) => {
+              const target =
+                threadMemories.get(run.threadId) ??
+                threads.find((t) => t.id === run.threadId)
+              return (
+                <div
+                  key={run.threadId}
+                  onClick={() => {
+                    if (target) selectThread(target)
+                  }}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if ((e.key === 'Enter' || e.key === ' ') && target) {
+                      selectThread(target)
+                    }
+                  }}
+                  className="flex cursor-pointer items-center justify-between gap-2 rounded border border-blue-200 bg-white px-2 py-1 text-[11px] hover:border-blue-400"
+                >
+                  <span className="truncate font-medium text-foreground">
+                    {run.title}
+                  </span>
+                  <div className="flex shrink-0 items-center gap-1.5">
+                    <span className="font-mono text-[10px] text-muted-foreground tabular-nums">
+                      {seconds(now - run.startedAt)}
+                    </span>
+                    <button
+                      type="button"
+                      title="Stop this background chat"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        stop(run.threadId)
+                      }}
+                      className="rounded p-0.5 text-muted-foreground hover:bg-red-50 hover:text-red-600"
+                    >
+                      <Square className="size-3" />
+                    </button>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Per-document Chat History Drawer */}
       {historyOpen && (
@@ -511,6 +717,7 @@ export function AssistantPanel({
             <div className="space-y-1">
               {threads.map((t) => {
                 const isCurrent = t.id === activeThread.id
+                const isThreadRunning = activeRuns.has(t.id)
                 return (
                   <div
                     key={t.id}
@@ -525,9 +732,20 @@ export function AssistantPanel({
                         : 'bg-background hover:bg-accent/70'
                     )}
                   >
-                    <MessageSquare className="size-3.5 shrink-0 text-muted-foreground" />
+                    {isThreadRunning ? (
+                      <Loader2 className="size-3.5 shrink-0 animate-spin text-blue-600" />
+                    ) : (
+                      <MessageSquare className="size-3.5 shrink-0 text-muted-foreground" />
+                    )}
                     <div className="min-w-0 flex-1">
-                      <div className="truncate">{t.title}</div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="truncate">{t.title}</span>
+                        {isThreadRunning && (
+                          <span className="shrink-0 rounded bg-blue-100 px-1.5 py-0.2 text-[10px] font-semibold text-blue-700">
+                            Running…
+                          </span>
+                        )}
+                      </div>
                       <div className="text-[10px] text-muted-foreground">
                         {t.messages.length} {t.messages.length === 1 ? 'message' : 'messages'} · {formatShortTime(t.updatedAt)}
                       </div>
@@ -609,7 +827,7 @@ export function AssistantPanel({
           <div className="space-y-1 text-xs text-muted-foreground">
             {agentNote && <p className="text-amber-600">{agentNote}</p>}
             <p>Uses the account already signed in to the agent; no key needed.</p>
-            <p>The agent runs in read-only mode and remembers this chat until you start a new chat or close the assistant. Each message includes the current document and datasets.</p>
+            <p>The agent runs in read-only mode and supports parallel conversations when you click New chat.</p>
             {agents && !agents.some((a) => a.available) && <p className="text-amber-600">No agents found. Install Claude Code, Codex or Antigravity, then click Rescan.</p>}
           </div>
         </div>
@@ -665,7 +883,7 @@ export function AssistantPanel({
           </div>
         )}
         {messages.map((m, i) => {
-          const live = busy && i === messages.length - 1
+          const live = isCurrentThreadBusy && i === messages.length - 1
           if (m.role === 'user') {
             return (
               <div key={i} className="chat-in ml-8 space-y-1.5 rounded-2xl rounded-br-sm bg-foreground/[.06] px-3 py-2">
@@ -825,10 +1043,10 @@ export function AssistantPanel({
             />
             <span className="truncate text-[11px]">Ctrl+V image or attach file</span>
           </div>
-          {busy ? (
+          {isCurrentThreadBusy ? (
             <button
               className="flex items-center gap-1 rounded-md border px-3 py-1.5 text-foreground hover:bg-accent"
-              onClick={stop}
+              onClick={() => stop(activeThread.id)}
             >
               <Square className="size-3.5" />
               Stop
