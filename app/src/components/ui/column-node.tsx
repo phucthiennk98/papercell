@@ -97,7 +97,7 @@ export const ColumnElement = withHOC(
     };
 
     return (
-      <div ref={wrapRef} className="group/column relative" style={{ width: width ?? '100%' }}>
+      <div ref={wrapRef} className="group/column relative max-sm:!w-full" style={{ width: width ?? '100%' }}>
         {!readOnly && !isLast && (
           <div
             className="col-resize-handle"
@@ -125,7 +125,7 @@ export const ColumnElement = withHOC(
         <PlateElement
           {...props}
           ref={useComposedRef(props.ref, previewRef, nodeRef)}
-          className="h-full px-2 pt-2 group-first/column:pl-0 group-last/column:pr-0"
+          className="h-full px-2 pt-2 group-first/column:pl-0 group-last/column:pr-0 max-sm:px-0"
         >
           <div
             className={cn(
@@ -189,7 +189,7 @@ export function ColumnGroupElement(props: PlateElementProps) {
   return (
     <PlateElement className="mb-2" {...props}>
       <ColumnFloatingToolbar>
-        <div className="flex size-full rounded">{props.children}</div>
+        <div className="flex size-full flex-col rounded sm:flex-row">{props.children}</div>
       </ColumnFloatingToolbar>
     </PlateElement>
   );

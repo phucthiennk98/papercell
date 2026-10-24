@@ -1,6 +1,6 @@
-// Lưu nhiều bài viết trong trình duyệt: một danh mục + mỗi bài một khóa riêng.
+// Store multiple documents in browser localStorage: one index key + one key per document.
 import type { PapercellDoc } from '@/editor/types'
-import { makeSample } from '@/sample'
+import { LEGACY_SAMPLE_TITLE, makeSample } from '@/sample'
 import { GALLERY_TITLE, makeGallery } from '@/gallery'
 import { upgradeDoc } from '@/editor/upgrade'
 
@@ -24,15 +24,15 @@ export function loadDoc(id: string): PapercellDoc | null {
   return d?.version === 3 && Array.isArray(d.content) ? upgradeDoc(d) : null
 }
 
-export function saveDoc(id: string, doc: PapercellDoc) {
+export function saveDoc(id: string, doc: PapercellDoc, updated = new Date().toISOString()) {
   write(KEY(id), doc)
   const idx = (read<DocEntry[]>(INDEX) ?? []).filter((e) => e.id !== id)
-  idx.push({ id, title: doc.meta.title || 'Untitled', updated: new Date().toISOString() })
+  idx.push({ id, title: doc.meta.title || 'Untitled', updated })
   write(INDEX, idx)
 }
 
 export function deleteDoc(id: string) {
-  try { localStorage.removeItem(KEY(id)) } catch { /* bỏ qua */ }
+  try { localStorage.removeItem(KEY(id)) } catch { /* ignore */ }
   write(INDEX, (read<DocEntry[]>(INDEX) ?? []).filter((e) => e.id !== id))
 }
 
@@ -43,9 +43,16 @@ export const emptyDoc = (): PapercellDoc => ({
   content: [{ type: 'p', children: [{ text: '' }] }],
 })
 
-/** Lần đầu mở: tạo sẵn bài mẫu. Trả về id bài mở gần nhất. */
+/** On first open, seed the sample document and chart gallery (and upgrade legacy Vietnamese sample/gallery entries to English). */
 export function ensureFirstDoc(): string {
-  // Bộ thử biểu đồ được thêm một lần cho mọi người dùng (kể cả người đã có bài).
+  // Migrate any existing legacy Vietnamese sample or gallery documents in localStorage to English
+  for (const entry of listDocs()) {
+    if (entry.title === LEGACY_SAMPLE_TITLE) {
+      saveDoc(entry.id, makeSample(), entry.updated)
+    } else if (entry.title === 'Bộ thử biểu đồ') {
+      saveDoc(entry.id, makeGallery(), entry.updated)
+    }
+  }
   if (!read<boolean>(GALLERY)) { saveDoc(newDocId(), makeGallery()); write(GALLERY, true) }
   const docs = listDocs()
   if (docs.length > 1 || docs.some((d) => d.title !== GALLERY_TITLE && d.title !== 'Bộ thử biểu đồ')) return docs[0].id

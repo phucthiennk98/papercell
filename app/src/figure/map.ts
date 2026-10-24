@@ -13,8 +13,81 @@ export const BASEMAPS = {
   streets: { label: 'Streets', url: 'https://tiles.openfreemap.org/styles/liberty' },
   bright: { label: 'Bright', url: 'https://tiles.openfreemap.org/styles/bright' },
   dark: { label: 'Dark', url: 'https://tiles.openfreemap.org/styles/dark' },
+  offline: { label: 'Offline (bounded)', url: '' },
 } as const
 export type Basemap = keyof typeof BASEMAPS
+
+/** Build a self-contained offline MapLibre style strictly bounded to the displayed data region. */
+function buildBoundedOfflineStyle(bounds: [[number, number], [number, number]], dark = false): maplibregl.StyleSpecification {
+  const [[x0, y0], [x1, y1]] = bounds
+  const dx = Math.max(x1 - x0, 0.02), dy = Math.max(y1 - y0, 0.02)
+  const padX = dx * 0.15, padY = dy * 0.15
+  const minLon = Math.max(-180, x0 - padX), maxLon = Math.min(180, x1 + padX)
+  const minLat = Math.max(-85, y0 - padY), maxLat = Math.min(85, y1 + padY)
+  const span = Math.max(maxLon - minLon, maxLat - minLat)
+  const step = span > 60 ? 10 : span > 20 ? 5 : span > 8 ? 2 : span > 3 ? 1 : span > 1 ? 0.5 : span > 0.3 ? 0.1 : 0.05
+
+  const features: GeoJSON.Feature[] = [
+    {
+      type: 'Feature',
+      properties: { kind: 'frame' },
+      geometry: {
+        type: 'Polygon',
+        coordinates: [[[minLon, minLat], [maxLon, minLat], [maxLon, maxLat], [minLon, maxLat], [minLon, minLat]]],
+      },
+    },
+  ]
+  const startLon = Math.ceil(minLon / step) * step
+  for (let lon = startLon; lon <= maxLon + 1e-9; lon += step) {
+    features.push({
+      type: 'Feature',
+      properties: { kind: 'grid' },
+      geometry: { type: 'LineString', coordinates: [[+lon.toFixed(5), minLat], [+lon.toFixed(5), maxLat]] },
+    })
+  }
+  const startLat = Math.ceil(minLat / step) * step
+  for (let lat = startLat; lat <= maxLat + 1e-9; lat += step) {
+    features.push({
+      type: 'Feature',
+      properties: { kind: 'grid' },
+      geometry: { type: 'LineString', coordinates: [[minLon, +lat.toFixed(5)], [maxLon, +lat.toFixed(5)]] },
+    })
+  }
+
+  return {
+    version: 8,
+    sources: {
+      'pc-offline-grid': {
+        type: 'geojson',
+        data: { type: 'FeatureCollection', features },
+      },
+    },
+    layers: [
+      { id: 'pc-bg', type: 'background', paint: { 'background-color': dark ? '#0f172a' : '#f1f5f9' } },
+      {
+        id: 'pc-frame-fill',
+        type: 'fill',
+        source: 'pc-offline-grid',
+        filter: ['==', ['get', 'kind'], 'frame'],
+        paint: { 'fill-color': dark ? '#1e293b' : '#ffffff', 'fill-opacity': 0.92 },
+      },
+      {
+        id: 'pc-grid-line',
+        type: 'line',
+        source: 'pc-offline-grid',
+        filter: ['==', ['get', 'kind'], 'grid'],
+        paint: { 'line-color': dark ? '#334155' : '#e2e8f0', 'line-width': 1, 'line-dasharray': [2, 2] },
+      },
+      {
+        id: 'pc-frame-border',
+        type: 'line',
+        source: 'pc-offline-grid',
+        filter: ['==', ['get', 'kind'], 'frame'],
+        paint: { 'line-color': dark ? '#475569' : '#cbd5e1', 'line-width': 1.2 },
+      },
+    ],
+  }
+}
 
 export type MapOptions = {
   data: unknown
@@ -95,11 +168,16 @@ export function makeMap(o: MapOptions): HTMLElement {
   let [x0, y0, x1, y1] = [Infinity, Infinity, -Infinity, -Infinity]
   const walk = (c: any): void => { if (typeof c[0] === 'number') { x0 = Math.min(x0, c[0]); x1 = Math.max(x1, c[0]); y0 = Math.min(y0, c[1]); y1 = Math.max(y1, c[1]) } else c.forEach(walk) }
   fs.forEach((f) => { if (f.geometry && 'coordinates' in f.geometry) walk(f.geometry.coordinates) })
-  const bounds = [[x0, y0], [x1, y1]]
+  const bounds: [[number, number], [number, number]] = [[x0, y0], [x1, y1]]
+  const chosenBasemap = o.basemap ?? 'light'
+  const startOffline = chosenBasemap === 'offline' || (typeof navigator !== 'undefined' && navigator.onLine === false)
+  const initialStyle = startOffline
+    ? buildBoundedOfflineStyle(bounds, chosenBasemap === 'dark')
+    : BASEMAPS[chosenBasemap].url
 
   const map = new maplibregl.Map({
     container: box,
-    style: BASEMAPS[o.basemap ?? 'light'].url,
+    style: initialStyle,
     bounds: [bounds[0][0], bounds[0][1], bounds[1][0], bounds[1][1]],
     fitBoundsOptions: { padding: 30, maxZoom: 14 },
     attributionControl: { compact: true },
@@ -107,7 +185,10 @@ export function makeMap(o: MapOptions): HTMLElement {
   })
   map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right')
 
-  map.on('load', () => {
+  let dataAttached = false
+  const attachDataLayers = () => {
+    if (dataAttached || map.getSource('pc')) return
+    dataAttached = true
     map.addSource('pc', { type: 'geojson', data: fc })
     const kind = o.kind ?? (fs[0].geometry.type === 'Point' ? 'points' : 'regions')
     if (kind === 'heat') {
@@ -141,7 +222,9 @@ export function makeMap(o: MapOptions): HTMLElement {
       map.on('mouseenter', layer, () => { map.getCanvas().style.cursor = 'pointer' })
       map.on('mouseleave', layer, () => { map.getCanvas().style.cursor = '' })
     }
-  })
+  }
+
+  map.on('load', attachDataLayers)
 
   if (legend) {
     const lg = document.createElement('div')
@@ -149,14 +232,30 @@ export function makeMap(o: MapOptions): HTMLElement {
     lg.innerHTML = legend
     box.append(lg)
   }
-  // Báo rõ thay vì để ô đen: nền không tải được (mất mạng) hoặc trình duyệt thu hồi WebGL
+  // Báo rõ thay vì để ô đen: nền không tải được (mất mạng) thì tự chuyển sang khung tọa độ giới hạn theo dữ liệu
   const note = (text: string) => {
     let n = box.querySelector<HTMLDivElement>('.pcm-note')
     if (!n) { n = document.createElement('div'); n.className = 'pcm-note'; box.append(n) }
     n.textContent = text
   }
-  const slow = setTimeout(() => { if (!map.isStyleLoaded()) note('Could not load the basemap from OpenFreeMap. Check your connection and reload the page.') }, 12000)
-  map.on('load', () => { clearTimeout(slow); box.querySelector('.pcm-note')?.remove() })
+  let fellBackToOffline = startOffline
+  const switchToBoundedOffline = () => {
+    if (fellBackToOffline || dataAttached) return
+    fellBackToOffline = true
+    dataAttached = false
+    map.setStyle(buildBoundedOfflineStyle(bounds, chosenBasemap === 'dark'))
+    map.once('styledata', () => {
+      attachDataLayers()
+      note('Offline mode: showing bounded coordinate grid for the data region.')
+    })
+  }
+  const slow = setTimeout(() => {
+    if (!map.isStyleLoaded() && !dataAttached) switchToBoundedOffline()
+  }, 3500)
+  map.on('error', () => {
+    if (!map.isStyleLoaded() && !dataAttached) switchToBoundedOffline()
+  })
+  map.on('load', () => { clearTimeout(slow); if (!fellBackToOffline) box.querySelector('.pcm-note')?.remove() })
   map.on('webglcontextlost', () => note('The browser paused this map because too many maps are open. Reload the page to see it.'))
   const ro = new ResizeObserver(() => map.resize())
   ro.observe(box)

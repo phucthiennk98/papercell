@@ -138,7 +138,7 @@ export function EquationToolbarButton(props: DropdownMenuProps) {
       </DropdownMenuTrigger>
 
       <DropdownMenuContent
-        className="max-h-[min(80vh,640px)] w-[400px] overflow-y-auto"
+        className="max-h-[min(80vh,640px)] w-[min(400px,calc(100vw-16px))] overflow-y-auto"
         align="start"
         onCloseAutoFocus={(e) => e.preventDefault()}
       >

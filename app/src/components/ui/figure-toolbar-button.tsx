@@ -95,7 +95,7 @@ export function FigureToolbarButton(props: DropdownMenuProps) {
       </DropdownMenuTrigger>
 
       <DropdownMenuContent
-        className="max-h-[min(80vh,640px)] w-[390px] overflow-y-auto"
+        className="max-h-[min(80vh,640px)] w-[min(390px,calc(100vw-16px))] overflow-y-auto"
         align="start"
         onCloseAutoFocus={(e) => e.preventDefault()}
       >

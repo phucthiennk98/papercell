@@ -91,7 +91,7 @@ Contents
 - **Figure menu, `/` menu, and HTML export**:
   - `app/src/components/ui/figure-toolbar-button.tsx`: `FigureToolbarButton` (on `FixedToolbarButtons` in `app/src/components/ui/fixed-toolbar-buttons.tsx`) displays a 4-column grid of chart types from data (`CHART_TYPES` → `insertChart`) and a list of code templates (`FIGURE_TEMPLATES` → `insertFigure`, with a separate `controls-*` group for reader controls).
   - `app/src/components/ui/slash-node.tsx`: Adds 2 groups, `Charts from data` (`chartGroup`) and `Figure templates (code)` (`figureGroup`), immediately below AI in `SlashInputElement`, plus `VN()` to normalize Vietnamese by removing diacritics for quick searching in both Vietnamese and English.
-  - `app/src/components/ui/export-toolbar-button.tsx`: Replaces Plate's default static HTML export with `exportDocHtml({ meta, files, content: editor.children })` (gets `meta` from `MetaContext` and `files` from `DataContext`) to generate a self-running HTML file complete with charts and sliders.
+  - `app/src/components/ui/export-toolbar-button.tsx`: `ExportToolbarButton` (`variant="toolbar" | "header"`, shared between the top header and the fixed editor toolbar) exports self-running HTML via `exportDocHtml`, PDF preview (`html2canvas-pro` at 2x + `pdf-lib` `embedJpg` with native PDF `/Outlines` sidebar bookmarks), PNG image snapshot, Markdown (with metadata and `## Contents`), and Word (`.docx`).
 
 ### 5. Build, viewer bundling, and running the app
 
@@ -106,7 +106,7 @@ Contents
   - `vite.viewer.config.ts` builds `viewer.html` into `dist-viewer/` as a single chunk (`inlineDynamicImports: true`), while aliasing `python/kernel` to `src/viewer/kernel-stub.ts` and the MapLibre worker to `src/viewer/maplibre-worker.ts`.
   - `inline-viewer.mjs` reads JS and CSS from `dist-viewer/`, filters out duplicate KaTeX `woff`/`truetype` fonts (keeps only `woff2`), compresses with `gzipSync` at level 9, then base64-encodes and embeds them in `<script id="pc-css">` and `<script id="pc-js">`. When the file opens, the bootstrap script uses the browser's `DecompressionStream('gzip')` to decompress and load the reading page (reducing file size by roughly a factor of 3); the build script finally writes `dist/viewer.html` (preserving the `>__PC_DOC__<` placeholder for `exportDocHtml` to fill with article JSON).
 - **Docker (`Dockerfile`, `docker-compose.yml`) and local execution (`run-local.bat`, `run-local.sh`)**:
-  - **Docker**: Multi-stage build on `node:22-alpine`, runs `npm run build`, copies `dist/` and `server-dist/` into the runtime image with `NODE_ENV=production PORT=8787`. `docker-compose.yml` maps port `${PORT:-8765}:8787` (open at `http://localhost:8765`).
+  - **Docker**: Multi-stage build on `node:22-alpine` (with `python3`, `py3-pandas`, and `py3-numpy` installed in the runtime stage), runs `npm run build`, copies `dist/` and `server-dist/` into the runtime image with `NODE_ENV=production PORT=8787`. `docker-compose.yml` maps port `${PORT:-8765}:8787` (open at `http://localhost:8765`).
   - **Local execution**: `run-local.bat` (Windows) and `run-local.sh` (macOS/Linux) check Node.js, automatically run `npm install` if `node_modules` is missing, run `npm run build`, then set `PORT=8780 NODE_ENV=production` and run `node server-dist/index.mjs` (open at `http://localhost:8780`).
 
 ### 6. Extension points (files to edit)
@@ -122,7 +122,7 @@ Contents
 
 ### 7. Known gotchas
 
-- **Docker cannot see local agents or Python**: The container is isolated (`existsSync('/.dockerenv')`) and cannot call `claude`, `codex`, `agy`, or Python installed on the host. To use local agents or precompute scenarios with local Python, you must run via `run-local.bat` / `.sh` (port `8780`) or the dev environment.
+- **Docker cannot see host CLI agents**: The container is isolated (`existsSync('/.dockerenv')`) and cannot call `claude`, `codex`, or `agy` installed on the host. However, the Docker image bundles `python3`, `pandas`, and `numpy`, so `/api/python` and `/api/python/grid` work in both local and Docker deployments (`canUseServerPython` in `app/server/index.ts`).
 - **`isLocal` restriction (`127.0.0.1`)**: Routes `/api/agents*`, `/api/python*`, and local-agent branches of `/api/ai/command` and `/api/ai/copilot` reject access from other machines over the LAN, unless the server environment variable `PAPERCELL_ALLOW_REMOTE_AGENTS=1` is enabled.
 - **Agents run via `.cmd`/`.bat` on Windows**:
   - If an agent sets `promptInArgs: true` but only a `.cmd`/`.bat` version is found (`bin.shell === true`), `agentChat` blocks it with a 500 error because it will not pass the user's prompt through `cmd.exe` (avoids special-character errors and shell injection). On Windows, `resolveBin` already prefers `.exe` to avoid this gotcha.
@@ -254,7 +254,7 @@ Alongside single-query mode (`/api/agents/chat`, `agentChat` in `local.ts`), ses
 - `app/src/python/worker.ts` loads Pyodide from jsDelivr according to `PYODIDE_VERSION`, loads pandas and GLUE; `loadPackagesFromImports` handles additional imports; a chain serializes requests.
 - GLUE `__pc_load` reads CSV into DataFrames, JSON into objects; `__pc_run_one` puts `data` and params into globals, captures stdout, runs code, and catches errors with `<python>` line information.
 - Data is copied for each combination; `ket_qua` results pass through `__pc_jsonable` to convert Series/DataFrame/numpy/containers/NaN; matplotlib uses the agg backend and closes figures after each run.
-- `app/src/figure/verify.ts::verifyFigure` runs JS at width 600 without passing a scenario cache, retrieves `expose`, and calls `kernel.verify` with the same params/files; Verify currently uses Pyodide, not the local server.
+- `app/src/figure/verify.ts::verifyFigure` runs JS at width 600 without passing a scenario cache, retrieves `expose`, and first calls `POST /api/python/grid` (local or Docker server Python) with a single-item combo, falling back to `kernel.verify` (Pyodide) only when server Python is unavailable.
 - Comparison flattens objects with sorted keys; supports Map/Date on the JS side, numbers within tolerance `1e-9 + 1e-6 * max(abs(a), abs(b))`; verifies only the current parameter set.
 
 ### 7. HTML export and viewer
@@ -272,7 +272,7 @@ Alongside single-query mode (`/api/agents/chat`, `agentChat` in `local.ts`), ses
 - `app/src/viewer/maplibre-worker.ts` imports the raw MapLibre worker, removes the final export, creates a Blob classic worker, and replaces `window.Worker` for viewer module-worker requests.
 - Reason given in the code: Chrome blocks module workers from blobs when opened via file://, and MapLibre also wraps imports in blobs because the origin is null; an embedded classic worker without imports avoids this flow.
 - The shim assumes only MapLibre uses module workers in the viewer; adding other module workers requires revisiting the shim. The editor version of `app/src/figure/map.ts` still uses the normal `?worker&url` import.
-- An HTML file containing runtime/data/cache does not mean every figure works offline: MapLibre still downloads OpenFreeMap styles/tiles; figure code that fetches external data also needs a connection.
+- Offline viewing of exported HTML files: Google Fonts links were removed in favor of bundled local `@fontsource-variable/geist` and KaTeX fonts, and `app/src/figure/map.ts` provides a bounded offline vector grid basemap (`offline` / `buildBoundedOfflineStyle`, restricted strictly to the displayed data's coordinate box + 15% padding) with automatic fallback when `navigator.onLine === false` or when OpenFreeMap tiles fail/time out.
 - `app/scripts/server.mjs` is only an esbuild server-bundling script, omitting CSS and restarting with --watch; it is not part of the viewer embedding pipeline and must not be run in this task.
 
 ### 8. Numbering, columns, and padding

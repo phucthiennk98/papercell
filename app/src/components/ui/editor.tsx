@@ -11,7 +11,7 @@ import { PlateContainer, PlateContent, PlateView } from 'platejs/react';
 import { cn } from '@/lib/utils';
 
 const editorContainerVariants = cva(
-  'relative w-full cursor-text select-text overflow-y-auto caret-primary selection:bg-brand/25 focus-visible:outline-none [&_.slate-selection-area]:z-50 [&_.slate-selection-area]:border [&_.slate-selection-area]:border-brand/25 [&_.slate-selection-area]:bg-brand/15',
+  'relative w-full cursor-text select-text overflow-y-auto overflow-x-hidden caret-primary selection:bg-brand/25 focus-visible:outline-none [&_.slate-selection-area]:z-50 [&_.slate-selection-area]:border [&_.slate-selection-area]:border-brand/25 [&_.slate-selection-area]:bg-brand/15',
   {
     defaultVariants: {
       variant: 'default',
@@ -55,7 +55,7 @@ export function EditorContainer({
 const editorVariants = cva(
   cn(
     'group/editor',
-    'relative w-full cursor-text select-text overflow-x-hidden whitespace-break-spaces break-words',
+    'relative w-full cursor-text select-text whitespace-break-spaces break-words',
     'rounded-md ring-offset-background focus-visible:outline-none',
     '**:data-slate-placeholder:!top-1/2 **:data-slate-placeholder:-translate-y-1/2 placeholder:text-muted-foreground/80 **:data-slate-placeholder:text-muted-foreground/80 **:data-slate-placeholder:opacity-100!',
     '[&_strong]:font-bold'
@@ -77,9 +77,9 @@ const editorVariants = cva(
           'max-h-[min(70vh,320px)] w-full overflow-y-auto px-3 py-2 text-base md:text-sm',
         comment: cn('rounded-none border-none bg-transparent text-sm'),
         default:
-          'size-full px-16 pt-4 pb-72 text-base sm:px-[max(64px,calc(50%-350px))]',
-        demo: 'size-full px-16 pt-4 pb-72 text-base sm:px-[max(64px,calc(50%-350px))]',
-        fullWidth: 'size-full px-16 pt-4 pb-72 text-base sm:px-24',
+          'min-h-full w-full px-4 pt-4 pb-72 text-base sm:px-[max(64px,calc(50%-350px))]',
+        demo: 'min-h-full w-full px-4 pt-4 pb-72 text-base sm:px-[max(64px,calc(50%-350px))]',
+        fullWidth: 'min-h-full w-full px-4 pt-4 pb-72 text-base sm:px-24',
         none: '',
         select: 'px-3 py-2 text-base data-readonly:w-fit',
       },

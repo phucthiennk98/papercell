@@ -89,13 +89,14 @@ app.post('/api/agents/chat', async (c) => {
   if (!messages.some((m: any) => m.role === 'user' && m.content.trim())) return c.json({ error: 'No question was sent.' }, 400)
   return agentChat(b.agent, messages, typeof b.doc === 'string' ? b.doc.slice(0, 500_000) : '', c.req.raw.signal, ERROR_MARK, PROGRESS_MARK, { model: b.model, effort: b.effort })
 })
-// Python trên máy để tính sẵn kịch bản (cũng chỉ cho phép từ chính máy này)
+// Python trên máy hoặc trong Docker để tính sẵn kịch bản và đối chiếu kết quả
+const canUseServerPython = (c: Parameters<typeof getConnInfo>[0]) => isLocal(c) || existsSync('/.dockerenv')
 app.get('/api/python', async (c) => {
-  if (!isLocal(c)) return c.json({ available: false, error: 'Local Python only works when Papercell is opened on the computer running the server.' })
+  if (!canUseServerPython(c)) return c.json({ available: false, error: 'Local Python only works when Papercell is opened on the computer running the server.' })
   return c.json(await detectPython())
 })
 app.post('/api/python/grid', async (c) => {
-  if (!isLocal(c)) return c.json({ error: 'Local Python can only be used from the computer running the server.' }, 403)
+  if (!canUseServerPython(c)) return c.json({ error: 'Local Python can only be used from the computer running the server.' }, 403)
   const b = await c.req.json()
   if (typeof b.code !== 'string' || !Array.isArray(b.combos) || !Array.isArray(b.files)) return c.json({ error: 'Missing code, data or the list of combinations.' }, 400)
   return runGrid(b, c.req.raw.signal)

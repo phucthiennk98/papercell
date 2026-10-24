@@ -40,7 +40,7 @@ export function EquationElementStatic(
     <SlateElement className="my-1" {...props}>
       <div
         className={cn(
-          'group flex select-none items-center justify-center rounded-sm hover:bg-primary/10 data-[selected=true]:bg-primary/10',
+          'group flex max-w-full select-none items-center justify-center overflow-x-auto rounded-sm hover:bg-primary/10 data-[selected=true]:bg-primary/10',
           texExpression.length === 0 ? 'bg-muted p-3 pr-9' : 'px-2 py-1'
         )}
       >

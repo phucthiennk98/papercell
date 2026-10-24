@@ -16,7 +16,7 @@
 .fig-view { width: 100%; min-width: 0; }
 .fig-out { overflow-x: auto; }
 .fig-out svg { max-width: 100%; height: auto; font-family: var(--font-ui); }
-.fig-out figure { margin: 0; }
+.fig-out figure { margin: 0; max-width: 100%; }
 .fig-error { margin: 6px 0; padding: 6px 8px; border-radius: 5px; background: #fdf1f0; color: var(--err); font: 12px/1.5 var(--font-mono); white-space: pre-wrap; }
 .fig-params { display: flex; flex-direction: column; gap: 2px; padding: 4px 12px 6px; border-top: 1px solid var(--line-2); }
 .fig-param { display: grid; grid-template-columns: minmax(70px, auto) minmax(80px, 1fr) auto; align-items: center; gap: 10px; font-size: 12.5px; color: var(--ink-2); }
@@ -260,3 +260,43 @@ body.dragging .text-cell-tools { display: none; }
 .pc-radio button.on i { border-color: #1d5fd1; }
 .pc-radio button.on i::after { content: ''; position: absolute; inset: 2.5px; border-radius: 50%; background: #1d5fd1; }
 .fig-param.is-radio { grid-template-columns: minmax(70px, auto) 1fr auto; }
+
+/* ---- Mobile & Touch Screen Responsiveness ---- */
+.dlg-formula { width: min(980px, 100%); height: min(760px, 100%); }
+@media (max-width: 800px) {
+  .dlg-backdrop { padding: 0; }
+  .dlg, .dlg-formula { border-radius: 0; width: 100%; height: 100dvh; max-height: 100dvh; }
+  .dlg-head { flex-wrap: wrap; gap: 6px 10px; padding: 8px 12px; }
+  .dlg-title { min-width: 140px; }
+  .dlg-tabs { order: 3; width: 100%; flex-wrap: nowrap; overflow-x: auto; padding-bottom: 2px; scrollbar-width: none; }
+  .dlg-tabs::-webkit-scrollbar { display: none; }
+  .dlg-tabs button { flex: none; white-space: nowrap; }
+  .dlg-figure, .dlg-code-edit { grid-template-columns: 1fr; height: auto; }
+  .dlg-figure > .fig-view { padding: 12px; }
+  .dlg-figure aside { border-left: 0; border-top: 1px solid var(--line); }
+  .dlg-params, .dlg-verify, .dlg-settings, .dlg-scen, .data-panel { padding: 12px 14px; overflow-x: auto; }
+  .code-host { min-height: 240px; }
+}
+
+@media (max-width: 640px) {
+  .fig-param { grid-template-columns: minmax(64px, 38%) minmax(70px, 1fr) auto; gap: 6px; font-size: 12px; }
+  .fig-param output { min-width: 44px; font-size: 11.5px; }
+  .fig-caption { padding: 6px 10px 8px; font-size: 12.5px; }
+  .col-resize-handle, .insert-gap-plus { display: none; }
+  .fig.is-edit .fig-tools {
+    position: static;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    border-width: 0 0 1px 0;
+    border-radius: 0;
+    box-shadow: none;
+    background: var(--chrome);
+    padding: 4px 8px;
+    opacity: 1;
+    pointer-events: auto;
+  }
+  .fig.is-read .fig-tools {
+    opacity: 0.9;
+    pointer-events: auto;
+  }
+}

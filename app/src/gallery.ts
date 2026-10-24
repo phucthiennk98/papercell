@@ -109,7 +109,7 @@ const codeFig = (caption: string, js: string, params: FigureNode['params'] = [],
 const tplFig = (id: string): FigureNode => ({ ...figureFromTemplate(FIGURE_TEMPLATES.find((t) => t.id === id)!), id: `g${++n}` })
 
 const p = (text: string) => ({ type: 'p', children: [{ text }] })
-const h = (level: 2 | 3, text: string) => ({ type: 'h' + level, children: [{ text }] })
+const h = (level: 2 | 3, text: string) => ({ type: 'h' + level, id: `g${++n}`, children: [{ text }] })
 const cols = (...columns: FigureNode[]) => ({ type: 'column_group', children: columns.map((f) => ({ type: 'column', width: `${100 / columns.length}%`, children: [f] })) })
 
 const STACK_JS = `// 100% stacked bars: travel mode share by age group (hand-written Observable Plot)

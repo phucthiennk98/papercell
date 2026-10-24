@@ -218,3 +218,10 @@
   background-color: rgba(37, 99, 235, 0.09);
   box-shadow: 0 0 0 1px dashed rgba(37, 99, 235, 0.55);
 }
+
+.katex-display {
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 2px 0;
+}

@@ -45,8 +45,8 @@ function Viewer({ doc }: { doc: PapercellDoc }) {
             </nav>
           )}
           <main className="pv-main">
-            <header className="px-16 pt-10 sm:px-[max(64px,calc(50%-350px))]">
-              <h1 className="text-4xl font-bold tracking-tight">{title}</h1>
+            <header className="px-4 pt-6 sm:px-[max(64px,calc(50%-350px))] sm:pt-10">
+              <h1 className="text-2xl font-bold tracking-tight sm:text-4xl">{title}</h1>
               {(authors || date) && <p className="mt-2 text-sm text-muted-foreground">{authors}{authors && date ? ' · ' : ''}{date}</p>}
             </header>
             <EditorStatic editor={editor} variant="demo" className="pb-24" />

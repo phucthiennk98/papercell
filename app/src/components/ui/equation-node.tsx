@@ -186,7 +186,7 @@ export function EquationElement(props: PlateElementProps<TEquationElement>) {
     <PlateElement className="my-1" {...props}>
       <div
         className={cn(
-          'group relative flex cursor-pointer select-none items-center justify-center rounded-md border border-transparent transition-colors hover:border-border hover:bg-muted/60 data-[selected=true]:border-blue-300 data-[selected=true]:bg-primary/5',
+          'group relative flex max-w-full cursor-pointer select-none items-center justify-center overflow-x-auto rounded-md border border-transparent transition-colors hover:border-border hover:bg-muted/60 data-[selected=true]:border-blue-300 data-[selected=true]:bg-primary/5',
           texExpression.length === 0 ? 'bg-muted p-3 pr-9' : 'px-3 py-2'
         )}
         data-selected={selected || open}
@@ -648,8 +648,7 @@ const EquationDialog = ({
     >
       <div
         ref={dlgRef}
-        className="dlg"
-        style={{ width: 'min(980px, 100%)', height: 'min(760px, 100%)' }}
+        className="dlg dlg-formula"
         role="dialog"
         aria-modal="true"
         aria-label="Formula Editor"
@@ -722,9 +721,9 @@ const EquationDialog = ({
         </header>
 
         {/* Dialog Body */}
-        <div className="dlg-body flex flex-col gap-4 bg-slate-50/50 p-5">
+        <div className="dlg-body flex flex-col gap-3 bg-slate-50/50 p-3 sm:gap-4 sm:p-5">
           {/* 1. Always-visible Interactive Formula Stage (NEVER covered by popovers!) */}
-          <div className="rounded-xl border bg-white p-4 shadow-2xs">
+          <div className="rounded-xl border bg-white p-3 shadow-2xs sm:p-4">
             <div className="mb-2 flex items-center justify-between text-xs text-muted-foreground">
               <span className="font-medium">
                 Interactive Formula Preview — click any number, symbol, or variable to edit it directly:

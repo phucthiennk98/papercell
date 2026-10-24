@@ -48,7 +48,7 @@ export function controlsSection(): any[] {
   const fig = (id: string) => ({ ...figureFromTemplate(FIGURE_TEMPLATES.find((t) => t.id === id)!), id: CONTROLS_ID_PREFIX + id })
   const cols = (...f: FigureNode[]) => ({ type: 'column_group', children: f.map((x) => ({ type: 'column', width: `${100 / f.length}%`, children: [x] })) })
   return [
-    { type: 'h2', children: [{ text: '5. Reader controls (dropdown, radio buttons, switch)' }] },
+    { type: 'h2', id: 'g-ctl-h2', children: [{ text: '5. Reader controls (dropdown, radio buttons, switch)' }] },
     { type: 'p', children: [{ text: 'Templates from the Figure menu → "With reader controls". The controls under each figure are variables in its code; set them up in the Parameters tab (Control: Slider, Dropdown, Radio buttons or On/off).' }] },
     cols(fig('controls-bar'), fig('controls-line')),
     cols(fig('controls-scatter'), fig('controls-hist')),
